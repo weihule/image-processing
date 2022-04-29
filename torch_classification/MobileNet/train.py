@@ -62,6 +62,7 @@ def main():
     pre_dict = torch.load(pre_weights_path, map_location=device)
     # for k, v in pre_dict.items():
     #     print(k)
+    # 只载入特征提取层的权重
     pre_dict = {k:v for k,v in pre_dict.items() if "classifier" not in k}
     net.load_state_dict(pre_dict, strict=False)
 
