@@ -36,8 +36,8 @@ class BasicBlock(nn.Module):
 
 class Bottleneck(nn.Module):
     """
-    注意：原论文中，在虚线残差结构的主分支上，第一个1x1卷积层的步距是2，第二个3x3卷积层步距是1。
-    但在pytorch官方实现过程中是第一个1x1卷积层的步距是1，第二个3x3卷积层步距是2，
+    注意：原论文中, 在虚线残差结构的主分支上, 第一个1x1卷积层的步距是2, 第二个3x3卷积层步距是1。
+    但在pytorch官方实现过程中是第一个1x1卷积层的步距是1, 第二个3x3卷积层步距是2, 
     这么做的好处是能够在top1上提升大概0.5%的准确率。
     可参考Resnet v1.5 https://ngc.nvidia.com/catalog/model-scripts/nvidia:resnet_50_v1_5_for_pytorch
     """
@@ -126,13 +126,15 @@ class ResNet(nn.Module):
 
     def _make_layer(self, block, channel, block_num, stride=1):
         downsample = None
-        # 对于layer2, 3, 4来说，stride == 2时，即第一层需要进行下采样
-        # 对于layer1来说，所有层都不需要进行下采样，但是其第一层
-        # 需要进行卷积操作，stride == 1，但是self.in_channel == 64，
-        # 但是 channel * block.expansion == 256，这两者不相等
+        """ 
+       对于layer2, 3, 4来说, stride == 2时, 即第一层需要进行下采样
+        对于layer1来说, 所有层都不需要进行下采样, 但是其第一层
+        需要进行卷积操作, stride == 1, 但是self.in_channel == 64, 
+        但是 channel * block.expansion == 256, 这两者不相等
 
-        # 另外，这里的stride是为了layer的第一层设置的，传到了block里
-        # 其余层的stride都是固定的，已经在block中设置了
+        另外, 这里的stride是为了layer的第一层设置的, 传到了block里
+        其余层的stride都是固定的, 已经在block中设置了
+        """
         if stride != 1 or self.in_channel != channel * block.expansion:
             downsample = nn.Sequential(
                 nn.Conv2d(self.in_channel, channel * block.expansion,
@@ -151,7 +153,7 @@ class ResNet(nn.Module):
                             )
                     )
 
-        # 每个layer的第一层之后，self.in_channel就变成channel的倍数了
+        # 每个layer的第一层之后, self.in_channel就变成channel的倍数了
         self.in_channel = channel * block.expansion
 
         for _ in range(1, block_num):

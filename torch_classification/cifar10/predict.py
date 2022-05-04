@@ -17,8 +17,6 @@ def imshow(image):
     image = np.transpose(image.cpu().numpy(), (1, 2, 0))
     cv2.imwrite("test.png", image)
 
-
-
 def main():
     classes = ['plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
     MINI_BATCH = 8

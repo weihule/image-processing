@@ -1,0 +1,11 @@
+PytorchClassification/dataset/
+PytorchClassification/*/weights/
+PytorchClassification/*/__pycache__/
+*/__pycache__/
+PytorchClassification/*.zip
+.idea/
+ML/dataset/
+*/.idea/
+Re_id/dataset/
+data/
+torch_study/
