@@ -3,6 +3,8 @@ import numpy as np
 import torch
 from torch import Tensor
 import torch.nn as nn
+from torch.nn.functional import adaptive_avg_pool2d
+from typing import Callable, List
 
 def channel_shuffle(x: Tensor, groups: int) -> Tensor:
     batch_size, num_channels, height, width = x.size()
@@ -64,7 +66,7 @@ class InvertedResidual(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         if self.stride == 1:
-            x1, x2 = x.chunk(chunks=2, dim=1)
+            x1, x2 = x.chunk(chunks=2, dim=1)   # 沿channel维度分成两块
             out = torch.cat((x1, self.branch2(x2)), dim=1)
         else:
             out = torch.cat((self.branch1(x), self.branch2(x)), dim=1)
@@ -72,8 +74,89 @@ class InvertedResidual(nn.Module):
         out = channel_shuffle(out)
 
 class ShuffleNetV2(nn.Module):
-    def __init__(self):
+    def __init__(self,
+                stages_repeats: List[int],
+                stages_out_channels: List[int],
+                num_classes: int=1000,
+                inverted_residual: Callable[..., nn.Module] = InvertedResidual):
         super(ShuffleNetV2, self).__init__()
+
+        if len(stages_repeats) != 3:
+            raise ValueError("expected stages_repeats as list of 3 positive ints")
+        if len(stages_out_channels) != 5:
+            raise ValueError("expected stages_out_channels as list of 5 positive ints")
+        self._stage_out_channels = stages_out_channels
+
+        # input RGB image
+        input_channels = 3
+        output_channels = self._stage_out_channels[0]
+
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(input_channels, output_channels, kernel_size=3, padding=1, stride=2, bias=False),
+            nn.BatchNorm2d(output_channels),
+            nn.ReLU(inplace=True)
+        )
+        input_channels = output_channels    # 3 -> 24
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+        self.stage2: nn.Sequential
+        self.stage3: nn.Sequential
+        self.stage4: nn.Sequential
+
+        stage_names = ["stage{}".format(i) for i in [2, 3, 4]]
+        for name, repeats, output_channels in zip(stage_names, stages_repeats, self._stage_out_channels[1:]):
+            seq = [inverted_residual(input_channels, output_channels, 2)]
+            for _ in range(repeats-1):
+                seq.append(inverted_residual(output_channels, output_channels, 1))
+            
+            setattr(self, name, nn.Sequential(*seq))
+            input_channels = output_channels
+
+            # # 上一行代码就相当于
+            # self.stage2 = nn.Sequential(*seq)
+            # self.stage3 = nn.Sequential(*seq)
+            # self.stage4 = nn.Sequential(*seq)
+
+        output_channels = self._stage_out_channels[-1]
+        self.conv5 = nn.Sequential(
+            nn.Conv2d(input_channels, output_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(output_channels),
+            nn.ReLU(inplace=True)
+        )
+        
+        self.fc = nn.Linear(output_channels, num_classes)
+
+    def _forward_impl(self, x: Tensor) -> Tensor:
+        x = self.conv1(x)
+        x = self.maxpool(x)
+        x = self.stage2(x)
+        x = self.stage3(x)
+        x = self.stage4(x)
+        x = self.conv5(x)   # B, C, 7, 7
+
+        x = adaptive_avg_pool2d(x, (1, 1))  # B, C, 1, 1
+        x = x.flatten(start_dim=1)  # B, C
+        x = self.fc(x)
+
+        return x
+    
+    def forward(self, x: Tensor) -> Tensor:
+        return self._forward_impl(x)
+
+
+def shufflenet_v2_x1_0(num_classes=1000):
+    model = ShuffleNetV2(stages_repeats=[4, 8, 4],
+                        stages_out_channels=[24, 116, 232, 464, 1024],
+                        num_classes=num_classes)
+
+    return model
+
+def shufflenet_v2_x0_5(num_classes=1000):
+    model = ShuffleNetV2(stages_repeats=[4, 8, 4],
+                        stages_out_channels=[24, 48, 96, 192, 1024],
+                        num_classes=num_classes)
+
+    return model
 
 if __name__ == "__main__":
     # arr = np.arange(24).reshape((2, 3, 4))
