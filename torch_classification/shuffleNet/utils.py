@@ -16,10 +16,12 @@ def read_split_data(root: str):
     modes = ['train', 'val']
     for mode in modes:
         for curdir, dirs, files in os.walk(os.path.join(root, mode)):
+            for file in files:
+                fn_path = os.path.join(curdir, files)
             
          
-    
 
 if __name__ == "__main__":
-    root = "D:\\PythonTemp\\data\\DL\\flower"
-    read_split_data(root)
+    # root = "D:\\PythonTemp\\data\\DL\\flower"
+    # read_split_data(root)
+    test_dict = {"a":65, "b":66, "c":67, "d":68}
