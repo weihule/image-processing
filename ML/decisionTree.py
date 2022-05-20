@@ -1,6 +1,7 @@
 from math import log
 import operator
 
+
 def calcShannonEnt(dataSet):  # 计算数据的熵(entropy)
     numEntries=len(dataSet)  # 数据条数
     labelCounts={}
@@ -14,6 +15,7 @@ def calcShannonEnt(dataSet):  # 计算数据的熵(entropy)
         prob=float(labelCounts[key])/numEntries # 计算单个类的熵值
         shannonEnt-=prob*log(prob,2) # 累加每个类的熵值
     return shannonEnt
+
 
 def createDataSet1():    # 创造示例数据
     # dataSet = [['长', '粗', '男'],
@@ -45,6 +47,7 @@ def createDataSet1():    # 创造示例数据
     features = ['F1-AGE', 'F2-WORK', 'F3-HOME', 'F4-LOAN']
     return dataset, features
 
+
 def splitDataSet(dataSet,axis,value): # 按某个特征分类后的数据
     retDataSet=[]
     for featVec in dataSet:
@@ -53,6 +56,7 @@ def splitDataSet(dataSet,axis,value): # 按某个特征分类后的数据
             reducedFeatVec.extend(featVec[axis+1:])
             retDataSet.append(reducedFeatVec)
     return retDataSet
+
 
 def chooseBestFeatureToSplit(dataSet):  # 选择最优的分类特征
     numFeatures = len(dataSet[0])-1
@@ -73,6 +77,7 @@ def chooseBestFeatureToSplit(dataSet):  # 选择最优的分类特征
             bestFeature = i
     return bestFeature
 
+
 def majorityCnt(classList):    #按分类后类别数量排序，比如：最后分类为2男1女，则判定为男；
     classCount={}
     for vote in classList:
@@ -81,6 +86,7 @@ def majorityCnt(classList):    #按分类后类别数量排序，比如：最后
         classCount[vote]+=1
     sortedClassCount = sorted(classCount.items(),key=operator.itemgetter(1),reverse=True)
     return sortedClassCount[0][0]
+
 
 def createTree(dataSet,labels):
     classList=[example[-1] for example in dataSet]  # 类别：男或女
@@ -99,6 +105,7 @@ def createTree(dataSet,labels):
         subLabels=labels[:]
         myTree[bestFeatLabel][value]=createTree(splitDataSet(dataSet,bestFeat,value),subLabels)
     return myTree
+
 
 if __name__=='__main__':
     dataSet, labels=createDataSet1()  # 创造示列数据

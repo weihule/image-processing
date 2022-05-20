@@ -6,6 +6,25 @@ import torch.nn as nn
 from torch.nn.functional import adaptive_avg_pool2d
 from typing import Callable, List
 
+
+class SELayer(nn.Module):
+    def __init__(self, channel, reduction=16):
+        super(SELayer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x: Tensor):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)     # 自适应池化之后并展平
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
+
+
 def channel_shuffle(x: Tensor, groups: int) -> Tensor:
     batch_size, num_channels, height, width = x.size()
     channel_per_group = num_channels // groups  # 向下取整, 每个组所对应的channel个数
@@ -19,6 +38,7 @@ def channel_shuffle(x: Tensor, groups: int) -> Tensor:
     x = x.view(batch_size, -1, height, width)
 
     return x
+
 
 class InvertedResidual(nn.Module):
     def __init__(self, input_c: int, output_c: int, stride: int):
@@ -40,25 +60,28 @@ class InvertedResidual(nn.Module):
                 self.depthwise_conv(input_c, input_c, kernel_s=3, stride=self.stride, padding=1),
                 nn.BatchNorm2d(input_c),
                 nn.Conv2d(input_c, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
-                nn.BatchNorm2d(input_c),
+                nn.BatchNorm2d(branch_features),
                 nn.ReLU(inplace=True)
             )
         else:
             self.branch1 = nn.Sequential()
 
         self.branch2 = nn.Sequential(
-            nn.Conv2d(in_channels=input_c if self.stride > 1 else  branch_features, 
+            nn.Conv2d(in_channels=input_c if self.stride > 1 else branch_features,
                         out_channels=branch_features, kernel_size=1, stride=1, padding=0, bias=False),
             nn.BatchNorm2d(branch_features),
-            self.depthwise_conv(branch_features, branch_features, kernel_s=3, stride=self.stride),
+            nn.ReLU(inplace=True),
+            self.depthwise_conv(branch_features, branch_features, kernel_s=3, stride=self.stride, padding=1),
             nn.BatchNorm2d(branch_features),
             nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.ReLU(inplace=True)
+            nn.BatchNorm2d(branch_features),
+            nn.ReLU(inplace=True),
+            # SELayer(branch_features)
         )
 
     @staticmethod
-    def depthwise_conv(input_c:int, output_c:int, 
-                        kernel_s:int, stride: int=1,
+    def depthwise_conv(input_c: int, output_c: int,
+                        kernel_s: int, stride: int = 1,
                         padding: int = 0, bias: bool=False,
                         ) -> nn.Conv2d:
         return nn.Conv2d(input_c, output_c, kernel_size=kernel_s, 
@@ -66,12 +89,14 @@ class InvertedResidual(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         if self.stride == 1:
-            x1, x2 = x.chunk(chunks=2, dim=1)   # 沿channel维度分成两块
+            x1, x2 = x.chunk(chunks=2, dim=1)   # B C H W, 沿channel维度分成两块
             out = torch.cat((x1, self.branch2(x2)), dim=1)
         else:
             out = torch.cat((self.branch1(x), self.branch2(x)), dim=1)
 
-        out = channel_shuffle(out)
+        out = channel_shuffle(out, 2)
+        return out
+
 
 class ShuffleNetV2(nn.Module):
     def __init__(self,
@@ -151,6 +176,7 @@ def shufflenet_v2_x1_0(num_classes=1000):
 
     return model
 
+
 def shufflenet_v2_x0_5(num_classes=1000):
     model = ShuffleNetV2(stages_repeats=[4, 8, 4],
                         stages_out_channels=[24, 48, 96, 192, 1024],
@@ -158,32 +184,24 @@ def shufflenet_v2_x0_5(num_classes=1000):
 
     return model
 
-if __name__ == "__main__":
-    # arr = np.arange(24).reshape((2, 3, 4))
-    # print(arr, arr.shape)
-    # np_transpose = arr.transpose((1, 0, 2))
-    # np_transpose = np.transpose(arr, (1, 0, 2))
-    # print(np_transpose, np_transpose.shape)
 
+if __name__ == "__main__":
     # tensor_arr = torch.tensor(arr)
     # print(tensor_arr, tensor_arr.shape)
     # torch_transpose = tensor_arr.transpose(0, 1)
     # torch_transpose = torch.transpose(tensor_arr, 0, 1)
     # print(torch_transpose, torch_transpose.shape)
 
-    # arr = torch.tensor(np.arange(24).reshape((6, 2, 2)))   # b,c,h,w -> b, 3, 2, h, w
-    # print(arr)
-    # x = arr.view(3, 2, 2, 2)
-    # x = torch.transpose(x, 1, 2).contiguous()
-    # x = x.view(-1, 2, 2)
-    # x1, x2 = torch.chunk(arr, chunks=2, dim=0)
-    # x1, x2, x3 = arr.chunk(chunks=4, dim=0)
-    # print(x1, x2, x3)
+    # model = shufflenet_v2_x1_0(num_classes=5)
+    # print(model)
 
-    arr1 = torch.randn((2, 3))
-    arr2 = torch.randn((2, 3))
-    print(arr1)
-    print(arr2)
-    # arr = torch.cat((arr1, arr2), dim=0)
-    arr = torch.stack((arr1, arr2), dim=0)
-    print(arr, arr.shape)
+    arr = torch.randint(1, 10, size=(4, 3, 2, 2))
+    b, c, _, _ = arr.size()
+
+    layer = nn.AdaptiveAvgPool2d(1)
+    arr_view = layer(arr)
+    arr_view = arr.view(b, c)
+    arr_flatten = torch.flatten(arr, start_dim=1)
+    print(arr_view.shape, arr_flatten.shape)
+
+

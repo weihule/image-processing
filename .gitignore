@@ -8,3 +8,5 @@ ML/dataset/
 Re_id/dataset/
 data/
 torch_study/
+*/*/runs/
+*/*/*.png

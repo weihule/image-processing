@@ -2,6 +2,7 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset
 
+
 class MyDataSet(Dataset):
     def __init__(self, images_path: list, images_class: list, transform=None):
         super(MyDataSet, self).__init__()
