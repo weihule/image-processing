@@ -76,7 +76,7 @@ class InvertedResidual(nn.Module):
             nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
             nn.BatchNorm2d(branch_features),
             nn.ReLU(inplace=True),
-            # SELayer(branch_features)
+            SELayer(branch_features)
         )
 
     @staticmethod

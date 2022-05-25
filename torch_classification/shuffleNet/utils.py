@@ -8,16 +8,18 @@ import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
+label_file = '/nfs/home57/weihule/code/study/torch_classification/shuffleNet/class_indices.txt'
+label_dict = dict()
+with open(label_file, "r", encoding="utf-8") as f:
+    lines = f.readlines()
+    for line in lines:
+        line = line.strip("\n")
+        label_dict[line.split(":")[0]] = line.split(":")[1]
+
+inverse_label_dict = {v:k for k, v in label_dict.items()}
+
 
 def read_split_data(root: str, mode: str):
-    label_dict = dict()
-    label_path = "/nfs/home57/weihule/code/study/torch_classification/shuffleNet/class_indices.txt"
-    with open(label_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-        for line in lines:
-            line = line.strip("\n")
-            label_dict[line.split(":")[0]] = line.split(":")[1]
-
     # for k, v in label_dict.items():
     #     print(k, v)
     images_path = list()  # 图片路径
@@ -74,11 +76,8 @@ def evaluate(model, data_loader, device):
         pred = torch.argmax(pred, dim=1)
         sum_num += torch.eq(pred, labels).sum()
 
-    return sum_num.item() / total_num
+    return sum_num.item() / total_num, sum_num.item(), total_num
 
-
-
-            
 
 if __name__ == "__main__":
     root = "/nfs/home57/weihule/data/DL/flower"
