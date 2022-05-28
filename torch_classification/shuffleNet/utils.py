@@ -9,6 +9,10 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 label_file = '/nfs/home57/weihule/code/study/torch_classification/shuffleNet/class_indices.txt'
+if not os.path.exists(label_file):
+    label_file = '/workshop/weihule/code/study/torch_classification/shuffleNet/class_indices.txt'
+if not os.path.exists(label_file):
+    label_file = 'D:\\workspace\\code\\study\\torch_classification\\shuffleNet\\class_indices.txt'
 label_dict = dict()
 with open(label_file, "r", encoding="utf-8") as f:
     lines = f.readlines()

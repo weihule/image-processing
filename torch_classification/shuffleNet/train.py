@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import torch
 import sys
 import torch
@@ -26,8 +26,8 @@ def main(args):
 
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 
-    print('Start Tensorboard with "tensorboard --logdir=runs", view at http://localhost:6006/')
-    tb_writer = SummaryWriter()
+    # print('Start Tensorboard with "tensorboard --logdir=runs", view at http://localhost:6006/')
+    # tb_writer = SummaryWriter()
 
     train_images_path, train_images_label = read_split_data(args.data_path, "train")
     val_images_path, val_images_label = read_split_data(args.data_path, "val")
@@ -61,13 +61,13 @@ def main(args):
                               batch_size=batch_size,
                               shuffle=True,
                               num_workers=nw,
-                              )
+                              collate_fn=train_set.collate_fn)
     # collate_fn=train_set.collate_fn
     val_loader = DataLoader(val_set,
                             batch_size=batch_size,
                             shuffle=False,
                             num_workers=nw,
-                            )
+                            collate_fn=val_set.collate_fn)
     # collate_fn=val_set.collate_fn
     model = shufflenet_v2_x1_0(num_classes=args.num_classes)
     model = model.to(device)
@@ -136,14 +136,14 @@ def main(args):
         acc, sum_num, total_num = evaluate(model, val_loader, device)
 
         print('[epoch {}] accuracy {} ({}/{})'.format(epoch + 1, round(acc, 3), sum_num, total_num))
-        tags = ['loss', 'accuracy', 'learning_rate']
-        # tb_writer.add_scalar(tags[0], mean_loss, epoch)
-        # tb_writer.add_scalar(tags[1], acc, epoch)
-        # tb_writer.add_scalar(tags[2], optimizer.param_groups[0]['lr'], epoch)
-        if acc > best_acc:
-            best_acc = acc
-            save_path = os.path.join(save_root, 'model-0522.pth')
-            torch.save(model.state_dict(), save_path)
+    #     tags = ['loss', 'accuracy', 'learning_rate']
+    #     # tb_writer.add_scalar(tags[0], mean_loss, epoch)
+    #     # tb_writer.add_scalar(tags[1], acc, epoch)
+    #     # tb_writer.add_scalar(tags[2], optimizer.param_groups[0]['lr'], epoch)
+    #     if acc > best_acc:
+    #         best_acc = acc
+    #         save_path = os.path.join(save_root, 'model-0522.pth')
+    #         torch.save(model.state_dict(), save_path)
 
 
 if __name__ == "__main__":
@@ -155,13 +155,17 @@ if __name__ == "__main__":
     parse.add_argument("--lrf", type=float, default=0.001)
 
     # 数据集所在根目录
-    # parse.add_argument("--data_path", type=str, default="/workshop/cyclone_data/process/data/DL/flower")
+    parse.add_argument("--data_path", type=str, default="/workshop/weihule/data/DL/flower")
     # parse.add_argument("--data_path", type=str, default="D:\\workspace\\data\\DL\\flower")
-    parse.add_argument("--data_path", type=str, default="/nfs/home57/weihule/data/DL/flower")
+    # parse.add_argument("--data_path", type=str, default="/nfs/home57/weihule/data/DL/flower")
 
     # 预训练权重
-    parse.add_argument("--weights", type=str, default="/nfs/home57/weihule/data/weights/shufflenetv2/shufflenetv2_x1_pre.pth")
-    # parse.add_argument("--weights", type=str, default="D:\\workspace\\data\\weights\\shufflenetv2\\shufflenetv2_x1_pre.pth")
+    parse.add_argument("--weights", type=str,
+                       default="/workshop/weihule/data/weights/shufflenetv2/shufflenetv2_x1_pre.pth")
+    # parse.add_argument("--weights", type=str,
+    #                    default="/nfs/home57/weihule/data/weights/shufflenetv2/shufflenetv2_x1_pre.pth")
+    # parse.add_argument("--weights", type=str,
+    #                    default="D:\\workspace\\data\\weights\\shufflenetv2\\shufflenetv2_x1_pre.pth")
 
     parse.add_argument("--freeze_layers", type=bool, default=True)
     parse.add_argument("--device", default="cuda:0")
