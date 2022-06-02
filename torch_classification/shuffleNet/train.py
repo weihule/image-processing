@@ -1,24 +1,18 @@
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-import torch
 import sys
 import torch
-import numpy as np
 from tqdm import tqdm
 import math
-import cv2
-from PIL import Image
-from torchvision import datasets, transforms
+from torchvision import transforms
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from torch.optim import lr_scheduler, SGD, Adam
+from torch.optim import lr_scheduler, Adam
 from model import shufflenet_v2_x1_0
 # from torchvision.models.shufflenetv2 import shufflenet_v2_x1_0
-from utils import read_split_data, train_one_epoch, evaluate
+from utils import read_split_data, evaluate
 from custom_dataset import CustomDataset
 import argparse
 from collections import OrderedDict
-import matplotlib.pyplot as plt
 
 
 def main(args):

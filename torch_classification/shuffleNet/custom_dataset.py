@@ -1,4 +1,3 @@
-import typing
 from PIL import Image
 from torchvision import transforms, datasets
 from torch.utils.data import Dataset
