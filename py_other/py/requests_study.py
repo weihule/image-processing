@@ -22,9 +22,13 @@ def main():
     print(page_text)
 
 headers = {
-    'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+    # 'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+    #                 AppleWebKit/537.36 (KHTML, like Gecko) \
+    #                 Chrome/101.0.4951.64 Safari/537.36 Edg/101.0.1210.53',
+
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
                     AppleWebKit/537.36 (KHTML, like Gecko) \
-                    Chrome/101.0.4951.64 Safari/537.36 Edg/101.0.1210.53'
+                    Chrome/102.0.0.0 Safari/537.36'
 }
 
 # 爬取搜狗指定词条对应的搜索结果(简易网页采集器)
@@ -86,10 +90,10 @@ def kfc():
 
 # 爬取国家药品监督管理总局中基于中华人民共和国化妆品生产许可证相关数据 http://scxk.nmpa.gov.cn:81/xk/
 def medical():
-    url = 'http://scxk.nmpa.gov.cn:81/xk/itownet/portalAction.do'
+    url = 'http://scxk.nmpa.gov.cn:81/xk/'
     params = {
-        # 'hKHnQfLv': '5DcJ_zIb9XzDA8mMOPJTIaI_P3lCU9la7Tid7neolW0lK69BPG0WjmbSbLMVkhEXz1RdM12eIKZJ_pNEuGajFfqosYTRob0.97utUbmIregLgcJr1sAg1qy0lVUZCVhslOqx66A3PRdMVP178sz9O6pYAJx2c0BENbgPnNlPstYiChbKJUj4cEqor3rq3AmGEhUoVRqaj5NZA_cbOnAmaY6vEt8RApHyNpffCWk06SzVPQ7I4t32olCWM30W0bnAEsfisQ4cyp4VjJHy4D6b1gr_5StuKcJHH3secIGJMRG7',
-        # '8X7Yi61c': '4x7RSXV9pH7NwA1r99U66cFwafhzFRgRpfq0M3aTdbrJZZA6z7iKFrdMWXbYGSDaaPYfEGHgRF.uUvvOjERPFWqMobGKxN5DxYIll8Y44S7shche7InznFDEgX_Vaovk0',
+        # 'hKHnQfLv': '58RYf2vf9vTJ4Y4u0TC9ON_AKr0.qfM7DBcg8xfgAj4QPogODPbaSOjtTUD3ntvwIZ7NCP3HBg8FuKjE1sANDzADfe7qp_f_F2cgqvH3N338A2IgoV6S3JgA8hT7_xvcculCNFn5byUYNWfT18mJY9X.sb30.02s9v8p9snuiGAe1mYbAWFxyDRn4pQ3d5YV7UzbBzEteZoGEeRLm5ft.confxf3yiVxN8xhzbSzYHQ3YfCnHbeVCA5QKLVfKRxQLsWHOfn6jpdfXbXJxstX1HwePoiMMyg6zMDGa1jN5HHA',
+        # '8X7Yi61c': '4m3ag.ZXrGyNyXRwiwtleOE13.5NE6xTkYnWzymwMbnQIlBg000ODxc7EsOdIcH6Q5.SFDlkWub6FfJQKy.KiZR2SpcysEIQ0BD4_mYu7P3V8VYbTRFmNvUM12dWEDaXU',
         'on': 'true',
         'page': '1',
         'pageSize': '15',

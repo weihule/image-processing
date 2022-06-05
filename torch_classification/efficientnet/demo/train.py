@@ -8,7 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
 import torch.optim.lr_scheduler as lr_scheduler
 
-from model import shufflenet_v2_x1_0
+from model import efficientnet_b0 as create_model
 from my_dataset import MyDataSet
 from utils import read_split_data, train_one_epoch, evaluate
 
@@ -24,13 +24,23 @@ def main(args):
 
     train_images_path, train_images_label, val_images_path, val_images_label = read_split_data(args.data_path)
 
+    img_size = {"B0": 224,
+                "B1": 240,
+                "B2": 260,
+                "B3": 300,
+                "B4": 380,
+                "B5": 456,
+                "B6": 528,
+                "B7": 600}
+    num_model = "B0"
+
     data_transform = {
-        "train": transforms.Compose([transforms.RandomResizedCrop(224),
+        "train": transforms.Compose([transforms.RandomResizedCrop(img_size[num_model]),
                                      transforms.RandomHorizontalFlip(),
                                      transforms.ToTensor(),
                                      transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
-        "val": transforms.Compose([transforms.Resize(256),
-                                   transforms.CenterCrop(224),
+        "val": transforms.Compose([transforms.Resize(img_size[num_model]),
+                                   transforms.CenterCrop(img_size[num_model]),
                                    transforms.ToTensor(),
                                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])}
 
@@ -62,7 +72,7 @@ def main(args):
                                              collate_fn=val_dataset.collate_fn)
 
     # 如果存在预训练权重则载入
-    model = shufflenet_v2_x1_0(num_classes=args.num_classes).to(device)
+    model = create_model(num_classes=args.num_classes).to(device)
     if args.weights != "":
         if os.path.exists(args.weights):
             weights_dict = torch.load(args.weights, map_location=device)
@@ -75,12 +85,14 @@ def main(args):
     # 是否冻结权重
     if args.freeze_layers:
         for name, para in model.named_parameters():
-            # 除最后的全连接层外，其他权重全部冻结
-            if "fc" not in name:
+            # 除最后一个卷积层和全连接层外，其他权重全部冻结
+            if ("features.top" not in name) and ("classifier" not in name):
                 para.requires_grad_(False)
+            else:
+                print("training {}".format(name))
 
     pg = [p for p in model.parameters() if p.requires_grad]
-    optimizer = optim.SGD(pg, lr=args.lr, momentum=0.9, weight_decay=4E-5)
+    optimizer = optim.SGD(pg, lr=args.lr, momentum=0.9, weight_decay=1E-4)
     # Scheduler https://arxiv.org/pdf/1812.01187.pdf
     lf = lambda x: ((1 + math.cos(x * math.pi / args.epochs)) / 2) * (1 - args.lrf) + args.lrf  # cosine
     scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
@@ -99,7 +111,6 @@ def main(args):
         acc = evaluate(model=model,
                        data_loader=val_loader,
                        device=device)
-
         print("[epoch {}] accuracy: {}".format(epoch, round(acc, 3)))
         tags = ["loss", "accuracy", "learning_rate"]
         tb_writer.add_scalar(tags[0], mean_loss, epoch)
@@ -115,16 +126,16 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=30)
     parser.add_argument('--batch-size', type=int, default=16)
     parser.add_argument('--lr', type=float, default=0.01)
-    parser.add_argument('--lrf', type=float, default=0.1)
+    parser.add_argument('--lrf', type=float, default=0.01)
 
     # 数据集所在根目录
     # https://storage.googleapis.com/download.tensorflow.org/example_images/flower_photos.tgz
     parser.add_argument('--data-path', type=str,
                         default="/data/flower_photos")
 
-    # shufflenetv2_x1.0 官方权重下载地址
-    # https://download.pytorch.org/models/shufflenetv2_x1-5666bf0f80.pth
-    parser.add_argument('--weights', type=str, default='./shufflenetv2_x1.pth',
+    # download model weights
+    # 链接: https://pan.baidu.com/s/1ouX0UmjCsmSx3ZrqXbowjw  密码: 090i
+    parser.add_argument('--weights', type=str, default='./efficientnetb0.pth',
                         help='initial weights path')
     parser.add_argument('--freeze-layers', type=bool, default=False)
     parser.add_argument('--device', default='cuda:0', help='device id (i.e. 0 or 0,1 or cpu)')
