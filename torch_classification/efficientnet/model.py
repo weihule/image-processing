@@ -98,6 +98,30 @@ class InvertedResidualConfig():
     def adjust_channels(channels: int, width_coefficient: float):
         return _make_divisible(channels * width_coefficient, 8)
 
+
+class InvertedResidual(nn.Module):
+    def __init__(self,
+                cnf: InvertedResidualConfig,
+                norm_layer: Callable[..., nn.Module]):
+        super(InvertedResidual, self).__init__()
+
+        if cnf.stride not in [1, 2]:
+            raise ValueError('illegal stride value')
+
+        # 当stride为1 并且输入channel与输出channel相同时, 才使用shortcut连接
+        self.use_res_connect = (cnf.stride == 1 and cnf.intput_c == cnf.out_c)
+
+        layers = OrderedDict()
+        activation_layer = nn.SiLU  # alias Swish
+
+        # expand 
+        if cnf.expanded_c != cnf.intput_c:
+            layers.update({'expand_conv': ConvBNActivation(cnf.intput_c,
+                                                        cnf.expanded_c,
+                                                        kernel_size=1,
+                                                        norm_layer=norm_layer,
+                                                        activation_layer=activation_layer)})
+
 if __name__ == "__main__":
     a = {"A": 65, "B": 66, "C": 67}
     b = {'D': 68, 'E': 69}
