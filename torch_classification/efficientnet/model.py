@@ -73,7 +73,34 @@ class SqueezeExcitation(nn.Module):
 
         return  x * y.expand_as(x)
 
+
+class InvertedResidualConfig():
+    def __init__(self, 
+                kernel: int,
+                input_c: int,
+                out_c: int,
+                expanded_ratio: int,
+                stride: int,
+                use_se: bool,
+                drop_rate: float,
+                index: str,
+                width_coefficient: float):
+        self.intput_c = self.adjust_channels(input_c, width_coefficient)
+        self.kernel = kernel
+        self.expanded_c = self.intput_c * expanded_ratio
+        self.out_c = self.adjust_channels(out_c, width_coefficient)
+        self.use_se = use_se
+        self.stride = stride
+        self.drop_path = drop_rate
+        self.index = index
+
+    @staticmethod
+    def adjust_channels(channels: int, width_coefficient: float):
+        return _make_divisible(channels * width_coefficient, 8)
+
 if __name__ == "__main__":
-    res = _make_divisible(16.8)
-    print(res)
-    print(torch.__version__)
+    a = {"A": 65, "B": 66, "C": 67}
+    b = {'D': 68, 'E': 69}
+    a.update(b)
+    print(a)
+    print(b)
