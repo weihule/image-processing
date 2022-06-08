@@ -76,14 +76,14 @@ class SqueezeExcitation(nn.Module):
 
 class InvertedResidualConfig():
     def __init__(self, 
-                kernel: int,
+                kernel: int,    # 3 or 5
                 input_c: int,
                 out_c: int,
-                expanded_ratio: int,
-                stride: int,
-                use_se: bool,
-                drop_rate: float,
-                index: str,
+                expanded_ratio: int,    # 1 or 6
+                stride: int,    # 1 or 2
+                use_se: bool,   # True
+                drop_rate: float,   
+                index: str,     # 1a, 2a, 2b, ...
                 width_coefficient: float):
         self.intput_c = self.adjust_channels(input_c, width_coefficient)
         self.kernel = kernel
@@ -121,6 +121,32 @@ class InvertedResidual(nn.Module):
                                                         kernel_size=1,
                                                         norm_layer=norm_layer,
                                                         activation_layer=activation_layer)})
+        # depthwise
+        layers.update({'dwconv': ConvBNActivation(in_planes=cnf.expanded_c,
+                                                        out_planes=cnf.expanded_c,
+                                                        kernel_size=3,
+                                                        stride=cnf.stride,
+                                                        groups=cnf.expanded_c,
+                                                        norm_layer=norm_layer,
+                                                        activation_layer=activation_layer)})
+        
+        if cnf.use_se:
+            layers.update({'se': SqueezeExcitation(cnf.expanded_c)})
+
+        # project
+        layers.update({'project_conv': ConvBNActivation(in_planes=cnf.expanded_c, 
+                                                        out_planes=cnf.out_c,
+                                                        kernel_size=1,
+                                                        norm_layer=norm_layer,
+                                                        activation_layer=nn.Identity)})
+
+        self.block = nn.Sequential(layers)
+        self.out_channels = cnf.out_c
+        self.is_strided = cnf.stride > 1
+
+
+    def forward(self, x: Tensor) -> Tensor:
+        result = self.block(x)
 
 if __name__ == "__main__":
     a = {"A": 65, "B": 66, "C": 67}
