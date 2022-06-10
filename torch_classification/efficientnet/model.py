@@ -1,5 +1,7 @@
 import os
-from pyparsing import Opt
+import re
+import sys
+import copy
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -144,9 +146,31 @@ class InvertedResidual(nn.Module):
         self.out_channels = cnf.out_c
         self.is_strided = cnf.stride > 1
 
+        # 只有在使用shortcut连接时才使用dropout层
+        # if self.use_res_connect and cnf.drop_rate > 0:
+        #     self.dropout = 
+
 
     def forward(self, x: Tensor) -> Tensor:
         result = self.block(x)
+
+        if self.use_res_connect:
+            result += x
+        
+        return result
+
+
+class EfficientNet(nn.Module):
+    def __init__(self,
+                width_coefficient: float,
+                depth_coefficient: float,
+                num_classes: int=1000,
+                dropout_rate: float=0.2,
+                drop_connect_rate: float = 0.2,
+                block: Optional[Callable[..., nn.Module]] = None,
+                norm_layer: Optional[Callable[..., nn.Module]] = None
+                ):
+        super(EfficientNet, self).__init__()
 
 if __name__ == "__main__":
     a = {"A": 65, "B": 66, "C": 67}
