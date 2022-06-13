@@ -100,9 +100,9 @@ def main(parser_data):
     # read class_indict
     label_json_path = './pascal_voc_classes.json'
     assert os.path.exists(label_json_path), "json file {} dose not exist.".format(label_json_path)
-    json_file = open(label_json_path, 'r')
-    class_dict = json.load(json_file)
-    json_file.close()
+    with open(label_json_path, 'r') as f:
+        class_dict = json.load(f)
+
     category_index = {v: k for k, v in class_dict.items()}
 
     VOC_root = parser_data.data_path
@@ -132,9 +132,9 @@ def main(parser_data):
     model = RetinaNet(backbone, parser_data.num_classes)
 
     # 载入你自己训练好的模型权重
-    weights_path = parser_data.weights
+    weights_path = parser_data.weights_path
     assert os.path.exists(weights_path), "not found {} file.".format(weights_path)
-    model.load_state_dict(torch.load(weights_path, map_location=device)['model'])
+    model.load_state_dict(torch.load(weights_path, map_location='cpu')['model'])
     # print(model)
 
     model.to(device)
@@ -203,7 +203,7 @@ if __name__ == "__main__":
     parser.add_argument('--data-path', default='/data', help='dataset root')
 
     # 训练好的权重文件
-    parser.add_argument('--weights', default='./save_weights/model.pth', type=str, help='training weights')
+    parser.add_argument('--weights-path', default='./save_weights/model.pth', type=str, help='training weights')
 
     # batch size
     parser.add_argument('--batch_size', default=1, type=int, metavar='N',
