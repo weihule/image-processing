@@ -1,4 +1,5 @@
 import os
+from sys import modules
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -139,7 +140,17 @@ def resnet50_fpn_backbone(pretrain_path="",
         if all([not name.startswith(layer) for layer in layers_to_train]):
             parameter.requires_grad = False
 
+    if extra_blocks is None:
+        pass
+
+    if returned_layers is None:
+        returned_layers = [1, 2, 3, 4]
+    assert min(returned_layers) > 0 and max(returned_layers) < 5
+
+    return_layers = {f'layer{k}': str(idx) for idx, k in returned_layers}
+
 
 if __name__ == "__main__":
-    arr = [False, False, False]
-    print(all(arr))
+    resnet50 = ResNet(BottleNeck, [3, 4, 6, 3], 10)
+    for name, module in resnet50.named_children():
+        print(name)
