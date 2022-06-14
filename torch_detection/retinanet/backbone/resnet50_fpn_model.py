@@ -7,6 +7,7 @@ from torchvision.ops.misc import FrozenBatchNorm2d
 import torch.nn.functional as F
 from collections import OrderedDict
 from typing import Tuple, List, Dict
+from feature_pyramid_network import IntermediateLayerGetter
 
 
 class BottleNeck(nn.Module):
@@ -18,9 +19,9 @@ class BottleNeck(nn.Module):
             norm_layer = nn.BatchNorm2d
         self.conv1 = nn.Conv2d(in_channel, out_channel, kernel_size=1, stride=1, bias=False)  # squeeze channels
         self.bn1 = norm_layer(out_channel)
-        self.conv2 = nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=stride, bias=False, padding=1)
+        self.conv2 = nn.Conv2d(out_channel, out_channel, kernel_size=3, stride=stride, bias=False, padding=1)
         self.bn2 = norm_layer(out_channel)
-        self.conv3 = nn.Conv2d(in_channel, out_channel * self.expansion,
+        self.conv3 = nn.Conv2d(out_channel, out_channel * self.expansion,
                                kernel_size=1, stride=1, bias=False)
         self.bn3 = norm_layer(out_channel * self.expansion)
         self.relu = nn.ReLU(inplace=True)
@@ -137,6 +138,7 @@ def resnet50_fpn_backbone(pretrain_path="",
 
     # freeze layers
     for name, parameter in resnet_backbone.named_parameters():
+        # 只需要训练在 layers_to_train 中的层结构
         if all([not name.startswith(layer) for layer in layers_to_train]):
             parameter.requires_grad = False
 
@@ -147,10 +149,26 @@ def resnet50_fpn_backbone(pretrain_path="",
         returned_layers = [1, 2, 3, 4]
     assert min(returned_layers) > 0 and max(returned_layers) < 5
 
-    return_layers = {f'layer{k}': str(idx) for idx, k in returned_layers}
+    # {'layer1': '0', 'layer2': '1', 'layer3': '2', 'layer4': '3'}
+    return_layers = {f'layer{k}': str(idx) for idx, k in enumerate(returned_layers)}
+
+    # in_channel 为layer4的输出特征矩阵channel = 512*4
+    in_channels_stage2 = resnet_backbone.in_channel // 8  # 256
+
+    # 记录resnet50提供给fpn的特征层channels
+    in_channels_list = [in_channels_stage2 * 2 ** (i-1) for i in returned_layers]
+
+    # 通过fpn后得到的每个特征层的channel
+    out_channels = 256
 
 
 if __name__ == "__main__":
     resnet50 = ResNet(BottleNeck, [3, 4, 6, 3], 10)
-    for name, module in resnet50.named_children():
-        print(name)
+    # for name, module in resnet50.named_children():
+    #     print(name, module)
+    return_layers = {'layer1': '0', 'layer2': '1', 'layer3': '2', 'layer4': '3'}
+    ilg = IntermediateLayerGetter(resnet50, return_layers)
+    input = torch.randn(4, 3, 224, 224)
+    out = ilg(input)
+    for name, i in out.items():
+        print(name, i.shape)
