@@ -48,6 +48,9 @@ class IntermediateLayerGetter(nn.ModuleDict):
 class BackboneWithFPN(nn.Module):
     """
     Adds a FPN on top of a model.
+    Internally, it uses torchvision.models._utils.IntermediateLayerGetter to
+    extract a submodel that returns the feature maps specified in return_layers.
+    The same limitations of IntermediatLayerGetter apply here.
     """
 
     def __init__(self,
@@ -85,4 +88,24 @@ class LastLevelMaxPool(torch.nn.Module):
 class FeaturePyramidNetwork(nn.Module):
     def __init__(self, in_channels_list, out_channels, extra_blocks=None):
         super(FeaturePyramidNetwork, self).__init__()
+        
         # 用来调整resnet特征矩阵(layer1,2,3,4)的channel (kernel_size=1)
+        self.inner_blocks = nn.ModuleList()
+        
+        # 对调整后的特征矩阵使用3x3的卷积核来得到对应的预测特征矩阵
+        self.layer_blocks = nn.ModuleList()
+        for in_channels in in_channels_list:
+            if in_channels == 0:
+                continue
+            inner_block_module = nn.Conv2d(in_channels, out_channels, 1)
+            layer_block_module = nn.Conv2d(out_channels, out_channels, 3, padding=1)
+            self.inner_blocks.append(inner_block_module)
+            self.layer_blocks.append(layer_block_module)
+
+        # initialize parameters now to avoid modifying the initialization of top_blocks
+        for m in self.children():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_uniform_(m.weight, a=1)
+                nn.init.constant_(m.bias, 0)
+
+        self.extra_blocks = extra_blocks
