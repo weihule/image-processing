@@ -7,7 +7,7 @@ from torchvision.ops.misc import FrozenBatchNorm2d
 import torch.nn.functional as F
 from collections import OrderedDict
 from typing import Tuple, List, Dict
-from feature_pyramid_network import IntermediateLayerGetter, BackboneWithFPN, FeaturePyramidNetwork
+from feature_pyramid_network import IntermediateLayerGetter, BackboneWithFPN, FeaturePyramidNetwork, LastLevelMaxPool
 
 
 class BottleNeck(nn.Module):
@@ -143,7 +143,7 @@ def resnet50_fpn_backbone(pretrain_path="",
             parameter.requires_grad = False
 
     if extra_blocks is None:
-        pass
+        extra_blocks = LastLevelMaxPool()
 
     if returned_layers is None:
         returned_layers = [1, 2, 3, 4]
@@ -155,8 +155,8 @@ def resnet50_fpn_backbone(pretrain_path="",
     # in_channel 为layer4的输出特征矩阵channel = 512*4
     in_channels_stage2 = resnet_backbone.in_channel // 8  # 256
 
-    # 记录resnet50提供给fpn的特征层channels
-    in_channels_list = [in_channels_stage2 * 2 ** (i-1) for i in returned_layers]
+    # 记录resnet50提供给fpn的特征层channels [256, 512, 1024, 2048]
+    in_channels_list = [in_channels_stage2 * 2 ** (num-1) for num in returned_layers]
 
     # 通过fpn后得到的每个特征层的channel
     out_channels = 256
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     #     print(name, module)
     return_layers = {'layer1': '0', 'layer2': '1', 'layer3': '2', 'layer4': '3'}
     ilg = IntermediateLayerGetter(resnet50, return_layers)
-    input = torch.randn(4, 3, 224, 224)
-    out = ilg(input)
+    input_data = torch.randn(4, 3, 224, 224)
+    out = ilg(input_data)
     for name, i in out.items():
         print(name, i.shape)

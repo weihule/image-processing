@@ -48,6 +48,9 @@ class IntermediateLayerGetter(nn.ModuleDict):
 class BackboneWithFPN(nn.Module):
     """
     Adds a FPN on top of a model.
+    Internally, it uses torchvision.models._utils.IntermediateLayerGetter to
+    extract a submodel that returns the feature maps specified in return_layers.
+    The same limitations of IntermediatLayerGetter apply here.
     """
 
     def __init__(self,
