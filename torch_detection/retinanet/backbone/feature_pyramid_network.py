@@ -53,7 +53,7 @@ class BackboneWithFPN(nn.Module):
     def __init__(self,
                  backbone: nn.Module,
                  return_layers=None,
-                 in_channels_list=None,
+                 in_channels_list=None,     # resnet50提供给fpn的特征层channels [256, 512, 1024, 2048]
                  out_channels=256,
                  extra_blocks=None,
                  re_getter=True):
@@ -64,7 +64,8 @@ class BackboneWithFPN(nn.Module):
 
         if re_getter:
             assert return_layers is not None
-            self.body = IntermediateLayerGetter(backbone, return_layers)
+            # 得到一个 OrderedDict(), key 是 0,1,2,3 value对应的是 layer1-layer4的输出
+            self.body = IntermediateLayerGetter(backbone, return_layers)    
         else:
             self.body = backbone
 
@@ -84,5 +85,44 @@ class LastLevelMaxPool(torch.nn.Module):
 
 class FeaturePyramidNetwork(nn.Module):
     def __init__(self, in_channels_list, out_channels, extra_blocks=None):
+        # in_channels_list 就是 resnet50 的输出层channel [256, 512, 1024, 2048]
         super(FeaturePyramidNetwork, self).__init__()
+
         # 用来调整resnet特征矩阵(layer1,2,3,4)的channel (kernel_size=1)
+        self.inner_blocks = nn.ModuleList()
+
+        # 对调整后的特征矩阵使用3x3的卷积核来得到对应的预测特征矩阵
+        self.layer_blocks = nn.ModuleList()
+
+        for in_channels in in_channels_list:
+            if in_channels == 0:
+                continue
+            inner_block_module = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+            layer_block_module = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+            self.inner_blocks.append(inner_block_module)
+            self.layer_blocks.append(layer_block_module)
+
+            # initialize parameters now to avoid modifying the initialization of top_blocks
+            for m in self.children():
+                if isinstance(m, nn.Conv2d):
+                    nn.init.kaiming_uniform_(m.weight, a=1)
+                    nn.init.constant_(m.bias, 0)
+
+            self.extra_blocks = extra_blocks
+
+    def get_result_from_inner_blocks(self, x: Tensor, idx: int) -> Tensor:
+        """
+        This is equivalent to self.inner_blocks[idx](x),
+        but torchscript doesn't support this yet
+        """
+        num_blocks = len(self.inner_blocks)
+        if idx < 0:
+            idx += num_blocks
+        i = 0
+        out = x
+        for module in self.inner_blocks:
+            if i == idx:
+                out = module(x)
+            i += 1
+        return out
+
