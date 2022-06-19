@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch
 from torchvision.ops.misc import FrozenBatchNorm2d
 
-from .feature_pyramid_network import LastLevelMaxPool, BackboneWithFPN
+from feature_pyramid_network import LastLevelMaxPool, BackboneWithFPN
 
 
 class Bottleneck(nn.Module):
@@ -197,3 +197,8 @@ def resnet50_fpn_backbone(pretrain_path="",
     # 通过fpn后得到的每个特征层的channel
     out_channels = 256
     return BackboneWithFPN(resnet_backbone, return_layers, in_channels_list, out_channels, extra_blocks=extra_blocks)
+
+
+if __name__ == "__main__":
+    res = resnet50_fpn_backbone()
+    print(res)
