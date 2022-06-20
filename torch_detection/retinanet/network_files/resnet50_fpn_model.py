@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from collections import OrderedDict
 from typing import Tuple, List, Dict
 from feature_pyramid_network import IntermediateLayerGetter, BackboneWithFPN, FeaturePyramidNetwork, LastLevelMaxPool
-from custome_resnet50_fpn import LayerGetter
+from custome_resnet50_fpn import LayerGetter, PyramidFeatures
 
 class BottleNeck(nn.Module):
     expansion = 4
@@ -150,7 +150,8 @@ def resnet50_fpn_backbone(pretrain_path="",
     assert min(returned_layers) > 0 and max(returned_layers) < 5
 
     # {'layer1': '0', 'layer2': '1', 'layer3': '2', 'layer4': '3'}
-    return_layers = {f'layer{k}': str(idx) for idx, k in enumerate(returned_layers)}
+    # return_layers = {f'layer{k}': str(idx) for idx, k in enumerate(returned_layers)}
+    return_layers = {'layer2': '1', 'layer3': '2', 'layer4': '3'}
 
     # in_channel 为layer4的输出特征矩阵channel = 512*4
     in_channels_stage2 = resnet_backbone.in_channel // 8  # 256
@@ -161,7 +162,16 @@ def resnet50_fpn_backbone(pretrain_path="",
     # 通过fpn后得到的每个特征层的channel
     out_channels = 256
 
-    return BackboneWithFPN(resnet_backbone, return_layers, in_channels_list, out_channels, extra_blocks=extra_blocks)
+    # return BackboneWithFPN(resnet_backbone, return_layers, in_channels_list, out_channels, extra_blocks=extra_blocks)
+    
+    return PyramidFeatures(resnet_backbone, return_layers, in_channels_list[1], in_channels_list[2], in_channels_list[3], out_channels)
+
+
+# def resnet_fpn(pretrain_path="",
+#                           norm_layer=FrozenBatchNorm2d,
+#                           trainable_layers=3,   # 可以设置成1-5之间的数
+#                           returned_layers=None,
+#                           extra_blocks=None)
 
 
 if __name__ == "__main__":
@@ -175,11 +185,19 @@ if __name__ == "__main__":
     # for name, i in out.items():
     #     print(name, i.shape)
 
-    lg = LayerGetter(resnet50, return_layers)
+    # lg = LayerGetter(resnet50, return_layers)
     input_data = torch.rand(4, 3, 640, 640)
-    out = lg(input_data)
-    c3_channel, c4_channel, c5_channel = '', '', ''
-    fpn_input = list()
+    # out = lg(input_data)
+    # print(len(out))
+
+    # input_channels = list()
+    # input_tensor = list()
+    # for k, v in out.items():
+    #     input_channels.append(v.shape[1])
+    #     input_tensor.append(v)
+
+    # fpn = PyramidFeatures(input_channels[0], input_channels[1], input_channels[2], 256)
+    # res = fpn(input_tensor)
 
     # input_data = torch.rand(4, 3, 12, 12)
     # up_sample_layer = nn.Upsample(scale_factor=2, mode='nearest')
@@ -188,6 +206,10 @@ if __name__ == "__main__":
     # res = resnet50_fpn_backbone()
     # print(res)
 
-    arr = [1, 2, 3]
-    a, b, c = arr
-    print(a, b, c)
+    fpn = resnet50_fpn_backbone()
+    res = fpn(input_data)
+    for i in res:
+        print(i.shape)
+
+    # out = input_data.permute(0, 2, 3, 1)
+    # print(out.size())

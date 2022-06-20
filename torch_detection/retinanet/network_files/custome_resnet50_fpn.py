@@ -39,8 +39,10 @@ class LayerGetter(nn.Module):
 
 
 class PyramidFeatures(nn.Module):
-    def __init__(self, c3_size, c4_size, c5_size, out_channel):
+    def __init__(self, back_bone, return_layers, c3_size, c4_size, c5_size, out_channel):
         super(PyramidFeatures, self).__init__()
+        self.back_bone = back_bone
+        self.return_layers = return_layers
 
         # upsample C5 to get P5
         self.p5_1 = nn.Conv2d(c5_size, out_channel, kernel_size=1, stride=1)
@@ -64,7 +66,17 @@ class PyramidFeatures(nn.Module):
         self.p7_2 = nn.Conv2d(out_channel, out_channel, kernel_size=3, padding=1, stride=2)
 
     def forward(self, x):
-        c3, c4, c5 = x
+        lg = LayerGetter(self.back_bone, self.return_layers)
+        out = lg(x)
+
+        input_channels = list()
+        input_tensor = list()
+
+        for k, v in out.items():
+            input_channels.append(v.shape[1])
+            input_tensor.append(v)
+        c3, c4, c5 = input_tensor
+        # print(c3.shape, c4.shape, c5.shape)
 
         p5_x = self.p5_1(c5)
         p5_up_sample_x = self.p5_up_sample(p5_x)
@@ -84,7 +96,6 @@ class PyramidFeatures(nn.Module):
         p7_x = self.p7_1(p6_x)
         p7_x = self.p7_2(p7_x)
 
-        print(p3_x.shape, p4_x.shape, p5_x.shape, p6_x.shape, p7_x.shape)
         return [p3_x, p4_x, p5_x, p6_x, p7_x]
 
 
