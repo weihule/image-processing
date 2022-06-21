@@ -28,9 +28,9 @@ class Anchors(nn.Module):
         all_anchors = np.zeros((0, 4)).astype(np.float32)
 
         for idx, p in enumerate(self.pyramid_levels):
-            anchors         = generate_anchors(base_size=self.sizes[idx], ratios=self.ratios, scales=self.scales)
+            anchors = generate_anchors(base_size=self.sizes[idx], ratios=self.ratios, scales=self.scales)
             shifted_anchors = shift(image_shapes[idx], self.strides[idx], anchors)
-            all_anchors     = np.append(all_anchors, shifted_anchors, axis=0)
+            all_anchors = np.append(all_anchors, shifted_anchors, axis=0)
 
         all_anchors = np.expand_dims(all_anchors, axis=0)
 

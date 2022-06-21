@@ -31,7 +31,6 @@ class Anchors(nn.Module):
         image_shape = image.shape[2:]
         image_shape = np.array(image_shape)
         image_shapes = [(image_shape + 2 ** x - 1) // (2 ** x) for x in self.pyramid_levels]
-        print(image_shapes)
 
         # compute anchors over all pyramid levels
         all_anchors = np.zeros((0, 4), dtype=np.float)
@@ -39,7 +38,7 @@ class Anchors(nn.Module):
         return None
 
 
-def generate_anchors(base_size=16, ratios=None, scales=None):
+def generate_anchors(base_size=32, ratios=None, scales=None):
     """
     Generate anchor (reference) windows by enumerating aspect ratios X
     scales w.r.t. a reference window.
@@ -55,9 +54,24 @@ def generate_anchors(base_size=16, ratios=None, scales=None):
     # initialize output anchors
     anchors = np.zeros((num_anchors, 4))
 
-    print(scales, scales.shape)
-    b = np.tile(scales, (2, len(ratios)))
-    print(b, b.shape)
+    # b = np.tile(scales, (2, len(ratios))).T
+    # scale base_size
+    anchors[:, 2:] = base_size * np.tile(scales, (2, len(ratios))).T
+    
+    # compute areas of anchors
+    areas = anchors[:, 2] * anchors[:, 3]
+    
+    # correct for ratios
+    anchors[:, 2] = np.sqrt(areas / np.repeat(ratios, 3))
+    anchors[:, 3] = anchors[:, 2] * np.repeat(ratios, 3)
+    
+    # transform from (x_ctr, y_ctr, w, h) -> (x1, y1, x2, y2)
+    print(anchors[:, 0::2])
+    print(anchors[:, 1::2])
+    # anchors[:, 0::2] -= np.tile(anchors[:, 2] * 0.5, (2, 1)).T
+    # anchors[:, 1::2] -= np.tile(anchors[:, 3] * 0.5, (2, 1)).T
+    # print(anchors)
+
 
 
 if __name__ == "__main__":
@@ -70,10 +84,10 @@ if __name__ == "__main__":
     # res = an(img)
 
     generate_anchors()
-    a = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [0, 1, 2, 3]])  # 3, 4
-    a_1 = np.repeat(a, repeats=2, axis=0)
-    print(a_1, a_1.shape)
+    # a = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [0, 1, 2, 3]])  # 3, 4
+    # a_1 = np.repeat(a, repeats=2, axis=0)
+    # print(a_1, a_1.shape)
 
-    a_2 = np.tile(a, (2, 3))
-    print(a_2, a_2.shape)
+    # a_2 = np.tile(a, (2, 3))
+    # print(a_2, a_2.shape)
 
