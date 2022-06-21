@@ -4,6 +4,7 @@ torch_detection/*/__pycache__/
 */*/__pycache__/
 */*/*/__pycache__/
 */*/*/*/__pycache__/
+*/*/*/*/*/__pycache__/
 PytorchClassification/*.zip
 .idea/
 ML/dataset/
