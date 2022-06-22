@@ -59,18 +59,20 @@ def generate_anchors(base_size=32, ratios=None, scales=None):
     anchors[:, 2:] = base_size * np.tile(scales, (2, len(ratios))).T
     
     # compute areas of anchors
-    areas = anchors[:, 2] * anchors[:, 3]
+    areas = anchors[:, 2] * anchors[:, 3]   # (9, )
     
     # correct for ratios
     anchors[:, 2] = np.sqrt(areas / np.repeat(ratios, 3))
     anchors[:, 3] = anchors[:, 2] * np.repeat(ratios, 3)
+    print(anchors)
     
     # transform from (x_ctr, y_ctr, w, h) -> (x1, y1, x2, y2)
-    print(anchors[:, 0::2])
-    print(anchors[:, 1::2])
-    # anchors[:, 0::2] -= np.tile(anchors[:, 2] * 0.5, (2, 1)).T
-    # anchors[:, 1::2] -= np.tile(anchors[:, 3] * 0.5, (2, 1)).T
-    # print(anchors)
+    # anchors[:, 0::2]指的是第0列和第2列
+    # anchors[:, 1::2]指的是第1列和第3列
+    print(anchors[:, 2])
+    anchors[:, 0::2] -= np.tile(anchors[:, 2] * 0.5, (2, 1)).T
+    anchors[:, 1::2] -= np.tile(anchors[:, 3] * 0.5, (2, 1)).T
+    
 
 
 
@@ -90,4 +92,15 @@ if __name__ == "__main__":
 
     # a_2 = np.tile(a, (2, 3))
     # print(a_2, a_2.shape)
+
+    # a = np.random.random((9, 4))
+    # print(a)
+    # print(a[:, 0::2])
+    # print(a[:, 1::2])
+
+    dst_list = np.arange(34)
+    batch_infer = 10
+    print(dst_list)
+    arr = [dst_list[x:x + batch_infer] for x in range(0, len(dst_list), batch_infer)]
+    print(arr)
 
