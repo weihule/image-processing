@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
 
 
 class Anchors(nn.Module):
@@ -64,16 +65,52 @@ def generate_anchors(base_size=32, ratios=None, scales=None):
     # correct for ratios
     anchors[:, 2] = np.sqrt(areas / np.repeat(ratios, 3))
     anchors[:, 3] = anchors[:, 2] * np.repeat(ratios, 3)
-    print(anchors)
     
     # transform from (x_ctr, y_ctr, w, h) -> (x1, y1, x2, y2)
+    # 以当前anchor的中心点为坐标原点建立直角坐标系，求出左上角坐标和右下角坐标
     # anchors[:, 0::2]指的是第0列和第2列
     # anchors[:, 1::2]指的是第1列和第3列
-    print(anchors[:, 2])
-    anchors[:, 0::2] -= np.tile(anchors[:, 2] * 0.5, (2, 1)).T
-    anchors[:, 1::2] -= np.tile(anchors[:, 3] * 0.5, (2, 1)).T
-    
 
+    anchors[:, 0::2] -= np.tile(anchors[:, 2] * 0.5, (2, 1)).T
+    anchors[:, 1::2] -= np.tile(anchors[:, 3] * 0.5, (2, 1)).T  
+
+
+def compute_shape(image_shape, pyramid_levels):
+    # 如果输入的是 640*640
+    # 返回的就是 [[80,80], [40,40], [20,20], [10,10], [5,5]]
+    image_shape = np.array(image_shape[:2])
+    image_shapes = [(image_shape + 2 ** x - 1) // (2 ** x) for x in pyramid_levels]
+
+    return image_shapes
+
+
+def anchors_for_shape(
+    image_shape,
+    pyramid_levels=None,
+    ratios=None,
+    scales=None,
+    strides=None,
+    sizes=None,
+    shapes_callback=None,
+):
+    image_shapes = compute_shape(image_shape, pyramid_levels)
+
+    # compute anchors over all pyramid levels
+    for idx, p in enumerate(pyramid_levels):
+        anchors = generate_anchors(base_size=sizes[idx], ratios=ratios, scales=scales)
+        shifted_anchors = shift(image_shapes[idx], strides[idx], anchors)
+
+
+def shift(shape, stride, anchors=None):
+    # shape[0]: height    shape[1]: width
+    # stride 就是 [8, 16, 32, 64, 128]
+    shift_x = (np.arange(0, shape[1]) + 0.5) * stride
+    shift_y = (np.arange(0, shape[0]) + 0.5) * stride
+
+    shift_x, shift_y = np.meshgrid(shift_x, shift_y)
+
+    plt.plot(shift_x, shift_y)
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -98,9 +135,12 @@ if __name__ == "__main__":
     # print(a[:, 0::2])
     # print(a[:, 1::2])
 
-    dst_list = np.arange(34)
-    batch_infer = 10
-    print(dst_list)
-    arr = [dst_list[x:x + batch_infer] for x in range(0, len(dst_list), batch_infer)]
-    print(arr)
+    # dst_list = np.arange(34)
+    # batch_infer = 10
+    # print(dst_list)
+
+    # res = compute_shape([640, 640, 3], [3,4,5,6,7])
+    # print(res)
+
+    shift((10, 10), 64)
 
