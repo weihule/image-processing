@@ -74,6 +74,8 @@ def generate_anchors(base_size=32, ratios=None, scales=None):
     anchors[:, 0::2] -= np.tile(anchors[:, 2] * 0.5, (2, 1)).T
     anchors[:, 1::2] -= np.tile(anchors[:, 3] * 0.5, (2, 1)).T  
 
+    return anchors
+
 
 def compute_shape(image_shape, pyramid_levels):
     # 如果输入的是 640*640
@@ -97,20 +99,36 @@ def anchors_for_shape(
 
     # compute anchors over all pyramid levels
     for idx, p in enumerate(pyramid_levels):
-        anchors = generate_anchors(base_size=sizes[idx], ratios=ratios, scales=scales)
+        anchors = generate_anchors(base_size=sizes[idx], ratios=ratios, scales=scales)  # [9, 4]
         shifted_anchors = shift(image_shapes[idx], strides[idx], anchors)
 
 
 def shift(shape, stride, anchors=None):
-    # shape[0]: height    shape[1]: width
-    # stride 就是 [8, 16, 32, 64, 128]
+    # shape: [[80,80], [40,40], [20,20], [10,10], [5,5]]
+    # stride: [8, 16, 32, 64, 128]
     shift_x = (np.arange(0, shape[1]) + 0.5) * stride
     shift_y = (np.arange(0, shape[0]) + 0.5) * stride
 
-    shift_x, shift_y = np.meshgrid(shift_x, shift_y)
+    shift_x, shift_y = np.meshgrid(shift_x, shift_y)    # [20, 20] [20, 20] 或 [5, 5]  [5, 5]
 
-    plt.plot(shift_x, shift_y)
-    plt.show()
+    # 需要把 shifts 拼成和anchors一样的形状
+    # 第一列和第三列相同, 第二列和第四列相同, 
+    # 以输入shape是[10,10]为例,
+    # 第一列就是网格上 10*10 个点的横坐标
+    # 第一列就是网格上 10*10 个点的纵坐标
+    shifts = np.vstack((
+            shift_x.ravel(), shift_y.ravel(),
+            shift_x.ravel(), shift_y.ravel()
+            )).transpose()
+
+    a = anchors.shape[0]
+    k = shifts.shape[0]     # 对应输入的feature_map的 高*宽
+
+    # add anchor (1, a, 4) to cell k shifts (K, 1, 4) to get (k, a, 4)
+    all_anchors = (anchors.reshape((1, a, 4)) + shifts.reshape((1, k, 4)).transpose((1, 0, 2)))
+    all_anchors = all_anchors.reshape((a * k, 4))
+
+    return all_anchors
 
 
 if __name__ == "__main__":
@@ -122,7 +140,7 @@ if __name__ == "__main__":
     # an = Anchors()
     # res = an(img)
 
-    generate_anchors()
+    # shift([20, 20], 32)
     # a = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [0, 1, 2, 3]])  # 3, 4
     # a_1 = np.repeat(a, repeats=2, axis=0)
     # print(a_1, a_1.shape)
@@ -142,5 +160,10 @@ if __name__ == "__main__":
     # res = compute_shape([640, 640, 3], [3,4,5,6,7])
     # print(res)
 
-    shift((10, 10), 64)
+    anchors = generate_anchors(base_size=256)
+    shift(shape=[10, 10], stride=64, anchors=anchors)
+    # K = shifts.shape[0]
+    # new_shifts = shifts.reshape((1, K, 4))
+    # new_shifts = np.transpose(new_shifts, (1, 0, 2))
+    # print(new_shifts.shape)
 
