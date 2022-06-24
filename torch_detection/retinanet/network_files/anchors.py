@@ -132,8 +132,8 @@ def shift(shape, stride, anchors=None):
 
 
 if __name__ == "__main__":
-    # arr = np.zeros((0, 4), dtype=np.float32)
-    # print(arr)
+    arr = np.zeros((0, 4), dtype=np.float32)
+    print(arr)
 
     # img_path = 'C:\\Users\\weihu\\Desktop\\images\\000.png'
     # img = cv2.imread(img_path)
@@ -160,8 +160,8 @@ if __name__ == "__main__":
     # res = compute_shape([640, 640, 3], [3,4,5,6,7])
     # print(res)
 
-    anchors = generate_anchors(base_size=256)
-    shift(shape=[10, 10], stride=64, anchors=anchors)
+    # anchors = generate_anchors(base_size=256)
+    # shift(shape=[10, 10], stride=64, anchors=anchors)
     # K = shifts.shape[0]
     # new_shifts = shifts.reshape((1, K, 4))
     # new_shifts = np.transpose(new_shifts, (1, 0, 2))
