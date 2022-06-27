@@ -318,6 +318,7 @@ def collater(datas):
 
     return {'img': imgs, 'annot': annots, 'scale': scales}
 
+
 if __name__ == "__main__":
     # main(2, 0)
     # img_root = 'D:\\workspace\\data\\DL\\COCO2017\\images\\val2017'
