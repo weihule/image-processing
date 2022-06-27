@@ -270,6 +270,69 @@ class COCODataPrefetcher():
         return input, annot
 
 
+class RetinaStyleResize:
+    def __init__(self,
+                 resize=400,
+                 divisor=32,
+                 stride=32,
+                 multi_scale=False,
+                 multi_scale_range=[0.8, 1.0]):
+        self.resize = resize
+        self.divisor = divisor
+        self.stride = stride
+        self.multi_scale = multi_scale
+        self.multi_scale_range = multi_scale_range
+        self.ratio = 1333. / 800
+
+    def __call__(self, sample):
+        '''
+        sample must be a dict,contains 'img'、'annot'、'scale' keys.
+        '''
+        image, annots, scale = sample['img'], sample['annot'], sample[
+            'scale']
+        h, w, _ = image.shape
+
+        if self.multi_scale:
+            scale_range = [
+                int(self.multi_scale_range[0] * self.resize),
+                int(self.multi_scale_range[1] * self.resize)
+            ]
+            resize_list = [
+                i // self.stride * self.stride
+                for i in range(scale_range[0], scale_range[1] + self.stride)
+            ]
+            resize_list = list(set(resize_list))
+
+            random_idx = np.random.randint(0, len(resize_list))
+            scales = (resize_list[random_idx],
+                      int(round(self.resize * self.ratio)))
+        else:
+            scales = (self.resize, int(round(self.resize * self.ratio)))
+
+        max_long_edge, max_short_edge = max(scales), min(scales)
+        factor = min(max_long_edge / max(h, w), max_short_edge / min(h, w))
+
+        resize_h, resize_w = int(round(h * factor)), int(round(w * factor))
+        image = cv2.resize(image, (resize_w, resize_h))
+
+        pad_w = 0 if resize_w % self.divisor == 0 else self.divisor - resize_w % self.divisor
+        pad_h = 0 if resize_h % self.divisor == 0 else self.divisor - resize_h % self.divisor
+
+        padded_image = np.zeros((resize_h + pad_h, resize_w + pad_w, 3),
+                                dtype=np.float32)
+        padded_image[:resize_h, :resize_w, :] = image
+
+        factor = np.float32(factor)
+        annots[:, :4] *= factor
+        scale *= factor
+
+        return {
+            'img': padded_image,
+            'annot': annots,
+            'scale': scale,
+        }
+
+
 class RandomFlip():
     def __init__(self, flip_prob=0.5):
         self.flip_prob = flip_prob
@@ -298,25 +361,46 @@ class RandomFlip():
 
 
 def collater(datas):
+    """
+    对于一个batch的images和annotations,
+    我们最后还需要用collater函数将images
+    和annotations的shape全部对齐后才能输入模型进行训练。
+    """
+    # imgs = [p['img'] for p in datas]
+    # # annots 里面每一个元素都是一个二维数组, (N, 5)
+    # # N表示当前图片中的gt数量
+    # annots = [p['annot'] for p in datas]
+    # scales = [p['scale'] for p in datas]
+
+    # imgs = torch.from_numpy(np.stack(imgs, axis=0))
+
+    # max_num_annots = max(annot.shape[0] for annot in annots)
+
+    # if max_num_annots > 0:
+    #     annot_padded = torch.ones((len(annots), max_num_annots, 5)) * (-1)
+    #     for idx, annot in enumerate(annots):
+    #         if annot.shape[0] > 0:
+    #             annot_padded[idx, :annot.shape[0], :] = annot
+    # else:
+    #     annot_padded = torch.ones((len(annots), 1, 5)) * (-1) 
+
+    # return {'img': imgs, 'annot': annot_padded, 'scale': scales}
     imgs = [p['img'] for p in datas]
-    # annots 里面每一个元素都是一个二维数组, (N, 5)
-    # N表示当前图片中的gt数量
     annots = [p['annot'] for p in datas]
     scales = [p['scale'] for p in datas]
 
     imgs = torch.from_numpy(np.stack(imgs, axis=0))
-
-    max_num_annots = max(annot.shape[0] for annot in annots)
+    max_num_annots = max([annot.shape[0] for annot in annots])
 
     if max_num_annots > 0:
         annot_padded = torch.ones((len(annots), max_num_annots, 5)) * (-1)
-        for idx, annot in enumerate(annots):
-            if annot.shape[0] > 0:
-                annots[idx, :annot.shape[0], :] = annot
+        for idx, anno in enumerate(annots):
+            if anno.shape[0] > 0:
+                annot_padded[idx, :anno.shape[0], :] = anno
     else:
-        annot_padded = torch.ones((len(annots), 1, 5)) * (-1) 
-
-    return {'img': imgs, 'annot': annots, 'scale': scales}
+        annot_padded = torch.ones((len(annots), 1, 5)) * (-1)
+    
+    return {'img': imgs, 'annot': annot_padded, 'scale': scales}
 
 
 if __name__ == "__main__":
@@ -343,18 +427,20 @@ if __name__ == "__main__":
 
     root = 'D:\\workspace\\data\\DL\\VOCdataset'
     
-    # vd = VocDetection(root)
-    # RF = RandomFlip()
-    # label_to_name = vd.voc_lable_to_categoty_id
-    # save_root = 'D:\\Desktop'
-    # for i in range(20):
-    #     res = vd[i]
-    #     res = RF(res)  
-    #     img = res['img'] * 225.
-    #     image = Image.fromarray(np.uint8(img))
-    #     print(image.mode)
-    #     img_dra = ImageDraw.Draw(image) 
-    #     annot = res['annot']
+    vd = VocDetection(root)
+    RF = RandomFlip()
+    retina_resize = RetinaStyleResize()
+    label_to_name = vd.voc_lable_to_categoty_id
+    save_root = 'D:\\Desktop'
+    for i in range(20):
+        res = vd[i]
+        # res = RF(res)  
+        retina_resize(res)
+        img = res['img'] * 225.
+        image = Image.fromarray(np.uint8(img))
+        # print(image.mode)
+        img_dra = ImageDraw.Draw(image) 
+        annot = res['annot']
 
         # for anno in annot:
         #     label = anno[-1]
@@ -396,9 +482,9 @@ if __name__ == "__main__":
     # cv2.imshow('res', img_combine)
     # cv2.waitKey(0)
 
-    arr = torch.rand(3, 5)
-    padded = torch.ones(4, 5) * (-1)
-    comb = torch.cat((arr, padded), dim=0)
-    print(comb, comb.shape)
+    # arr = torch.rand(3, 5)
+    # padded = torch.ones(4, 5) * (-1)
+    # comb = torch.cat((arr, padded), dim=0)
+    # print(comb, comb.shape)
 
 
