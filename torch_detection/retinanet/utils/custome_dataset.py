@@ -32,12 +32,17 @@ class CocoDetection(Dataset):
                  coco_classes='coco_classes.json',
                  transform=None):
         super(Dataset, self).__init__()
+        self.coco_label_to_category_id = None
+        self.category_id_to_coco_label = None
+        self.categories = None
+        self.cat_ids = None
+        self.image_ids = None
         self.image_root_dir = image_root_dir
         self.annotation_root_dir = annotation_root_dir
         self.set_name = set
         self.coco_classes = coco_classes
         self.transform = transform
- 
+
         self.coco = COCO(
             os.path.join(self.annotation_root_dir,
                          'instances_' + self.set_name + '.json'))
@@ -46,15 +51,15 @@ class CocoDetection(Dataset):
 
     def load_classes(self):
         self.image_ids = self.coco.getImgIds()  # 获取图片id, 返回包含所有图片id的列表
-        self.cat_ids = self.coco.getCatIds()    # 获取类别id, 返回包含所有类别id的列表
+        self.cat_ids = self.coco.getCatIds()  # 获取类别id, 返回包含所有类别id的列表
 
         self.categories = self.coco.loadCats(self.cat_ids)
         self.categories.sort(key=lambda x: x['id'])
-        
+
         # category_id is an original id,coco_id is set from 0 to 79
         self.category_id_to_coco_label = {cat['id']: idx for idx, cat in enumerate(self.categories)}
         self.coco_label_to_category_id = {idx: cat['id'] for idx, cat in enumerate(self.categories)}
-        
+
     def __len__(self):
         return len(self.image_ids)
 
@@ -73,7 +78,7 @@ class CocoDetection(Dataset):
         path = os.path.join(self.image_root_dir, img_info['file_name'])
         img = cv2.imread(path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
+
         # opencv读取的图片转成RGB之后并归一化
         return img.astype(np.float32) / 255
 
@@ -86,7 +91,7 @@ class CocoDetection(Dataset):
             N 表示有多少个gt
             5 表示gt的左上右下坐标和gt所属的类别 (0, 1, ..., 79)
         """
-        
+
         # coco.getAnnIds()会得到所有的annotations下的 id
         # 然后根据 ImgIdx 找到属于该ImgIdx所有的ann标注
         # 返回的即是 annotations 中的 id
@@ -122,7 +127,6 @@ class CocoDetection(Dataset):
 
         return annotations
 
-
     def find_coco_label_from_category_id(self, category_id):
         return self.category_id_to_coco_label[category_id]
 
@@ -135,7 +139,7 @@ class CocoDetection(Dataset):
     def image_aspect_ratio(self, image_idx):
         image = self.coco.loadImgs(self.image_ids[image_idx])[0]
 
-        return float(image['width'])/float(image['height'])
+        return float(image['width']) / float(image['height'])
 
     def coco_label_to_class_name(self):
         with open(self.coco_classes, 'r', encoding='utf-8') as fr:
@@ -146,14 +150,15 @@ class CocoDetection(Dataset):
         return coco_label_to_name
 
 
-
 class VocDetection(Dataset):
     def __init__(self,
                  root_dir,
-                 image_sets=[('2007', 'trainval'), ('2012', 'trainval')],
+                 image_sets=None,
                  transform=None,
                  keep_difficult=False):
         super(Dataset, self).__init__()
+        if image_sets is None:
+            image_sets = [('2007', 'trainval'), ('2012', 'trainval')]
         self.root_dir = root_dir
         self.image_set = image_sets
         self.transform = transform
@@ -164,11 +169,11 @@ class VocDetection(Dataset):
         with open('pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
             self.categoty_id_to_voc_lable = json.load(fr)
 
-        self.voc_lable_to_categoty_id = {v:k for k, v in self.categoty_id_to_voc_lable.items()}
-        
+        self.voc_lable_to_categoty_id = {v: k for k, v in self.categoty_id_to_voc_lable.items()}
+
         self.keep_difficult = keep_difficult
 
-        self.ids = list()       # 存储的是2007和2012中 trainval.txt 中的图片名, 有16551个
+        self.ids = list()  # 存储的是2007和2012中 trainval.txt 中的图片名, 有16551个
         for (year, name) in image_sets:
             rootpath = os.path.join(self.root_dir, 'VOC' + year)
             txt_file = os.path.join(rootpath, 'ImageSets', 'Main', name + '.txt')
@@ -176,32 +181,31 @@ class VocDetection(Dataset):
                 lines = fr.readlines()
             for line in lines:
                 self.ids.append((rootpath, line.strip('\n')))
-        
+
     def __getitem__(self, idx):
         img_id = self.ids[idx]
         img = self.load_image(img_id)
         annot = self.load_annotations(img_id)
-        
+
         sample = {'img': img, 'annot': annot, 'scale': 1.}
 
         if self.transform:
             sample = self.transform(sample)
 
-        return sample 
+        return sample
 
     def __len__(self):
-        return len(self.ids)    
+        return len(self.ids)
 
     def load_image(self, img_id):
-        img_path = os.path.join(img_id[0], 'JPEGImages', img_id[1]+'.jpg')
+        img_path = os.path.join(img_id[0], 'JPEGImages', img_id[1] + '.jpg')
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        return img.astype(np.float32)/225.
-
+        return img.astype(np.float32) / 225.
 
     def load_annotations(self, img_id):
-        xml_path = os.path.join(img_id[0], 'Annotations', img_id[1]+'.xml')
+        xml_path = os.path.join(img_id[0], 'Annotations', img_id[1] + '.xml')
         annotations = np.zeros((0, 5))
 
         target = ET.parse(xml_path).getroot()
@@ -218,18 +222,17 @@ class VocDetection(Dataset):
             annotation.append(self.categoty_id_to_voc_lable[name])  # [x_min, y_min, x_max, y_max, label_id]
 
             # 这里必须要升维
-            annotation = np.expand_dims(annotation, axis=0)   # (5, ) -> (1, 5)
+            annotation = np.expand_dims(annotation, axis=0)  # (5, ) -> (1, 5)
             annotations = np.append(annotations, annotation, axis=0)
-        
-        return annotations
 
+        return annotations
 
     def image_aspect_ratio(self, idx):
         img_id = self.ids[idx]
         img = self.load_image(img_id)
         h, w, _ = img.shape
 
-        return float(w)/float(h)
+        return float(w) / float(h)
 
 
 class COCODataPrefetcher():
@@ -238,10 +241,10 @@ class COCODataPrefetcher():
     就预先加载下一个batch的数据, 这样就节省了下加载数据的时间
     (相当于加载数据与前向计算和反向传播并行了).
     """
+
     def __init__(self, loader):
         self.loader = iter(loader)
         self.stream = torch.cuda.stream()
-    
 
     def preload(self):
         # 当我们已经迭代完最后⼀个数据之后，
@@ -254,7 +257,7 @@ class COCODataPrefetcher():
         except StopIteration:
             self.next_input = None
             self.next_annot = None
-            return 
+            return
 
         with torch.cuda.stream(self.stream):
             self.next_input = self.next_input.cuda(non_blocking=True)
@@ -276,7 +279,9 @@ class RetinaStyleResize:
                  divisor=32,
                  stride=32,
                  multi_scale=False,
-                 multi_scale_range=[0.8, 1.0]):
+                 multi_scale_range=None):
+        if multi_scale_range is None:
+            multi_scale_range = [0.8, 1.0]
         self.resize = resize
         self.divisor = divisor
         self.stride = stride
@@ -333,7 +338,38 @@ class RetinaStyleResize:
         }
 
 
-class RandomFlip():
+class Resizer:
+    """Convert ndarrays in sample to Tensors."""
+
+    def __call__(self, sample, min_side=608, max_side=1024):
+        image, annots = sample['img'], sample['annot']
+        h, w, c = image.shape
+        smallest_side = min(h, w)
+
+        # rescale the image so the smallest_side is min_side
+        scale = min_side / smallest_side
+
+        # check if the largest side is now greater than max_side, which can happen
+        # when images have a large aspect ratio
+        largest_side = max(h, w)
+        if largest_side * scale > max_side:
+            scale = max_side / largest_side
+
+        # resize the image with the computed scale
+        resized_w, resized_h = int(round(w * scale)), int(round(h * scale))
+        image = cv2.resize(image, (resized_w, resized_h))
+        pad_w = 0 if resized_w % 32 == 0 else 32 - resized_w % 32
+        pad_h = 0 if resized_h % 32 == 0 else 32 - resized_h % 32
+
+        padded_img = np.zeros((resized_h + pad_h, resized_w + pad_w, c), dtype=np.float32)
+        padded_img[:resized_h, :resized_w, :] = image
+
+        annots[:, :4] *= scale
+
+        return {'img': padded_img, 'annot': annots, 'scale': scale}
+
+
+class RandomFlip:
     def __init__(self, flip_prob=0.5):
         self.flip_prob = flip_prob
 
@@ -366,32 +402,23 @@ def collater(datas):
     我们最后还需要用collater函数将images
     和annotations的shape全部对齐后才能输入模型进行训练。
     """
-    # imgs = [p['img'] for p in datas]
-    # # annots 里面每一个元素都是一个二维数组, (N, 5)
-    # # N表示当前图片中的gt数量
-    # annots = [p['annot'] for p in datas]
-    # scales = [p['scale'] for p in datas]
-
-    # imgs = torch.from_numpy(np.stack(imgs, axis=0))
-
-    # max_num_annots = max(annot.shape[0] for annot in annots)
-
-    # if max_num_annots > 0:
-    #     annot_padded = torch.ones((len(annots), max_num_annots, 5)) * (-1)
-    #     for idx, annot in enumerate(annots):
-    #         if annot.shape[0] > 0:
-    #             annot_padded[idx, :annot.shape[0], :] = annot
-    # else:
-    #     annot_padded = torch.ones((len(annots), 1, 5)) * (-1) 
-
-    # return {'img': imgs, 'annot': annot_padded, 'scale': scales}
+    batch_size = len(datas)
     imgs = [p['img'] for p in datas]
-    annots = [p['annot'] for p in datas]
+    # annots 里面每一个元素都是一个二维数组, (N, 5)
+    # N表示当前图片中的gt数量
+    annots = [torch.from_numpy(p['annot']) for p in datas]
     scales = [p['scale'] for p in datas]
 
-    imgs = torch.from_numpy(np.stack(imgs, axis=0))
-    max_num_annots = max([annot.shape[0] for annot in annots])
+    img_h_list = [p.shape[0] for p in imgs]
+    img_w_list = [p.shape[1] for p in imgs]
+    max_h, max_w = max(img_h_list), max(img_w_list)
+    padded_img = torch.zeros((batch_size, max_h, max_w, 3), dtype=torch.float32)
+    for i in range(batch_size):
+        img = imgs[i]
+        padded_img[i, :img.shape[0], :img.shape[1], :] = torch.from_numpy(img)
 
+    # imgs = torch.from_numpy(np.stack(imgs, axis=0))
+    max_num_annots = max([annot.shape[0] for annot in annots])
     if max_num_annots > 0:
         annot_padded = torch.ones((len(annots), max_num_annots, 5)) * (-1)
         for idx, anno in enumerate(annots):
@@ -399,8 +426,8 @@ def collater(datas):
                 annot_padded[idx, :anno.shape[0], :] = anno
     else:
         annot_padded = torch.ones((len(annots), 1, 5)) * (-1)
-    
-    return {'img': imgs, 'annot': annot_padded, 'scale': scales}
+
+    return {'img': padded_img, 'annot': annot_padded, 'scale': scales}
 
 
 if __name__ == "__main__":
@@ -425,22 +452,29 @@ if __name__ == "__main__":
     #     cv2.imshow('res', img)
     #     cv2.waitKey(0)
 
-    root = 'D:\\workspace\\data\\DL\\VOCdataset'
-    
+    # root = 'D:\\workspace\\data\\DL\\VOCdataset'
+    root = '/workshop/weihule/data/DL/VOCdataset'
+
     vd = VocDetection(root)
-    RF = RandomFlip()
-    retina_resize = RetinaStyleResize()
+    # retina_resize = RetinaStyleResize()
     label_to_name = vd.voc_lable_to_categoty_id
     save_root = 'D:\\Desktop'
-    for i in range(20):
-        res = vd[i]
-        # res = RF(res)  
-        retina_resize(res)
-        img = res['img'] * 225.
-        image = Image.fromarray(np.uint8(img))
+    for i in range(0, 20, 4):
+        batch_data = list()
+        for j in range(i, i+4):
+            sample = vd[j]
+            # res = RF(res)
+            sample = Resizer()(sample)
+            batch_data.append(sample)
+        res = collater(batch_data)
+        print(res['img'].shape)
+        print(res['annot'].shape)
+        # img = sample['img'] * 225.
+        # print(i, img.shape)
+        # image = Image.fromarray(np.uint8(img))
         # print(image.mode)
-        img_dra = ImageDraw.Draw(image) 
-        annot = res['annot']
+        # img_dra = ImageDraw.Draw(image)
+        # annot = sample['annot']
 
         # for anno in annot:
         #     label = anno[-1]
@@ -470,7 +504,6 @@ if __name__ == "__main__":
 
     # print(np.random.uniform(0, 1, (2, 3)))
 
-
     # img_path = 'D:\\workspace\\data\\DL\\VOCdataset\\VOC2007\\JPEGImages\\000001.jpg'
     # img = cv2.imread(img_path)
 
@@ -486,5 +519,3 @@ if __name__ == "__main__":
     # padded = torch.ones(4, 5) * (-1)
     # comb = torch.cat((arr, padded), dim=0)
     # print(comb, comb.shape)
-
-
