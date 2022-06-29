@@ -35,6 +35,8 @@ class RegressionModel(nn.Module):
         x = x.permute(0, 2, 3, 1).contiguous()  # [B, num_anchors*4, H, W] -> [B, H, W, num_anchors*4]
         x = x.view(x.shape[0], -1, 4)   # [B, H*W*num_anchors, 4]
 
+        return x
+
 
 class ClassificationModel(nn.Module):
     def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=256):
@@ -68,7 +70,7 @@ class ClassificationModel(nn.Module):
         out1 = self.output_act(out1)  # [B, num_anchors*num_classes, H, W]
         b, c, h, w = out1.shape
 
-        out2 = out1.view(b, h, w, self.num_anchors, self.num_anchors).contiguous()
+        out2 = out1.view(b, h, w, self.num_anchors, self.num_classes).contiguous()
         out2 = out2.view(b, -1, self.num_classes)     # [B, num_anchors*H*W, num_classes]
 
         return out2
