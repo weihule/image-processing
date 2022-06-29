@@ -182,13 +182,16 @@ if __name__ == "__main__":
                             0.7706285119056702]).reshape(-1, 1)
 
     gt_bbs = torch.tensor([[9, 8, 14, 15], [6, 5, 13, 11]], dtype=torch.float32)
+    print(pred_bbs.shape, gt_bbs[0].shape)
+    res = get_ious(pred_bbs, gt_bbs[1])
+    print(res)
 
     # 需要注意, 这里不管传入多少个gt, 返回的 tp_list 都是 bbox 的个数
     # 只是其中可能有多个1, 1就代表tp
-    gt_num, tp_list, conf_scores = calculate_tp(pred_bbs, pred_ss, gt_bbs)
-    p_list, r_list = calculate_pr(gt_num, tp_list, conf_scores)
-    res = voc_ap(r_list, p_list)
-    print(res)
+    # gt_num, tp_list, conf_scores = calculate_tp(pred_bbs, pred_ss, gt_bbs)
+    # p_list, r_list = calculate_pr(gt_num, tp_list, conf_scores)
+    # res = voc_ap(r_list, p_list)
+    # print(res)
     # zipped = zip(tp_list, conf_scores)
     # zipped = sorted(zipped, key=lambda x: x[1], reverse=True)
     # print(gt_num, tp_list, conf_scores)
