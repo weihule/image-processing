@@ -248,7 +248,39 @@ class RetinaLoss(nn.Module):
 
         return one_image_smooth_l1_loss
 
-    def drop_out_border_anchors_and_heads(self):
+    def drop_out_border_anchors_and_heads(self, cls_heads, reg_heads,
+                                        batch_anchors, image_w, image_h):
+        """
+        dropout out of border anchors,cls heads and reg heads
+        """
+        final_cls_heads, final_reg_heads, final_batch_anchors = list(), list(), list()
+        for per_img_cls_head, per_img_reg_head, per_img_anchors in \
+                                        zip(cls_heads, reg_heads, batch_anchors):
+            per_img_cls_head = per_img_cls_head[per_img_anchors[:, 0] > 0]
+            per_img_reg_head = per_img_reg_head[per_img_anchors[:, 0] > 0]
+            per_img_anchors = per_img_anchors[per_img_anchors[:, 0] > 0]
+
+            per_img_cls_head = per_img_cls_head[per_img_anchors[:, 1] > 0]
+            per_img_reg_head = per_img_reg_head[per_img_anchors[:, 1] > 0]
+            per_img_anchors = per_img_anchors[per_img_anchors[:, 1] > 0]
+
+            per_img_cls_head = per_img_cls_head[per_img_anchors[:, 2] < image_w]
+            per_img_reg_head = per_img_reg_head[per_img_anchors[:, 2] < image_w]
+            per_img_anchors = per_img_anchors[per_img_anchors[:, 2] < image_w]
+
+            per_img_cls_head = per_img_cls_head[per_img_anchors[:, 3] < image_h]
+            per_img_reg_head = per_img_reg_head[per_img_anchors[:, 3] < image_h]
+            per_img_anchors = per_img_anchors[per_img_anchors[:, 3] < image_h]
+
+            final_cls_heads.append(torch.unsqueeze(per_img_cls_head, 0))
+            final_reg_heads.append(torch.unsqueeze(per_img_reg_head, 0))
+            final_batch_anchors.append(torch.unsqueeze(per_img_anchors, 0))
+
+        final_cls_heads = torch.cat(final_cls_heads, 0)
+        final_reg_heads = torch.cat(final_reg_heads, 0)
+        final_batch_anchors = torch.cat(final_batch_anchors, 0)
+        
+        return final_cls_heads, final_reg_heads, final_batch_anchors
 
 
 if __name__ == "__main__":
