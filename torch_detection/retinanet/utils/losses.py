@@ -151,6 +151,23 @@ def custom_cross_entropy(input_data, target, num_class, use_custom=True):
     return losses
 
 
+def custom_bce(input_data, target, use_custom=True):
+    one_hot_target = F.one_hot(target, num_classes=2).float()
+
+    if use_custom:
+        losses = -one_hot_target * torch.log(torch.sigmoid(input_data)) \
+                 - (1 - one_hot_target) * (torch.log(1 - torch.sigmoid(input_data)))
+        # print(1-one_hot_target)
+        # print(1-torch.log(input_data))
+        # print(losses1, losses2)
+        losses = torch.sum(losses) / (2 * input_data.shape[0])
+    else:
+        # losses = F.binary_cross_entropy(input_data, one_hot_target)
+        losses = F.binary_cross_entropy_with_logits(input_data, one_hot_target)
+
+    return losses
+
+
 class RetinaLoss(nn.Module):
     def __init__(self,
                  image_w,
@@ -175,6 +192,63 @@ class RetinaLoss(nn.Module):
         per_image_anchors_annotations:[anchor_num,5]
         """
         # Filter anchors with gt class=-1, this part of anchor doesn't calculate focal loss
+        per_image_cls_heads = per_image_cls_heads[per_image_anchors_annotations[:, 4] >= 0]
+        per_image_anchors_annotations = per_image_anchors_annotations[per_image_anchors_annotations[:, 4] >= 0]
+        per_image_cls_heads = torch.clamp(per_image_cls_heads,
+                                          min=self.epsilon,
+                                          max=1. - self.epsilon)
+        num_classes = per_image_cls_heads.shape[1]
+
+        # generate 80 binary ground truth classes for each anchor
+        loss_ground_truth = F.one_hot(per_image_cls_heads[:, 4], num_classes=num_classes + 1).float()
+        loss_ground_truth = loss_ground_truth[:, 1:]  # [anchor_num, num_classes]
+
+        # [anchor_num, num_classes]
+        alpha_factor = torch.ones_like(per_image_cls_heads) * self.alpha
+        alpha_factor = torch.where(torch.eq(loss_ground_truth, 1.), alpha_factor, 1 - alpha_factor)
+
+        # [anchor_num, num_classes]
+        pt = torch.where(torch.eq(loss_ground_truth, 1.), per_image_cls_heads, 1 - per_image_cls_heads)
+        focal_weight = alpha_factor * (1. - pt) ** self.gamma
+
+        bce_loss = -loss_ground_truth * torch.log(per_image_cls_heads) \
+                   - (1. - loss_ground_truth) * torch.log(1. - per_image_cls_heads)  # [anchor_num, num_classes]
+        one_img_focal_loss = focal_weight * bce_loss
+        one_img_focal_loss = one_img_focal_loss.sum()
+
+        positive_anchor_num = per_image_anchors_annotations[per_image_anchors_annotations[:, 4] > 0].shape[0]
+
+        return one_img_focal_loss / positive_anchor_num
+
+    # 计算回归损失时, 只用正样本进行的loss计算
+    def compute_one_image_smooth_l1_loss(self, per_image_reg_heads, per_image_anchors_annotations):
+        """
+        compute one image smoothl1 loss(reg loss)
+        :param per_image_reg_heads: [anchor_num, 4]  B,4A,H,W -> B,H*W*A,4, 这里A取9, H*W*A也就是所有anchor的数量
+        :param per_image_anchors_annotations: [anchor_num, 5]
+        :return:
+        """
+        per_image_reg_heads = per_image_reg_heads[per_image_anchors_annotations[:, 4] > 0]
+        per_image_anchors_annotations = per_image_anchors_annotations[per_image_anchors_annotations[:, 4] > 0]
+        positive_anchor_num = per_image_anchors_annotations[per_image_anchors_annotations[:, 4] > 0].shape[0]
+
+        if positive_anchor_num == 0:
+            return torch.tensor(0.)
+
+        # compute smoothl1 loss
+        loss_gt = per_image_anchors_annotations[:, 0:4]
+        x = torch.abs(loss_gt - per_image_reg_heads)    # [positive_anchor_num, 4]
+        # 这里计算 smooth_l1_loss 时, 选用了beta值是 1/9, 相比原来的1, loss被放大
+        # 因为原本是 小于1时, loss是0.5*x**2, 现在换成了 1/9,
+        # 相当于之前 在（0.9-1）之间的数字都增大
+        # [positive_anchor_num, 4]
+        one_image_smooth_l1_loss = torch.where(torch.ge(x, self.beta), x - 0.5, (0.5*x**2) / self.beta)
+        one_image_smooth_l1_loss = torch.sum(one_image_smooth_l1_loss, dim=1)
+        one_image_smooth_l1_loss = one_image_smooth_l1_loss / positive_anchor_num   # [positive_anchor_num]
+
+        return one_image_smooth_l1_loss
+
+    def drop_out_border_anchors_and_heads(self):
 
 
 if __name__ == "__main__":
@@ -208,9 +282,23 @@ if __name__ == "__main__":
     #     get_batch_anchors_annotations(pred_bbs.reshape(4, -1, 4), res['annot'])
     #     break
 
-    inputs = torch.rand(3, 5)
-    target = torch.tensor([0, 1, 4])
-    custom_loss1 = custom_cross_entropy(inputs, target, use_custom=True, num_class=5)
-    custom_loss2 = custom_cross_entropy(inputs, target, use_custom=False, num_class=5)
-    official_loss = F.cross_entropy(inputs, target)
+    # inputs = torch.rand(3, 5)
+    # target = torch.tensor([0, 1, 4])
+    # custom_loss1 = custom_cross_entropy(inputs, target, use_custom=True, num_class=5)
+    # custom_loss2 = custom_cross_entropy(inputs, target, use_custom=False, num_class=5)
+    # official_loss = F.cross_entropy(inputs, target)
     # print(custom_loss1, custom_loss2, official_loss)
+
+    # inputs = torch.rand(4, 2)
+    # inputs = torch.tensor([[0.8, 0.2]])
+    # target = torch.tensor([0, 1, 1, 0])
+    # cus_bce_loss = custom_bce(inputs, target)
+    # official_loss = custom_bce(inputs, target, use_custom=False)
+    # print(cus_bce_loss, official_loss)
+
+    # x = torch.arange(30).reshape((10, 3))
+    # y = torch.randint(low=0, high=9, size=(x.shape[0], 1))
+    # arr = torch.cat((x, y), dim=1)
+    # print(arr)
+    # arr = arr[arr[:, 3] > 0]
+    # print(arr)
