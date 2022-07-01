@@ -33,7 +33,7 @@ def snap_annotations_as_tx_ty_tw_th(anchors_gt_bboxes, anchors):
     # 将box坐标按照faster rcnn中公式转换为tx，ty，tw，th后,
     # 这四个值又除以了[0.1,0.1,0.2,0.2]进一步放大
     factor = torch.tensor([[0.1, 0.1, 0.2, 0.2]])
-    # snaped_annotations_for_anchors = snaped_annotations_for_anchors / factor
+    snaped_annotations_for_anchors = snaped_annotations_for_anchors / factor
 
     # snaped_annotations_for_anchors shape : [M, 4]
     return snaped_annotations_for_anchors
@@ -76,7 +76,7 @@ def get_batch_anchors_annotations(batch_anchors, annotations):
     Assign a ground truth box target and a ground truth class target for each anchor
     if anchor gt_class index = -1,this anchor doesn't calculate cls loss and reg loss
     if anchor gt_class index = 0,this anchor is a background class anchor and used in calculate cls loss
-    if anchor gt_class index > 0,this anchor is a object class anchor and used in calculate cls loss and reg loss
+    if anchor gt_class index > 0,this anchor is an object class anchor and used in calculate cls loss and reg loss
     batch_anchors: [B, N, 4]
     annotations: [B, M, 5]
     """
@@ -105,7 +105,6 @@ def get_batch_anchors_annotations(batch_anchors, annotations):
             # 所以这也就可能导致多个anchor负责预测同一个gt
             overlap, indices = torch.max(one_img_ious, dim=1)
             # per_image_anchors_gt_bboxes就是每一个anchor对应预测的gt
-            # 所以数量和图片中anchor的数量一致
             per_image_anchors_gt_bboxes = one_img_gt_bbs[indices]
 
             # per_image_anchors_gt_bboxes 和 one_img_anchors 的shape都是 [one_image_anchor_nums, 4]
@@ -168,6 +167,47 @@ def custom_bce(input_data, target, use_custom=True):
     return losses
 
 
+def drop_out_border_anchors_and_heads(cls_heads, reg_heads,
+                                      batch_anchors, image_w, image_h):
+    """
+    dropout out of border anchors,cls heads and reg heads
+    """
+    # if cls_heads.shape[0] != reg_heads.shape[0] and reg_heads.shape[0] != batch_anchors.shape[0]:
+    #     raise ValueError('batch number is different')
+    final_cls_heads, final_reg_heads, final_batch_anchors = list(), list(), list()
+    for per_img_cls_head, per_img_reg_head, per_img_anchors in \
+            zip(cls_heads, reg_heads, batch_anchors):
+        per_img_cls_head = per_img_cls_head[per_img_anchors[:, 0] > 0]
+        per_img_reg_head = per_img_reg_head[per_img_anchors[:, 0] > 0]
+        per_img_anchors = per_img_anchors[per_img_anchors[:, 0] > 0]
+
+        per_img_cls_head = per_img_cls_head[per_img_anchors[:, 1] > 0]
+        per_img_reg_head = per_img_reg_head[per_img_anchors[:, 1] > 0]
+        per_img_anchors = per_img_anchors[per_img_anchors[:, 1] > 0]
+
+        per_img_cls_head = per_img_cls_head[per_img_anchors[:, 2] < image_w]
+        per_img_reg_head = per_img_reg_head[per_img_anchors[:, 2] < image_w]
+        per_img_anchors = per_img_anchors[per_img_anchors[:, 2] < image_w]
+
+        per_img_cls_head = per_img_cls_head[per_img_anchors[:, 3] < image_h]
+        per_img_reg_head = per_img_reg_head[per_img_anchors[:, 3] < image_h]
+        per_img_anchors = per_img_anchors[per_img_anchors[:, 3] < image_h]
+
+        final_cls_heads.append(torch.unsqueeze(per_img_cls_head, 0))
+        final_reg_heads.append(torch.unsqueeze(per_img_reg_head, 0))
+        final_batch_anchors.append(torch.unsqueeze(per_img_anchors, 0))
+
+    final_cls_heads = torch.cat(final_cls_heads, 0)
+    final_reg_heads = torch.cat(final_reg_heads, 0)
+    final_batch_anchors = torch.cat(final_batch_anchors, 0)
+
+    # 每个cell有A个anchor, 需要预测的是K个类别
+    # [B, H*W*A-delta, K]
+    # [B, H*W*A-delta, 4], 4指的是回归头输出的四个参数
+    # [B, H*W*A-delta, 4], 4指的是anchor的左上右下四点坐标
+    return final_cls_heads, final_reg_heads, final_batch_anchors
+
+
 class RetinaLoss(nn.Module):
     def __init__(self,
                  image_w,
@@ -183,6 +223,48 @@ class RetinaLoss(nn.Module):
         self.epsilon = epsilon
         self.image_w = image_w
         self.image_h = image_h
+
+    def forward(self, cls_heads, reg_heads, batch_anchors, annotations):
+        """
+        compute cls loss ang reg loss in one batch
+        :param cls_heads:
+        :param reg_heads:
+        :param batch_anchors:
+        :param annotations:
+        :return:
+        """
+        cls_heads = torch.cat(cls_heads, dim=1)
+        reg_heads = torch.cat(reg_heads, dim=1)
+        batch_anchors = torch.cat(batch_anchors, dim=1)
+
+        # import pdb
+        # pdb.set_trace()
+
+        cls_heads, reg_heads, batch_anchors = drop_out_border_anchors_and_heads(cls_heads, reg_heads,
+                                                                                batch_anchors,
+                                                                                self.image_w,
+                                                                                self.image_h)
+        batch_anchors_annotations = get_batch_anchors_annotations(batch_anchors, annotations)  # [anchor_num, 5]
+        cls_loss, reg_loss = list(), list()
+        valid_image_num = 0
+        # 如果一张图片中没有 object, 那么anchor中就不会有正样本,
+        # 就直接把这样图片的focal_loss 和 smooth_l1_loss 设为0.
+        for per_img_cls_heads, per_img_reg_heads, per_img_anchors_annots in \
+                zip(cls_heads, reg_heads, batch_anchors_annotations):
+            valid_anchors_num = (per_img_anchors_annots[per_img_anchors_annots[:, 4] > 0]).shape[0]
+            if valid_anchors_num == 0:
+                cls_loss.append(torch.tensor(0.))
+                reg_loss.append(torch.tensor(0.))
+            else:
+                valid_image_num += 1
+                one_img_cls_loss = self.compute_one_image_focal_loss(per_img_cls_heads, per_img_anchors_annots)
+                one_img_reg_loss = self.compute_one_image_smooth_l1_loss(per_img_reg_heads, per_img_anchors_annots)
+                cls_loss.append(one_img_cls_loss)
+                reg_loss.append(one_img_reg_loss)
+            cls_loss = sum(cls_loss) / valid_image_num
+            reg_loss = sum(reg_loss) / valid_image_num
+
+        return cls_loss, reg_loss
 
     def compute_one_image_focal_loss(self, per_image_cls_heads,
                                      per_image_anchors_annotations):
@@ -235,52 +317,18 @@ class RetinaLoss(nn.Module):
         if positive_anchor_num == 0:
             return torch.tensor(0.)
 
-        # compute smoothl1 loss
+        # compute smooth_l1 loss
         loss_gt = per_image_anchors_annotations[:, 0:4]
-        x = torch.abs(loss_gt - per_image_reg_heads)    # [positive_anchor_num, 4]
+        x = torch.abs(loss_gt - per_image_reg_heads)  # [positive_anchor_num, 4]
         # 这里计算 smooth_l1_loss 时, 选用了beta值是 1/9, 相比原来的1, loss被放大
         # 因为原本是 小于1时, loss是0.5*x**2, 现在换成了 1/9,
         # 相当于之前 在（0.9-1）之间的数字都增大
         # [positive_anchor_num, 4]
-        one_image_smooth_l1_loss = torch.where(torch.ge(x, self.beta), x - 0.5, (0.5*x**2) / self.beta)
-        one_image_smooth_l1_loss = torch.sum(one_image_smooth_l1_loss, dim=1)
-        one_image_smooth_l1_loss = one_image_smooth_l1_loss / positive_anchor_num   # [positive_anchor_num]
+        one_image_smooth_l1_loss = torch.where(torch.ge(x, self.beta), x - 0.5, (0.5 * x ** 2) / self.beta)
+        one_image_smooth_l1_loss = (torch.mean(one_image_smooth_l1_loss, dim=1)).sum()
+        one_image_smooth_l1_loss = one_image_smooth_l1_loss / positive_anchor_num  # [positive_anchor_num]
 
         return one_image_smooth_l1_loss
-
-    def drop_out_border_anchors_and_heads(self, cls_heads, reg_heads,
-                                        batch_anchors, image_w, image_h):
-        """
-        dropout out of border anchors,cls heads and reg heads
-        """
-        final_cls_heads, final_reg_heads, final_batch_anchors = list(), list(), list()
-        for per_img_cls_head, per_img_reg_head, per_img_anchors in \
-                                        zip(cls_heads, reg_heads, batch_anchors):
-            per_img_cls_head = per_img_cls_head[per_img_anchors[:, 0] > 0]
-            per_img_reg_head = per_img_reg_head[per_img_anchors[:, 0] > 0]
-            per_img_anchors = per_img_anchors[per_img_anchors[:, 0] > 0]
-
-            per_img_cls_head = per_img_cls_head[per_img_anchors[:, 1] > 0]
-            per_img_reg_head = per_img_reg_head[per_img_anchors[:, 1] > 0]
-            per_img_anchors = per_img_anchors[per_img_anchors[:, 1] > 0]
-
-            per_img_cls_head = per_img_cls_head[per_img_anchors[:, 2] < image_w]
-            per_img_reg_head = per_img_reg_head[per_img_anchors[:, 2] < image_w]
-            per_img_anchors = per_img_anchors[per_img_anchors[:, 2] < image_w]
-
-            per_img_cls_head = per_img_cls_head[per_img_anchors[:, 3] < image_h]
-            per_img_reg_head = per_img_reg_head[per_img_anchors[:, 3] < image_h]
-            per_img_anchors = per_img_anchors[per_img_anchors[:, 3] < image_h]
-
-            final_cls_heads.append(torch.unsqueeze(per_img_cls_head, 0))
-            final_reg_heads.append(torch.unsqueeze(per_img_reg_head, 0))
-            final_batch_anchors.append(torch.unsqueeze(per_img_anchors, 0))
-
-        final_cls_heads = torch.cat(final_cls_heads, 0)
-        final_reg_heads = torch.cat(final_reg_heads, 0)
-        final_batch_anchors = torch.cat(final_batch_anchors, 0)
-        
-        return final_cls_heads, final_reg_heads, final_batch_anchors
 
 
 if __name__ == "__main__":
@@ -328,9 +376,7 @@ if __name__ == "__main__":
     # official_loss = custom_bce(inputs, target, use_custom=False)
     # print(cus_bce_loss, official_loss)
 
-    # x = torch.arange(30).reshape((10, 3))
-    # y = torch.randint(low=0, high=9, size=(x.shape[0], 1))
-    # arr = torch.cat((x, y), dim=1)
+    # arr = torch.rand(3, 4)
+    # indices = torch.tensor([0, 1, 1, 2, 1, 2])
     # print(arr)
-    # arr = arr[arr[:, 3] > 0]
-    # print(arr)
+    # print(arr[indices])
