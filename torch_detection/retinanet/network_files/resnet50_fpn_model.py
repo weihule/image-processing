@@ -7,8 +7,9 @@ from torchvision.ops.misc import FrozenBatchNorm2d
 import torch.nn.functional as F
 from collections import OrderedDict
 from typing import Tuple, List, Dict
-from feature_pyramid_network import IntermediateLayerGetter, BackboneWithFPN, FeaturePyramidNetwork, LastLevelMaxPool
-from custome_resnet50_fpn import LayerGetter, PyramidFeatures
+from .feature_pyramid_network import IntermediateLayerGetter, BackboneWithFPN, FeaturePyramidNetwork, LastLevelMaxPool
+from .custom_resnet50_fpn import LayerGetter, PyramidFeatures
+
 
 class BottleNeck(nn.Module):
     expansion = 4

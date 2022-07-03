@@ -4,6 +4,7 @@ import torch
 import json
 import cv2
 from PIL import Image
+import logging
 
 COCO_CLASSES = [
     "person",
@@ -191,6 +192,7 @@ colors = [
     (122, 37, 185),
 ]
 
+
 def gen_json():
     info_dict = dict()
     info_dict['COCO_CLASSES'] = dict()
@@ -253,10 +255,11 @@ def re_json():
         # with open(os.path.join(new_root, fn), 'w', encoding='utf-8') as fw:
         #     fw.write(new_json_str)
 
+
 if __name__ == "__main__":
     # gen_json()
 
-    re_json()
+    # re_json()
 
     # start = time.clock()
     # arr1 = [1, 1, 4, 1, 4, 6, 1, 6]
@@ -302,19 +305,11 @@ if __name__ == "__main__":
 
     # labels = np.array(['no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'yes', 'yes', 'yes', 'yes', 'yes']).reshape((-1, 1))
 
-    # # dataset = np.hstack((features, labels))
-    # dataset = np.concatenate((features, labels), axis=1)
-    # mask = features[:, 2] == 0		# 根据索引为2的列生成mask
-    # subdataset = features[mask]		# 将mask为false的行全都去除
-    # print(subdataset)
-    # subdataset = np.delete(subdataset, 2, axis=1)	# 删除索引为2的列
+    logging.basicConfig(level=logging.INFO,
+                        format='%(name)s %(asctime)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S')
+    logger = logging.getLogger('my_log')
+    logging.info('this is a info')
 
 
-    # a = torch.tensor([2, 4, 6, 8])
-    # b = torch.tensor([4., 8., 16., 32.])
 
-    # a = torch.rand(1, 7)
-    # print(a.max(dim=1))
-
-    # a = torch.rand(4, 3, 14, 14)
-    # print(a.shape[-2:])

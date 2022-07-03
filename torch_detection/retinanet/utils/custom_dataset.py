@@ -4,18 +4,10 @@ import torch
 import random
 import numpy as np
 import json
+import cv2
 
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
-from torch.utils.data.sampler import Sampler
-
 from pycocotools.coco import COCO
-
-import skimage.io
-import skimage.transform
-import skimage.color
-import skimage
-import cv2
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
@@ -74,6 +66,7 @@ class CocoDetection(Dataset):
         return sample
 
     def load_image(self, image_index):
+        # coco.loadImgs 返回一个list, 这里只有一张图片, 所以取索引为0
         img_info = self.coco.loadImgs(self.image_ids[image_index])[0]
         path = os.path.join(self.image_root_dir, img_info['file_name'])
         img = cv2.imread(path)
@@ -164,12 +157,12 @@ class VocDetection(Dataset):
         self.transform = transform
         self.categories = None
 
-        # 这里的categoty_id指的就是二十个类别的名字
-        self.categoty_id_to_voc_lable = dict()
+        # 这里的category_id指的就是二十个类别的名字
+        self.category_id_to_voc_lable = dict()
         with open('pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
-            self.categoty_id_to_voc_lable = json.load(fr)
+            self.category_id_to_voc_lable = json.load(fr)
 
-        self.voc_lable_to_categoty_id = {v: k for k, v in self.categoty_id_to_voc_lable.items()}
+        self.voc_lable_to_category_id = {v: k for k, v in self.category_id_to_voc_lable.items()}
 
         self.keep_difficult = keep_difficult
 
@@ -219,7 +212,7 @@ class VocDetection(Dataset):
             annotation = list()
             for p in pts:
                 annotation.append(int(bndbox.find(p).text))
-            annotation.append(self.categoty_id_to_voc_lable[name])  # [x_min, y_min, x_max, y_max, label_id]
+            annotation.append(self.category_id_to_voc_lable[name])  # [x_min, y_min, x_max, y_max, label_id]
 
             # 这里必须要升维
             annotation = np.expand_dims(annotation, axis=0)  # (5, ) -> (1, 5)
@@ -243,6 +236,8 @@ class COCODataPrefetcher():
     """
 
     def __init__(self, loader):
+        self.next_input = None
+        self.next_annot = None
         self.loader = iter(loader)
         self.stream = torch.cuda.stream()
 
@@ -266,11 +261,11 @@ class COCODataPrefetcher():
 
     def next(self):
         torch.cuda.current_stream().wait_stream(self.stream)
-        input = self.next_input
-        annot = self.next_annot
+        inputs = self.next_input
+        annots = self.next_annot
         self.preload()
 
-        return input, annot
+        return inputs, annots
 
 
 class RetinaStyleResize:
@@ -290,9 +285,9 @@ class RetinaStyleResize:
         self.ratio = 1333. / 800
 
     def __call__(self, sample):
-        '''
+        """
         sample must be a dict,contains 'img'、'annot'、'scale' keys.
-        '''
+        """
         image, annots, scale = sample['img'], sample['annot'], sample[
             'scale']
         h, w, _ = image.shape
@@ -341,7 +336,15 @@ class RetinaStyleResize:
 class Resizer:
     """Convert ndarrays in sample to Tensors."""
 
-    def __call__(self, sample, min_side=608, max_side=1024):
+    def __init__(self,
+                 resize=600):
+        self.resize = resize
+        self.ratio = 1333. / 800
+
+    # def __call__(self, sample, min_side=608, max_side=1024):
+    def __call__(self, sample):
+        scales = (self.resize, int(round(self.resize * self.ratio)))
+        max_side, min_side = max(scales), min(scales)
         image, annots = sample['img'], sample['annot']
         h, w, c = image.shape
         smallest_side = min(h, w)
@@ -435,9 +438,14 @@ if __name__ == "__main__":
     # img_root = 'D:\\workspace\\data\\DL\\COCO2017\\images\\val2017'
     # anno_root = 'D:\\workspace\\data\\DL\\COCO2017\\annotations'
 
-    # cd = CocoDetection(img_root, anno_root, set='val2017')
-    # cd.load_classes()
-    # cd.load_annotations(0)
+    img_root = '/nfs/home57/weihule/data/dl/COCO2017/images/val2017'
+    anno_root = '/nfs/home57/weihule/data/dl/COCO2017/annotations'
+
+    cd = CocoDetection(img_root, anno_root, set='val2017')
+    res = cd[0]
+    for k, v in res.items():
+        print(k)
+
 
     # label_to_name = cd.coco_label_to_class_name()
     # for i in range(20):
@@ -455,20 +463,20 @@ if __name__ == "__main__":
     # root = 'D:\\workspace\\data\\DL\\VOCdataset'
     root = '/workshop/weihule/data/DL/VOCdataset'
 
-    vd = VocDetection(root)
-    # retina_resize = RetinaStyleResize()
-    label_to_name = vd.voc_lable_to_categoty_id
-    save_root = 'D:\\Desktop'
-    for i in range(0, 20, 4):
-        batch_data = list()
-        for j in range(i, i+4):
-            sample = vd[j]
-            # res = RF(res)
-            sample = Resizer()(sample)
-            batch_data.append(sample)
-        res = collater(batch_data)
-        print(res['img'].shape)
-        print(res['annot'].shape)
+    # vd = VocDetection(root)
+    # # retina_resize = RetinaStyleResize()
+    # label_to_name = vd.voc_lable_to_category_id
+    # save_root = 'D:\\Desktop'
+    # for i in range(0, 20, 4):
+    #     batch_data = list()
+    #     for j in range(i, i + 4):
+    #         sample = vd[j]
+    #         # res = RF(res)
+    #         sample = Resizer()(sample)
+    #         batch_data.append(sample)
+    #     res = collater(batch_data)
+    #     print(res['img'].shape)
+    #     print(res['annot'].shape)
         # img = sample['img'] * 225.
         # print(i, img.shape)
         # image = Image.fromarray(np.uint8(img))
@@ -514,8 +522,3 @@ if __name__ == "__main__":
     # img_combine = np.hstack((img, img_flip))
     # cv2.imshow('res', img_combine)
     # cv2.waitKey(0)
-
-    # arr = torch.rand(3, 5)
-    # padded = torch.ones(4, 5) * (-1)
-    # comb = torch.cat((arr, padded), dim=0)
-    # print(comb, comb.shape)

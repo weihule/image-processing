@@ -4,7 +4,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch import Tensor
-from resnet50_fpn_model import resnet50_fpn_backbone
+from .resnet50_fpn_model import resnet50_fpn_backbone
+from .anchors import RetinaAnchors
 
 
 class RegressionModel(nn.Module):
@@ -79,12 +80,53 @@ class ClassificationModel(nn.Module):
 class RetinaNet(nn.Module):
     def __init__(self, num_classes):
         super(RetinaNet, self).__init__()
+        self.fpn_backbone = resnet50_fpn_backbone()
         self.regressionModel = RegressionModel(num_features_in=256)
 
         self.regressionModel = RegressionModel(256)
         self.classificationModel = ClassificationModel(256, num_classes=num_classes)
+        self.anchors = RetinaAnchors()
+
+    def forward(self, inputs):
+        batch_size = inputs.shape[0]
+        features = self.fpn_backbone(inputs)
+
+        fpn_feature_sizes = list()
+        cls_heads, reg_heads = list(), list()
+        for feature in features:
+            fpn_feature_sizes.append([feature.shape[3], feature.shape[2]])
+
+            # cls_head shape: [B, 9*H*W, num_classes]
+            cls_head = self.classificationModel(feature)
+            cls_heads.append(cls_head)
+
+            # reg_head shape: [B, 9*H*W, 4]
+            reg_head = self.regressionModel(feature)
+            reg_heads.append(reg_head)
+
+        del features
+
+        fpn_feature_sizes = torch.tensor(fpn_feature_sizes)
+        # if input size: [B, 3, 640, 640]
+        # batch_anchors shape: [[B, 80*80*9, 4], [B, 40*40*9, 4], [B, 20*20*9, 4], [B, 10*10*9, 4], [B, 5*5*9, 4]]
+        batch_anchors = self.anchors(batch_size, fpn_feature_sizes)
+
+        return cls_heads, reg_heads, batch_anchors
 
 
+if __name__ == "__main__":
+    inputs = torch.rand(4, 3, 640, 640)
+    # backbone = resnet50_fpn_backbone()
+    # res = backbone(inputs)
+    # for p in res:
+    #     print(p.shape)
+
+    model = RetinaNet(num_classes=80)
+    pred_cls_heads, pred_reg_heads, pred_batch_anchors = model(inputs)
+    for pred_cls_head, pred_reg_head, pred_batch_anchor in zip(
+            pred_cls_heads, pred_reg_heads, pred_batch_anchors
+    ):
+        print(pred_cls_head.shape, pred_reg_head.shape, pred_batch_anchor.shape)
 
 
 
