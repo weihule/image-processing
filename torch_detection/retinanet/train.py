@@ -54,6 +54,13 @@ def parse_args():
     return parse.parse_args()
 
 
+def validate(val_dataset, model, decoder):
+    # model = model.module
+    model.eval()
+    with torch.no_grad():
+        all_eval_result = evaluate_coco(val_dataset, model, decoder)
+
+
 def evaluate_coco(val_dataset, model, decoder):
     results, image_ids = list(), list()
     for index in range(len(val_dataset)):
@@ -125,6 +132,52 @@ def evaluate_coco(val_dataset, model, decoder):
     return all_eval_result
 
 
+def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, args, scaler):
+    cls_losses, reg_losses, losses = list(), list(), list()
+    model.train()
+    iters = len(train_loader.dataset) // args.batch_size
+    pre_fetcher = COCODataPrefetcher(train_loader)
+    images, annotations = pre_fetcher.next()
+    iter_index = 1
+
+    while images is not None:
+        images, annotations = images.cuda().float(), annotations.cuda()
+        cls_heads, reg_heads, batch_anchors = model(images)
+        cls_loss, reg_loss = criterion(cls_heads, reg_heads, batch_anchors, annotations)
+        loss = cls_loss + reg_loss
+        if cls_losses == 0.0 or reg_loss == 0.0:
+            optimizer.zero_grad()
+            continue
+
+        if args.apex:
+            scaler.scale(loss).backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
+            optimizer.step()
+            optimizer.zero_grad()
+
+        cls_losses.append(cls_loss.item())
+        reg_losses.append(reg_loss.item())
+        losses.append(loss.item())
+
+        images, annotations = pre_fetcher.next()
+
+        if iter_index % args.print_interval == 0:
+            logger.info(
+                f"train: epoch {epoch:3d}, iter [{iter_index:5d}, {iters:5d}], \
+                cls_loss: {cls_loss.item():.2f}, reg_loss: {reg_loss.item():.2f}, total_loss: {loss.item():.2f}"
+            )
+        iter_index += 1
+
+    scheduler.step()
+
+    return np.mean(cls_losses), np.mean(reg_losses), np.mean(losses)
+
+
 def main(logger, args):
     if not torch.cuda.is_available():
         raise Exception('need gpu to train network')
@@ -167,9 +220,13 @@ def main(logger, args):
                                image_h=args.input_image_size).cuda()
     model = model.cuda()
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    scaler = GradScaler()
 
     lf = lambda x: ((1 + math.cos(x * math.pi / args.epochs)) / 2) * (1 - args.lrf) + args.lrf  # cosine
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
+
+    # if args.apex:
+    #     model, optimizer = amp.
 
     best_map = 0.0
     start_epoch = 1
@@ -195,50 +252,22 @@ def main(logger, args):
 
     logger.info('start training')
     for epoch in range(start_epoch, args.epochs + 1):
-        pass
+        cls_losses, reg_losses, losses = train(train_loader=train_loader,
+                                                model=model,
+                                                criterion=criterion,
+                                                optimizer=optimizer,
+                                                scheduler=scheduler,
+                                                epoch=epoch,
+                                                logger=logger,
+                                                args=args,
+                                                scaler=scaler)
+        logger.info(
+            f"train: epoch {epoch:3d}, cls_loss: {cls_losses:.2f}, reg_loss: {reg_losses:.2f}, loss: {losses:.2f}"
+        )
 
-
-def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, args):
-    cls_losses, reg_losses, losses = list(), list(), list()
-    model.train()
-    iters = len(train_loader.dataset) // args.batch_size
-    pre_fetcher = COCODataPrefetcher(train_loader)
-    images, annotations = pre_fetcher.next()
-    iter_index = 1
-
-    while images is not None:
-        images, annotations = images.cuda().float(), annotations.cuda()
-        cls_heads, reg_heads, batch_anchors = model(images)
-        cls_loss, reg_loss = criterion(cls_heads, reg_heads, batch_anchors, annotations)
-        loss = cls_loss + reg_loss
-        if cls_losses == 0.0 or reg_loss == 0.0:
-            optimizer.zero_grad()
-            continue
-
-        if args.apex:
-            GradScaler().scale(loss).backward()
-        else:
-            loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
-        optimizer.step()
-        optimizer.zero_grad()
-
-        cls_losses.append(cls_loss.item())
-        reg_losses.append(reg_loss.item())
-        losses.append(loss.item())
-
-        images, annotations = pre_fetcher.next()
-
-        if iter_index % args.print_interval == 0:
-            logger.info(
-                f"train: epoch {epoch:3d}, iter [{iter_index:5d}, {iters:5d}], \
-                cls_loss: {cls_loss.item():.2f}, reg_loss: {reg_loss.item():.2f}, total_loss: {loss.item():.2f}"
-            )
-        iter_index += 1
-
-    scheduler.step()
-
-    return np.mean(cls_losses), np.mean(reg_losses), np.mean(losses)
+        if epoch % 5 == 0 or epoch == args.epochs:
+            all_eval_result = validate(Config.val_dataset, model, decoder)
+            logger.info(f'eval done.')
 
 
 
