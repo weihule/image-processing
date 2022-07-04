@@ -14,3 +14,6 @@ data/
 torch_study/
 */*/runs/
 */*/*.png
+*/*.log
+*/*/*.log
+*/*/*/*.log
