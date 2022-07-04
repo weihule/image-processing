@@ -5,6 +5,7 @@ import json
 import cv2
 from PIL import Image
 import logging
+from logging import handlers
 
 COCO_CLASSES = [
     "person",
@@ -256,8 +257,45 @@ def re_json():
         #     fw.write(new_json_str)
 
 
+def get_logger(name, log_dir):
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+
+    info_name = os.path.join(log_dir, '{}.info.log'.format(name))
+    info_handler = handlers.TimedRotatingFileHandler(filename=info_name,
+                                                     when='D',
+                                                     encoding='utf-8')
+    info_handler.setLevel(logging.INFO)
+
+    formatter = logging.Formatter('%(asctime)s - %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+    info_handler.setFormatter(formatter)
+
+    logger.addHandler(info_handler)
+
+    return logger
+
+
 if __name__ == "__main__":
+    # logger = get_logger('test', 'C:\\Users\\weihu\\Desktop')
+    # logger.info('this is first')
     # gen_json()
+
+    # arr = torch.arange(12).reshape(3, 4)
+    # w = arr[:, 2] - arr[:, 0]
+    # arr[:, 2] = w
+    # print(arr)
+    arr1 = torch.rand(2, 3, 4)
+    arr2 = torch.rand(2, 1, 4)
+    print(arr1, arr2)
+
+    arr = torch.cat((arr1, arr2), dim=1)
+    print(arr, arr.shape)
+
+    number = 19
+    print(f'{number:5d}')
+    print(number)
+
 
     # re_json()
 
@@ -305,11 +343,24 @@ if __name__ == "__main__":
 
     # labels = np.array(['no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'yes', 'yes', 'yes', 'yes', 'yes']).reshape((-1, 1))
 
-    logging.basicConfig(level=logging.INFO,
-                        format='%(name)s %(asctime)s %(message)s',
-                        datefmt='%a, %d %b %Y %H:%M:%S')
-    logger = logging.getLogger('my_log')
-    logging.info('this is a info')
+    # logger = logging.getLogger('my_log')
+    # logging.basicConfig(level=logging.DEBUG,
+    #                     filename= 'test.log',
+    #                     format='%(asctime)s - %(name)s - %(levelname)-9s %(filename)-8s',
+    #                     datefmt='%Y-%m-%d %H:%M:%S')
+    
+    # logging.debug('This is DEBUG !!')
+    # logging.debug('This is INFO !!')
+    # logging.debug('This is WARNING !!')
+    # logging.debug('This is ERROR !!')
+    # logging.debug('This is CRITICAL !!')
+    # try:
+    #     3/0
+    # except Exception as e:
+    #     logging.exception(e)
+    
+    # logging.info('this is a info')
+
 
 
 

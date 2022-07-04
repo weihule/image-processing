@@ -1,11 +1,18 @@
 import os
 import sys
+sys.path.append(os.getcwd())
+print(os.getcwd())
+
 import numpy as np
 import torch
 import torch.nn as nn
 from torch import Tensor
-from .resnet50_fpn_model import resnet50_fpn_backbone
-from .anchors import RetinaAnchors
+# from .resnet50_fpn_model import resnet50_fpn_backbone
+# from .anchors import RetinaAnchors
+# from resnet50_fpn_model import resnet50_fpn_backbone
+# from anchors import RetinaAnchors
+from network_files.resnet50_fpn_model import resnet50_fpn_backbone
+from network_files.anchors import RetinaAnchors
 
 
 class RegressionModel(nn.Module):
@@ -88,6 +95,7 @@ class RetinaNet(nn.Module):
         self.anchors = RetinaAnchors()
 
     def forward(self, inputs):
+        devices = inputs.device
         batch_size = inputs.shape[0]
         features = self.fpn_backbone(inputs)
 
@@ -106,7 +114,9 @@ class RetinaNet(nn.Module):
 
         del features
 
-        fpn_feature_sizes = torch.tensor(fpn_feature_sizes)
+        # fpn_feature_sizes shape is [5, 2]
+        # 存储五个feature map的宽和高信息
+        fpn_feature_sizes = torch.tensor(fpn_feature_sizes, device=devices)
         # if input size: [B, 3, 640, 640]
         # batch_anchors shape: [[B, 80*80*9, 4], [B, 40*40*9, 4], [B, 20*20*9, 4], [B, 10*10*9, 4], [B, 5*5*9, 4]]
         batch_anchors = self.anchors(batch_size, fpn_feature_sizes)

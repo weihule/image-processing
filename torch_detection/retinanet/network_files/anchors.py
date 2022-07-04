@@ -170,11 +170,13 @@ class RetinaAnchors(nn.Module):
         :return:
         """
         one_sample_anchors = list()
+        device = fpn_feature_sizes[0].device
         for index, _ in enumerate(self.areas):
             base_anchors = self.generate_base_anchors(self.areas[index])
             feature_anchors = self.generate_anchors_on_feature_map(base_anchors=base_anchors,
                                                                    features_map_size=fpn_feature_sizes[index],
                                                                    stride=self.strides[index])
+            feature_anchors = feature_anchors.to(device)
             one_sample_anchors.append(feature_anchors)
 
         batch_anchors = list()

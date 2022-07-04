@@ -11,6 +11,7 @@ from torchvision.ops import batched_nms
 
 from .losses import compute_ious_for_one_image
 
+
 # sys.path.append(os.path.)
 
 
@@ -28,13 +29,24 @@ class RetinaNetDecoder(nn.Module):
         self.nms_threshold = nms_threshold
         self.max_detection_num = max_detection_num
 
+    # 这里输入的是5个feature map的结果
+    # 传入的是list形式，里面有5个元素, 每个元素一个三维向量
+    # 以cls_heads为例: [[B, f1_anchor_num, 80], [B, f1_anchor_num, 80], ...]
     def forward(self, cls_heads, reg_heads, batch_anchors):
         with torch.no_grad():
+            devices = cls_heads[0].device
             batch_scores = list()
             batch_classes = list()
             batch_pred_bboxes = list()
+
+            # 把该batch中的所有样本(anchor)全部合并,所以是沿着dim=1维拼接的
+            cls_heads = torch.cat(cls_heads, dim=1)     # [B, f1+...+f5_anchor_num, num_classes]
+            reg_heads = torch.cat(reg_heads, dim=1)
+            batch_anchors = torch.cat(batch_anchors, dim=1)
+
             for per_img_cls_heads, per_img_reg_heads, per_img_anchors in zip(
                     cls_heads, reg_heads, batch_anchors):
+
                 pred_bboxes = self.snap_tx_ty_tw_th_to_x1_y1_x2_y2(per_img_reg_heads, per_img_anchors)
                 scores, scores_classes = torch.max(per_img_cls_heads, dim=1)
 
@@ -43,12 +55,12 @@ class RetinaNetDecoder(nn.Module):
                 scores_classes = scores_classes[mask].float()
                 scores = scores[mask].float()
 
-                single_img_scores = torch.ones((self.max_detection_num,)) * (-1)
-                single_img_classes = torch.ones((self.max_detection_num,)) * (-1)
-                single_img_pred_bboxes = torch.ones((self.max_detection_num, 4)) * (-1)
+                single_img_scores = torch.ones((self.max_detection_num,), device=devices) * (-1)
+                single_img_classes = torch.ones((self.max_detection_num,), device=devices) * (-1)
+                single_img_pred_bboxes = torch.ones((self.max_detection_num, 4), device=devices) * (-1)
 
                 if scores.shape[0] != 0:
-                    scores, scores_classes, pred_bboxes = self.custom_batched_nms(scores, scores_classes, pred_bboxes)
+                    scores, scores_classes, pred_bboxes = self.custom_batched_nms(pred_bboxes, scores, scores_classes)
 
                     sorted_keep_scores, sorted_keep_scores_indices = torch.sort(scores, descending=True)
                     sorted_keep_classes = scores_classes[sorted_keep_scores_indices]
@@ -58,9 +70,7 @@ class RetinaNetDecoder(nn.Module):
 
                     single_img_scores[0: final_detection_num] = sorted_keep_scores[0: final_detection_num]
                     single_img_classes[0: final_detection_num] = sorted_keep_classes[0: final_detection_num]
-                    single_img_pred_bboxes[0: final_detection_num, :] = sorted_keep_pred_bboxes[0: final_detection_num,
-                                                                        :]
-
+                    single_img_pred_bboxes[0: final_detection_num, :] = sorted_keep_pred_bboxes[0: final_detection_num, :]
                 single_img_scores = torch.unsqueeze(single_img_scores, dim=0)  # [1, 100]
                 single_img_classes = torch.unsqueeze(single_img_classes, dim=0)  # [1, 100]
                 single_img_pred_bboxes = torch.unsqueeze(single_img_pred_bboxes, dim=0)  # [1, 100, 4]
@@ -84,18 +94,23 @@ class RetinaNetDecoder(nn.Module):
         reg_heads: [anchor_num, 4]   tx,ty,tw,th
         anchors: [anchor_num, 4]     x_min,y_min,x_max,y_max
         """
+        if reg_heads.shape[1] != 4 and anchors.shape[1] != 4:
+            raise ValueError('shape expected anchor_num,4, but got {}'.format(reg_heads.shape))
+
         anchors_wh = anchors[:, 2:] - anchors[:, :2]
         anchors_ctr = anchors[:, :2] + 0.5 * anchors_wh
 
-        factor = torch.tensor([0.1, 0.1, 0.2, 0.2])
+        devices = reg_heads.device
+
+        factor = torch.tensor([0.1, 0.1, 0.2, 0.2], device=devices)
         reg_heads = reg_heads * factor
-        pred_bboxes_wh = torch.exp(reg_heads[:, 2:]) * anchors_wh
+        pred_bboxes_wh = torch.exp(reg_heads[:, 2:]).to(devices) * anchors_wh.to(devices)
         pred_bboxes_ctr = reg_heads[:, :2] * anchors_wh + anchors_ctr
 
         pred_bboxes_x_y_min = pred_bboxes_ctr - 0.5 * pred_bboxes_wh
-        pred_bboxes_x_y_min = pred_bboxes_ctr + 0.5 * pred_bboxes_wh
+        pred_bboxes_x_y_max = pred_bboxes_ctr + 0.5 * pred_bboxes_wh
 
-        pred_bboxes = torch.cat((pred_bboxes_x_y_min, pred_bboxes_x_y_min), dim=1)
+        pred_bboxes = torch.cat((pred_bboxes_x_y_min, pred_bboxes_x_y_max), dim=1)
         pred_bboxes = pred_bboxes.int()
 
         pred_bboxes[:, 0] = torch.clamp(pred_bboxes[:, 0], min=0)

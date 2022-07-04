@@ -12,7 +12,7 @@ class LayerGetter(nn.Module):
         if not set(return_layers.keys()).issubset([name for name, _ in model.named_children()]):
             raise ValueError("return_layers are not present in model")
         layers = OrderedDict()
-        origin_return_layers = {k:v for k, v in return_layers.items()}
+        origin_return_layers = {k: v for k, v in return_layers.items()}
         
         # 遍历模型子模块按顺序存入有序字典
         # 只保存layer4及其之前的结构, 弃掉之后的结构
@@ -66,7 +66,7 @@ class PyramidFeatures(nn.Module):
         self.p7_2 = nn.Conv2d(out_channel, out_channel, kernel_size=3, padding=1, stride=2)
 
     def forward(self, x):
-        lg = LayerGetter(self.back_bone, self.return_layers)
+        lg = LayerGetter(self.back_bone, {'layer2': '1', 'layer3': '2', 'layer4': '3'})
         out = lg(x)
 
         input_channels = list()
@@ -97,8 +97,5 @@ class PyramidFeatures(nn.Module):
         p7_x = self.p7_2(p7_x)
 
         return [p3_x, p4_x, p5_x, p6_x, p7_x]
-
-
-
 
         

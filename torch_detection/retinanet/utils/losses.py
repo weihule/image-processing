@@ -227,11 +227,13 @@ class RetinaLoss(nn.Module):
     def forward(self, cls_heads, reg_heads, batch_anchors, annotations):
         """
         compute cls loss ang reg loss in one batch
-        :param cls_heads:
-        :param reg_heads:
-        :param batch_anchors:
-        :param annotations:
+        :param cls_heads: list(), the output of model, example: [[B, 57600, 80], [B, 14400, 80], ...]
+        :param reg_heads: list(), the output of model, example: [[B, 57600, 4], [B, 14400, 4], ...]
+        :param batch_anchors: list(), the output of model, example: [[B, 57600, 4], [B, 14400, 4], ...]
+        :param annotations: (N, 5) 5:[x_min, y_min, x_max, y_max, label]
         :return:
+            cls_loss: torch.tensor(number)
+            reg_loss: torch.tensor(number)
         """
         cls_heads = torch.cat(cls_heads, dim=1)
         reg_heads = torch.cat(reg_heads, dim=1)

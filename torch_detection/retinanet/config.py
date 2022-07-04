@@ -10,16 +10,15 @@ sys.path.append(BASE_DIR)
 
 
 class Config:
-    save_root = '/nfs/home57/weihule/data/detection_data/retinanet'
     data_set_root = '/nfs/home57/weihule/data/dl/COCO2017'
-
-    if not os.path.exists(save_root):
-        save_root = '/workshop/weihule/data/detection_data/retinanet'
-
     if not os.path.exists(data_set_root):
         data_set_root = '/workshop/weihule/data/dl/COCO2017'
     elif not os.path.exists(data_set_root):
         data_set_root = 'D:\\workspace\\data\\DL\\COCO2017'
+
+    save_root = '/nfs/home57/weihule/data/detection_data/retinanet'
+    if not os.path.exists(save_root):
+        save_root = '/workshop/weihule/data/detection_data/retinanet'
 
     log = os.path.join(save_root, 'log')  # path to save log
     checkpoint_path = os.path.join(save_root, 'checkpoints')  # path to store checkpoint model
@@ -57,6 +56,7 @@ class Config:
     epochs = 12
     batch_size = 32
     lr = 1e-4
+    lrf = 0.001
     num_workers = 2
     print_interval = 100
     apex = True

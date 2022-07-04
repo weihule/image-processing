@@ -7,7 +7,7 @@ from torchvision.ops.misc import FrozenBatchNorm2d
 import torch.nn.functional as F
 from collections import OrderedDict
 from typing import Tuple, List, Dict
-from .feature_pyramid_network import IntermediateLayerGetter, BackboneWithFPN, FeaturePyramidNetwork, LastLevelMaxPool
+# from .feature_pyramid_network import IntermediateLayerGetter, BackboneWithFPN, FeaturePyramidNetwork, LastLevelMaxPool
 from .custom_resnet50_fpn import LayerGetter, PyramidFeatures
 
 
@@ -143,9 +143,6 @@ def resnet50_fpn_backbone(pretrain_path="",
         if all([not name.startswith(layer) for layer in layers_to_train]):
             parameter.requires_grad = False
 
-    if extra_blocks is None:
-        extra_blocks = LastLevelMaxPool()
-
     if returned_layers is None:
         returned_layers = [1, 2, 3, 4]
     assert min(returned_layers) > 0 and max(returned_layers) < 5
@@ -165,7 +162,8 @@ def resnet50_fpn_backbone(pretrain_path="",
 
     # return BackboneWithFPN(resnet_backbone, return_layers, in_channels_list, out_channels, extra_blocks=extra_blocks)
     
-    return PyramidFeatures(resnet_backbone, return_layers, in_channels_list[1], in_channels_list[2], in_channels_list[3], out_channels)
+    return PyramidFeatures(resnet_backbone, return_layers, in_channels_list[1], in_channels_list[2],
+                           in_channels_list[3], out_channels)
 
 
 # def resnet_fpn(pretrain_path="",
