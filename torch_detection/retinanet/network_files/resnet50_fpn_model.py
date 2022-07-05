@@ -162,6 +162,7 @@ def resnet50_fpn_backbone(pretrain_path="",
 
     # return BackboneWithFPN(resnet_backbone, return_layers, in_channels_list, out_channels, extra_blocks=extra_blocks)
     
+    # print('---', in_channels_list[1], in_channels_list[2], in_channels_list[3])
     return PyramidFeatures(resnet_backbone, return_layers, in_channels_list[1], in_channels_list[2],
                            in_channels_list[3], out_channels)
 

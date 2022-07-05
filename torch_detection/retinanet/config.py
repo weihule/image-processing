@@ -31,15 +31,15 @@ class Config:
     pre_trained = False
     num_classes = 80
     seed = 0
-    input_image_size = 600
+    input_image_size = 640
 
     data_transform = {
         'train': transforms.Compose([
             RandomFlip(flip_prob=0.5),
-            Resizer(resize=600)
+            Resizer(resize=input_image_size)
         ]),
         'val': transforms.Compose([
-            Resizer(resize=600)
+            Resizer(resize=input_image_size)
         ])
     }
 
@@ -59,7 +59,7 @@ class Config:
     lrf = 0.001
     num_workers = 2
     print_interval = 100
-    apex = True
+    apex = False
 
 
 if __name__ == "__main__":

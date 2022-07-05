@@ -88,6 +88,7 @@ class PyramidFeatures(nn.Module):
         p4_x = self.p4_2(p4_x)
 
         p3_x = self.p3_1(c3)
+        # print(p4_x.shape, p5_x.shape, p3_x.shape, p4_up_sample_x.shape)
         p3_x += p4_up_sample_x
         p3_x = self.p3_2(p3_x)
 

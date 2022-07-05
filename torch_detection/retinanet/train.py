@@ -1,5 +1,5 @@
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = '4'
+os.environ["CUDA_VISIBLE_DEVICES"] = '6'
 import sys
 import argparse
 import random
@@ -16,7 +16,7 @@ from thop import profile
 from thop import clever_format
 # from apex import amp
 from torch.cuda import amp
-from torch.cuda.amp import GradScaler,autocast
+from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
 from torchvision import transforms
@@ -67,7 +67,6 @@ def evaluate_coco(val_dataset, model, decoder):
         datas = val_dataset[index]
         scale = datas['scale']
         val_inputs = torch.from_numpy(datas['img']).cuda().permute(2, 0, 1).unsqueeze(dim=0)
-        print(index, val_inputs.shape)
         cls_heads, reg_heads, batch_anchors = model(val_inputs)
 
         # for pred_cls_head, pred_reg_head, pred_batch_anchor in zip(
@@ -136,11 +135,13 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, a
     cls_losses, reg_losses, losses = list(), list(), list()
     model.train()
     iters = len(train_loader.dataset) // args.batch_size
-    pre_fetcher = COCODataPrefetcher(train_loader)
-    images, annotations = pre_fetcher.next()
-    iter_index = 1
+    # pre_fetcher = COCODataPrefetcher(train_loader)
+    # images, annotations = pre_fetcher.next()
 
-    while images is not None:
+    iter_index = 1
+    for datas in train_loader:
+        images, annotations = datas['img'], datas['annot']
+        print(images.shape, annotations.shape)
         images, annotations = images.cuda().float(), annotations.cuda()
         cls_heads, reg_heads, batch_anchors = model(images)
         cls_loss, reg_loss = criterion(cls_heads, reg_heads, batch_anchors, annotations)
@@ -164,7 +165,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, a
         reg_losses.append(reg_loss.item())
         losses.append(loss.item())
 
-        images, annotations = pre_fetcher.next()
+        # images, annotations = pre_fetcher.next()
 
         if iter_index % args.print_interval == 0:
             logger.info(
@@ -210,8 +211,9 @@ def main(logger, args):
     model = RetinaNet(num_classes=args.num_classes)
 
     flops_input = torch.rand(1, 3, args.input_image_size, args.input_image_size)
-    flops, params = profile(model, inputs=(flops_input, ))
+    flops, params = profile(model, inputs=(flops_input,))
     flops, params = clever_format([flops, params], '%.3f')
+    logger.info(f"model: resnet50_backbone, flops: {flops}, params: {params}")
 
     criterion = RetinaLoss(image_w=args.input_image_size,
                            image_h=args.input_image_size,
@@ -219,7 +221,7 @@ def main(logger, args):
     decoder = RetinaNetDecoder(image_w=args.input_image_size,
                                image_h=args.input_image_size).cuda()
     model = model.cuda()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scaler = GradScaler()
 
     lf = lambda x: ((1 + math.cos(x * math.pi / args.epochs)) / 2) * (1 - args.lrf) + args.lrf  # cosine
@@ -242,7 +244,7 @@ def main(logger, args):
         logger.info(
             f"finish resuming model from {args.resume}, \
             epoch: {checkpoint['epoch']}, best_map: {checkpoint['best_map']}"
-            
+
             f"loss: {checkpoint['loss']:3f}, \
             cls_loss: {checkpoint['cls_loss']:2f}, reg_loss: {checkpoint['reg_loss']:2f}"
         )
@@ -253,42 +255,84 @@ def main(logger, args):
     logger.info('start training')
     for epoch in range(start_epoch, args.epochs + 1):
         cls_losses, reg_losses, losses = train(train_loader=train_loader,
-                                                model=model,
-                                                criterion=criterion,
-                                                optimizer=optimizer,
-                                                scheduler=scheduler,
-                                                epoch=epoch,
-                                                logger=logger,
-                                                args=args,
-                                                scaler=scaler)
+                                               model=model,
+                                               criterion=criterion,
+                                               optimizer=optimizer,
+                                               scheduler=scheduler,
+                                               epoch=epoch,
+                                               logger=logger,
+                                               args=args,
+                                               scaler=scaler)
         logger.info(
             f"train: epoch {epoch:3d}, cls_loss: {cls_losses:.2f}, reg_loss: {reg_losses:.2f}, loss: {losses:.2f}"
         )
 
-        if epoch % 5 == 0 or epoch == args.epochs:
-            all_eval_result = validate(Config.val_dataset, model, decoder)
-            logger.info(f'eval done.')
+    #     if epoch % 5 == 0 or epoch == args.epochs:
+    #         all_eval_result = validate(Config.val_dataset, model, decoder)
+    #         logger.info(f'eval done.')
+    #         if all_eval_result is not None:
+    #             logger.info(
+    #                 f"val: epoch: {epoch:0>5d}, \
+    #                     IoU=0.5:0.95,area=all,maxDets=100,mAP:{all_eval_result[0]:.3f}, \
+    #                     IoU=0.5,area=all,maxDets=100,mAP:{all_eval_result[1]:.3f}, \
+    #                     IoU=0.75,area=all,maxDets=100,mAP:{all_eval_result[2]:.3f}, \
+    #                     IoU=0.5:0.95,area=small,maxDets=100,mAP:{all_eval_result[3]:.3f}, \
+    #                     IoU=0.5:0.95,area=medium,maxDets=100,mAP:{all_eval_result[4]:.3f}, \
+    #                     IoU=0.5:0.95,area=large,maxDets=100,mAP:{all_eval_result[5]:.3f}, \
+    #                     IoU=0.5:0.95,area=all,maxDets=1,mAR:{all_eval_result[6]:.3f}, \
+    #                     IoU=0.5:0.95,area=all,maxDets=10,mAR:{all_eval_result[7]:.3f}, \
+    #                     IoU=0.5:0.95,area=all,maxDets=100,mAR:{all_eval_result[8]:.3f}, \
+    #                     IoU=0.5:0.95,area=small,maxDets=100,mAR:{all_eval_result[9]:.3f}, \
+    #                     IoU=0.5:0.95,area=medium,maxDets=100,mAR:{all_eval_result[10]:.3f}, \
+    #                     IoU=0.5:0.95,area=large,maxDets=100,mAR:{all_eval_result[11]:.3f}"
+    #             )
+    #             if all_eval_result[0] > best_map:
+    #                 torch.save(model.state_dict(), os.path.join(args.checkpoints, 'best.pth'))
+    #                 best_map = all_eval_result[0]
 
+    #         torch.save(
+    #             {
+    #                 'epoch': epoch,
+    #                 'best_map': best_map,
+    #                 'cls_loss': cls_losses,
+    #                 'reg_loss': reg_losses,
+    #                 'loss': losses,
+    #                 'model_state_dict': model.state_dict(),
+    #                 'optimizer_state_dict': optimizer.state_dict(),
+    #                 'scheduler_state_dict': scheduler.state_dict(),
+    #             }, os.path.join(args.checkpoint_path, 'latest.pth')
+    #         )
+    # logger.info(f'finish training, best_map: {best_map:.3f}')
+    # training_time = (time.time() - start_time) / 3600
+    # logger.info(
+    #     f'finish training, total training time: {training_time:.2f} hours'
+    # )
 
 
 if __name__ == "__main__":
-    inputs1 = torch.rand(4, 3, 640, 640).cuda()
-    inputs2 = torch.rand(4, 3, 640, 640).cuda()
-    inputs = [inputs1, inputs2]
-
     args = parse_args()
-    model = RetinaNet(num_classes=args.num_classes)
-    model = model.cuda()
-    reti_decoder = RetinaNetDecoder(image_w=args.input_image_size, image_h=args.input_image_size)
+    logger = get_logger(__name__, args.log)
+    main(logger=logger, args=args)
 
-    res = evaluate_coco(Config.val_dataset, model, reti_decoder)
-    print(res)
+    # inputs1 = torch.rand(4, 3, 640, 640).cuda()
+    # inputs2 = torch.rand(4, 3, 640, 640).cuda()
+    # inputs = [inputs1, inputs2]
+    #
+    # args = parse_args()
+    # model = RetinaNet(num_classes=args.num_classes)
+    # model = model.cuda()
+    #
+    # flops, params = profile(model, inputs=(inputs[0],))
+    # flops, params = clever_format([flops, params], '%.3f')
+
+    # reti_decoder = RetinaNetDecoder(image_w=args.input_image_size, image_h=args.input_image_size)
+    #
+    # res = evaluate_coco(Config.val_dataset, model, reti_decoder)
+    # print(res)
 
     # for inp in inputs:
-    #     print('hhh')
     #     pred_cls_heads, pred_reg_heads, pred_batch_anchors = model(inp)
     #     for pred_cls_head, pred_reg_head, pred_batch_anchor in zip(
     #             pred_cls_heads, pred_reg_heads, pred_batch_anchors
     #     ):
     #         print(pred_cls_head.shape, pred_reg_head.shape, pred_batch_anchor.shape)
-

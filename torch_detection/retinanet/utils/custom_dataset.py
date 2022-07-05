@@ -239,7 +239,7 @@ class COCODataPrefetcher():
         self.next_input = None
         self.next_annot = None
         self.loader = iter(loader)
-        self.stream = torch.cuda.stream()
+        self.stream = torch.cuda.Stream()
 
     def preload(self):
         # 当我们已经迭代完最后⼀个数据之后，
@@ -270,7 +270,7 @@ class COCODataPrefetcher():
 
 class RetinaStyleResize:
     def __init__(self,
-                 resize=400,
+                 resize=600,
                  divisor=32,
                  stride=32,
                  multi_scale=False,
@@ -308,6 +308,7 @@ class RetinaStyleResize:
                       int(round(self.resize * self.ratio)))
         else:
             scales = (self.resize, int(round(self.resize * self.ratio)))
+            print(scales)
 
         max_long_edge, max_short_edge = max(scales), min(scales)
         factor = min(max_long_edge / max(h, w), max_short_edge / min(h, w))
@@ -335,38 +336,26 @@ class RetinaStyleResize:
 
 class Resizer:
     """Convert ndarrays in sample to Tensors."""
-
     def __init__(self,
                  resize=600):
         self.resize = resize
         self.ratio = 1333. / 800
 
-    # def __call__(self, sample, min_side=608, max_side=1024):
     def __call__(self, sample):
-        scales = (self.resize, int(round(self.resize * self.ratio)))
-        max_side, min_side = max(scales), min(scales)
         image, annots = sample['img'], sample['annot']
         h, w, c = image.shape
-        smallest_side = min(h, w)
+        if h >= w:
+            scale = self.resize / h
+            resize_w = int(round(scale * w))
+            resize_h = self.resize
+        else:
+            scale = self.resize / w
+            resize_w = self.resize
+            resize_h = int(round(scale * h))
 
-        # rescale the image so the smallest_side is min_side
-        scale = min_side / smallest_side
-
-        # check if the largest side is now greater than max_side, which can happen
-        # when images have a large aspect ratio
-        largest_side = max(h, w)
-        if largest_side * scale > max_side:
-            scale = max_side / largest_side
-
-        # resize the image with the computed scale
-        resized_w, resized_h = int(round(w * scale)), int(round(h * scale))
-        image = cv2.resize(image, (resized_w, resized_h))
-        pad_w = 0 if resized_w % 32 == 0 else 32 - resized_w % 32
-        pad_h = 0 if resized_h % 32 == 0 else 32 - resized_h % 32
-
-        padded_img = np.zeros((resized_h + pad_h, resized_w + pad_w, c), dtype=np.float32)
-        padded_img[:resized_h, :resized_w, :] = image
-
+        resize_img = cv2.resize(image, (resize_w, resize_h))
+        padded_img = np.zeros((self.resize, self.resize, 3), dtype=np.float32)
+        padded_img[:resize_h, :resize_w, :] = resize_img
         annots[:, :4] *= scale
 
         return {'img': padded_img, 'annot': annots, 'scale': scale}
@@ -379,7 +368,6 @@ class RandomFlip:
     def __call__(self, sample):
         flip_flag = np.random.uniform(0, 1)
         if flip_flag < self.flip_prob:
-            print(flip_flag)
             image = sample['img']
             # image = image[:, ::-1, :]   # 水平镜像
             image = cv2.flip(image, 1)
@@ -441,10 +429,10 @@ if __name__ == "__main__":
     img_root = '/nfs/home57/weihule/data/dl/COCO2017/images/val2017'
     anno_root = '/nfs/home57/weihule/data/dl/COCO2017/annotations'
 
-    cd = CocoDetection(img_root, anno_root, set='val2017')
-    res = cd[0]
-    for k, v in res.items():
-        print(k)
+    # cd = CocoDetection(img_root, anno_root, set='val2017')
+    # res = cd[0]
+    # for k, v in res.items():
+    #     print(k)
 
 
     # label_to_name = cd.coco_label_to_class_name()
@@ -461,11 +449,18 @@ if __name__ == "__main__":
     #     cv2.waitKey(0)
 
     # root = 'D:\\workspace\\data\\DL\\VOCdataset'
-    root = '/workshop/weihule/data/DL/VOCdataset'
+    # root = '/workshop/weihule/data/DL/VOCdataset'
+    root = '/nfs/home57/weihule/data/dl/VOCdataset'
 
-    # vd = VocDetection(root)
-    # # retina_resize = RetinaStyleResize()
-    # label_to_name = vd.voc_lable_to_category_id
+    vd = VocDetection(root)
+    retina_resize = Resizer()
+    label_to_name = vd.voc_lable_to_category_id
+    for i in range(10):
+        sample_data = vd[i]
+        print(sample_data['img'].shape)
+        sample_data = retina_resize(sample_data)
+        print(sample_data['img'].shape)
+        print('='*10)
     # save_root = 'D:\\Desktop'
     # for i in range(0, 20, 4):
     #     batch_data = list()
@@ -477,12 +472,12 @@ if __name__ == "__main__":
     #     res = collater(batch_data)
     #     print(res['img'].shape)
     #     print(res['annot'].shape)
-        # img = sample['img'] * 225.
-        # print(i, img.shape)
-        # image = Image.fromarray(np.uint8(img))
-        # print(image.mode)
-        # img_dra = ImageDraw.Draw(image)
-        # annot = sample['annot']
+    #     img = sample['img'] * 225.
+    #     print(i, img.shape)
+    #     image = Image.fromarray(np.uint8(img))
+    #     print(image.mode)
+    #     img_dra = ImageDraw.Draw(image)
+    #     annot = sample['annot']
 
         # for anno in annot:
         #     label = anno[-1]
@@ -491,10 +486,10 @@ if __name__ == "__main__":
         # cv2.namedWindow('res', cv2.WINDOW_FREERATIO)
         # cv2.imshow('res', img)
         # cv2.waitKey(0)
-
+        #
         # for anno in annot:
         #     label = anno[-1]
-        #     img_dra.rectangle((anno[:-1].tolist()), fill=None, outline='green', width=1) 
+        #     img_dra.rectangle((anno[:-1].tolist()), fill=None, outline='green', width=1)
         # plt.imshow(image)
         # plt.xticks([])
         # plt.yticks([])

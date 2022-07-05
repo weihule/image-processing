@@ -6,6 +6,7 @@ import cv2
 from PIL import Image
 import logging
 from logging import handlers
+import torch.nn as nn
 
 COCO_CLASSES = [
     "person",
@@ -285,16 +286,22 @@ if __name__ == "__main__":
     # w = arr[:, 2] - arr[:, 0]
     # arr[:, 2] = w
     # print(arr)
-    arr1 = torch.rand(2, 3, 4)
-    arr2 = torch.rand(2, 1, 4)
-    print(arr1, arr2)
+    # arr1 = torch.rand(2, 3, 4)
+    # arr2 = torch.rand(2, 1, 4)
+    # print(arr1, arr2)
 
-    arr = torch.cat((arr1, arr2), dim=1)
-    print(arr, arr.shape)
+    # arr = torch.cat((arr1, arr2), dim=1)
+    # print(arr, arr.shape)
 
-    number = 19
-    print(f'{number:5d}')
-    print(number)
+    # number = 19
+    # print(f'{number:5d}')
+    # print(number)
+
+    layer = nn.Conv2d(512, 256, kernel_size=3, stride=2, padding=1)
+    inputs = torch.rand(1, 512, 75, 75)
+    outputs = layer(inputs)
+    print(outputs.shape)
+
 
 
     # re_json()
