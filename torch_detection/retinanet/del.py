@@ -7,6 +7,7 @@ from PIL import Image
 import logging
 from logging import handlers
 import torch.nn as nn
+import torch.nn.functional as F
 
 COCO_CLASSES = [
     "person",
@@ -276,97 +277,25 @@ def get_logger(name, log_dir):
 
     return logger
 
+def custom_softmax(inputs, dim):
+    exp_up = np.exp(inputs)
+    nums = np.sum(exp_up, axis=dim)
+    nums = np.expand_dims(nums, axis=dim)
+    res = exp_up / nums
+    
+    return res
+
 
 if __name__ == "__main__":
-    # logger = get_logger('test', 'C:\\Users\\weihu\\Desktop')
-    # logger.info('this is first')
-    # gen_json()
+    arr = torch.arange(12).reshape(3, 4).float()
+    print(arr, arr.shape)
+    arr_prob = F.softmax(arr, dim=-1)
+    print(arr_prob, arr_prob.shape)
 
-    # arr = torch.arange(12).reshape(3, 4)
-    # w = arr[:, 2] - arr[:, 0]
-    # arr[:, 2] = w
-    # print(arr)
-    # arr1 = torch.rand(2, 3, 4)
-    # arr2 = torch.rand(2, 1, 4)
-    # print(arr1, arr2)
-
-    # arr = torch.cat((arr1, arr2), dim=1)
-    # print(arr, arr.shape)
-
-    # number = 19
-    # print(f'{number:5d}')
-    # print(number)
-
-    layer = nn.Conv2d(512, 256, kernel_size=3, stride=2, padding=1)
-    inputs = torch.rand(1, 512, 75, 75)
-    outputs = layer(inputs)
-    print(outputs.shape)
+    res = custom_softmax(arr.numpy(), dim=1)
+    print(res)
 
 
-
-    # re_json()
-
-    # start = time.clock()
-    # arr1 = [1, 1, 4, 1, 4, 6, 1, 6]
-    # arr2 = [2, 3, 7, 3, 7, 9, 2, 9]
-    # area1 = Polygon(np.array(arr1).reshape(4, 2))
-    # area2 = Polygon(np.array(arr2).reshape(4, 2))
-    # iou = area1.intersection(area2).area / (area1.area + area2.area)
-
-
-
-    # ar1 = [1, 1, 4, 6]
-    # ar1 = [10, 10, 14, 14]
-    # ar2 = [2, 3, 7, 9]
-    # iou = get_iou(ar1, ar2)
-
-    # print(f'{iou}, running time: {time.clock()-start}')
-
-
-    # pred_bbox = torch.randn(7, 4)
-    # print(pred_bbox, pred_bbox[:, 1])
-    # a1 = (pred_bbox[:, 2] - pred_bbox[:, 0]) * (pred_bbox[:, 3] - pred_bbox[:, 1])
-    # b1 = torch.tensor(10)
-    # print(a1)
-    # print(a1+b1)
-    # temp = pred_bbox.new_zeros(10, 10)
-    # print(len(temp), temp.numel())
-
-    # features = np.array([[0, 0, 0, 0],
-    #             [0, 0, 0, 1],
-    #             [0, 1, 0, 1],
-    #             [0, 1, 1, 0],
-    #             [0, 0, 0, 0],
-    #             [1, 0, 0, 0],
-    #             [1, 0, 0, 1],
-    #             [1, 1, 1, 1],
-    #             [1, 0, 1, 2],
-    #             [1, 0, 1, 2],
-    #             [2, 0, 1, 2],
-    #             [2, 0, 1, 1],
-    #             [2, 1, 0, 1],
-    #             [2, 1, 0, 2],
-    #             [2, 0, 0, 0]])
-
-    # labels = np.array(['no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'yes', 'yes', 'yes', 'yes', 'yes']).reshape((-1, 1))
-
-    # logger = logging.getLogger('my_log')
-    # logging.basicConfig(level=logging.DEBUG,
-    #                     filename= 'test.log',
-    #                     format='%(asctime)s - %(name)s - %(levelname)-9s %(filename)-8s',
-    #                     datefmt='%Y-%m-%d %H:%M:%S')
-    
-    # logging.debug('This is DEBUG !!')
-    # logging.debug('This is INFO !!')
-    # logging.debug('This is WARNING !!')
-    # logging.debug('This is ERROR !!')
-    # logging.debug('This is CRITICAL !!')
-    # try:
-    #     3/0
-    # except Exception as e:
-    #     logging.exception(e)
-    
-    # logging.info('this is a info')
 
 
 
