@@ -114,9 +114,9 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, self.channels[3], blocks_num[3], stride=2)
 
         self.out_channels = [
-            self.planes[1] * self.expansion,
-            self.planes[2] * self.expansion,
-            self.planes[3] * self.expansion,
+            self.channels[1] * self.expansion,
+            self.channels[2] * self.expansion,
+            self.channels[3] * self.expansion,
         ]
 
         for m in self.modules():
@@ -150,9 +150,7 @@ class ResNet(nn.Module):
         layers.append(block(self.in_channel,
                             channel,
                             stride=stride,
-                            downsample=downsample,
-                            groups=self.groups,
-                            width_per_group=self.width_per_group,
+                            downsample=downsample
                             )
                       )
 
@@ -161,10 +159,7 @@ class ResNet(nn.Module):
 
         for _ in range(1, block_num):
             layers.append(block(self.in_channel,
-                                channel,
-                                groups=self.groups,
-                                width_per_group=self.width_per_group
-
+                                channel
                                 ))
         return nn.Sequential(*layers)
 
@@ -228,6 +223,7 @@ def resnet34_backbone(pre_train_path=''):
 
 
 if __name__ == "__main__":
+    print('hhh')
     inputs = torch.rand(4, 3, 600, 600)
     model = resnet50_backbone(pre_train_path='')
     o3, o4, o5 = model(inputs)
