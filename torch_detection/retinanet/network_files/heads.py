@@ -6,13 +6,13 @@ import math
 import torch.nn.functional as F
 
 
-class ClsHead(nn.Module):
+class RetinaClsHead(nn.Module):
     def __init__(self,
                  in_channels,
                  num_anchors,
                  num_classes,
                  num_layers=4):
-        super(ClsHead, self).__init__()
+        super(RetinaClsHead, self).__init__()
         layers = []
         for _ in range(num_layers):
             layers.append(

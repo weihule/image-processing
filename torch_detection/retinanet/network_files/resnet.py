@@ -3,6 +3,11 @@ import torch
 import torch.nn as nn
 
 
+__all__ = [
+    'resnet50_backbone',
+    'resnet34_backbone'
+]
+
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -33,8 +38,8 @@ class BasicBlock(nn.Module):
 
         out += identity
         out = self.relu(out)
-        if self.use_se:
-            out = self.se(out)
+        # if self.use_se:
+        #     out = self.se(out)
 
         return out
 
@@ -89,27 +94,30 @@ class ResNet(nn.Module):
     def __init__(self,
                  block,
                  blocks_num,
-                 num_classes=1000,
-                 include_top=True,
-                 groups=1,
-                 width_per_group=64):
+                 in_channel=64
+                 ):
         super(ResNet, self).__init__()
-        self.include_top = include_top
-        self.in_channel = 64
-
-        self.groups = groups
-        self.width_per_group = width_per_group
+        self.in_channel = in_channel
 
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=self.in_channel,
                                kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(self.in_channel)
         self.relu = nn.ReLU(inplace=True)
 
+        self.channels = [in_channel, in_channel * 2, in_channel * 4, in_channel * 8]
+        self.expansion = 1 if block is BasicBlock else 4
+
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, blocks_num[0], stride=1)
-        self.layer2 = self._make_layer(block, 128, blocks_num[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, blocks_num[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, blocks_num[3], stride=2)
+        self.layer1 = self._make_layer(block, self.channels[0], blocks_num[0], stride=1)
+        self.layer2 = self._make_layer(block, self.channels[1], blocks_num[1], stride=2)
+        self.layer3 = self._make_layer(block, self.channels[2], blocks_num[2], stride=2)
+        self.layer4 = self._make_layer(block, self.channels[3], blocks_num[3], stride=2)
+
+        self.out_channels = [
+            self.planes[1] * self.expansion,
+            self.planes[2] * self.expansion,
+            self.planes[3] * self.expansion,
+        ]
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -168,8 +176,8 @@ class ResNet(nn.Module):
 
         x = self.layer1(x)
         c3 = self.layer2(x)
-        c4 = self.layer3(x)
-        c5 = self.layer4(x)
+        c4 = self.layer3(c3)
+        c5 = self.layer4(c4)
 
         del x
 
@@ -195,7 +203,7 @@ def load_state_dict(model, pre_trained_path, excluded_layer_name):
     return
 
 
-def _resnet_backbone(block, layers, in_channels, pre_train_path):
+def _resnet_backbone(block, layers, pre_train_path):
     model = ResNet(block, layers)
     if pre_train_path:
         load_state_dict(model, pre_train_path, '')
@@ -203,3 +211,24 @@ def _resnet_backbone(block, layers, in_channels, pre_train_path):
         print('no backbone pretrained model!')
 
     return model
+
+
+def resnet50_backbone(pre_train_path=''):
+    model = _resnet_backbone(Bottleneck,
+                             [3, 4, 6, 3], 
+                             pre_train_path)
+    return model
+
+
+def resnet34_backbone(pre_train_path=''):
+    model = _resnet_backbone(BasicBlock, 
+                             [3, 4, 6, 3], 
+                             pre_train_path)
+    return model
+
+
+if __name__ == "__main__":
+    inputs = torch.rand(4, 3, 600, 600)
+    model = resnet50_backbone(pre_train_path='')
+    o3, o4, o5 = model(inputs)
+    print(o3.shape, o4.shape, o5.shape)
