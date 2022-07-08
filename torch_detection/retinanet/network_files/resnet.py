@@ -47,12 +47,8 @@ class BasicBlock(nn.Module):
 class Bottleneck(nn.Module):
     expansion = 4
 
-    def __init__(self, in_channel, out_channel, stride=1, downsample=None,
-                 groups=1, width_per_group=64):
+    def __init__(self, in_channel, out_channel, stride=1, downsample=None):
         super(Bottleneck, self).__init__()
-
-        # # default : width = out_channel
-        # width = int(out_channel * (width_per_group / 64.)) * groups
 
         self.conv1 = nn.Conv2d(in_channels=in_channel, out_channels=out_channel,
                                kernel_size=1, stride=1, bias=False)

@@ -14,6 +14,8 @@ def snap_annotations_as_tx_ty_tw_th(anchors_gt_bboxes, anchors):
     anchors_gt_bboxes: [M,4]
     anchors: [M,4]
     """
+    device = torch.device('cuda')
+    anchors_gt_bboxes, anchors = anchors_gt_bboxes.to(device), anchors.to(device)
     if anchors_gt_bboxes.shape[0] != anchors.shape[0]:
         raise ValueError('anchors_gt_bboxes number not equal anchors number')
     anchors_w_h = anchors[:, 2:] - anchors[:, :2]  # [M, 2]
@@ -32,7 +34,7 @@ def snap_annotations_as_tx_ty_tw_th(anchors_gt_bboxes, anchors):
     # 另外需要说明的是,在许多faster rcnn的实现代码中,
     # 将box坐标按照faster rcnn中公式转换为tx，ty，tw，th后,
     # 这四个值又除以了[0.1,0.1,0.2,0.2]进一步放大
-    factor = torch.tensor([[0.1, 0.1, 0.2, 0.2]])
+    factor = torch.tensor([[0.1, 0.1, 0.2, 0.2]]).to(device)
     snaped_annotations_for_anchors = snaped_annotations_for_anchors / factor
 
     # snaped_annotations_for_anchors shape : [M, 4]
@@ -46,6 +48,8 @@ def compute_ious_for_one_image(one_image_anchors,
     """
     # make sure anchors format:[N,4],  [x_min,y_min,x_max,y_max]
     # make sure annotations format: [M,4],  [x_min,y_min,x_max,y_max]
+    device = one_image_annotations.device
+    one_image_anchors = one_image_anchors.to(device)
     gt_num = one_image_annotations.shape[0]
     anchor_num = one_image_anchors.shape[0]
     res_iou = torch.zeros((gt_num, anchor_num), dtype=torch.float32)
@@ -56,10 +60,10 @@ def compute_ious_for_one_image(one_image_anchors,
                 (one_image_annotations[:, 3] - one_image_annotations[:, 1])  # torch.Size([M])
 
     for idx, gt in enumerate(one_image_annotations):
-        inters_0 = torch.max(one_image_anchors[:, 0], gt[0])
-        inters_1 = torch.max(one_image_anchors[:, 1], gt[1])
-        inters_2 = torch.min(one_image_anchors[:, 2], gt[2])
-        inters_3 = torch.min(one_image_anchors[:, 3], gt[3])
+        inters_0 = torch.max(one_image_anchors[:, 0], gt[0]).to(device)
+        inters_1 = torch.max(one_image_anchors[:, 1], gt[1]).to(device)
+        inters_2 = torch.min(one_image_anchors[:, 2], gt[2]).to(device)
+        inters_3 = torch.min(one_image_anchors[:, 3], gt[3]).to(device)
         inters = torch.clamp(inters_2 - inters_0, min=0.) * \
                  torch.clamp(inters_3 - inters_1, min=0.)
 
@@ -77,8 +81,8 @@ def get_batch_anchors_annotations(batch_anchors, annotations):
     if anchor gt_class index = -1,this anchor doesn't calculate cls loss and reg loss
     if anchor gt_class index = 0,this anchor is a background class anchor and used in calculate cls loss
     if anchor gt_class index > 0,this anchor is an object class anchor and used in calculate cls loss and reg loss
-    batch_anchors: [B, N, 4]
-    annotations: [B, M, 5]
+    batch_anchors: [B, N, 4]    N可能是63061, 五个特征层anchor数目的相加
+    annotations: [B, M, 5]      M可能是14, 该batch图片中含有的最大gt数目
     """
     device = annotations.device
     if batch_anchors.shape[0] != annotations.shape[0]:
@@ -94,11 +98,11 @@ def get_batch_anchors_annotations(batch_anchors, annotations):
 
         if one_img_annots.shape[0] == 0:
             # 如果该张图片中没有gt, 则该图片中的所有anchor都打上 -1 标签
-            one_image_anchor_annots = torch.ones((one_image_anchor_nums, 5), device=device) * (-1)
+            one_image_anchor_annots = (torch.ones((one_image_anchor_nums, 5)) * (-1)).to(device)
         else:
             one_img_gt_bbs = one_img_annots[:, 0:4]  # gt的坐标部分      # [delta_M, 4]
-            one_img_gt_cls = one_img_annots[:, 4]  # gt的标签部分        # [delta_M, 1]
-            one_img_ious = compute_ious_for_one_image(one_img_anchors, one_img_gt_bbs)  # [anchors_num, gts_num]
+            one_img_gt_cls = one_img_annots[:, 4]  # gt的标签部分        # [delta_M]
+            one_img_ious = compute_ious_for_one_image(one_img_anchors, one_img_gt_bbs)  # [anchors_num, delta_M]
 
             # snap per gt bboxes to the best iou anchor
             # 这里得到的是每一个anchor与该图片中所有gt的iou的最大值
@@ -113,11 +117,11 @@ def get_batch_anchors_annotations(batch_anchors, annotations):
             one_image_anchors_snaped_boxes = snap_annotations_as_tx_ty_tw_th(per_image_anchors_gt_bboxes,
                                                                              one_img_anchors)
 
-            one_image_anchors_gt_cls = torch.ones_like(overlap) * (-1)
-
+            # 这是对于上面one_image_anchors_snaped_boxes附标签
+            one_image_anchors_gt_cls = (torch.ones_like(overlap) * (-1)).to(device)
             # if iou<0.4, assign anchors gt class as 0:background
             one_image_anchors_gt_cls[overlap < 0.4] = 0
-            one_image_anchors_gt_cls[overlap > 0.5] = one_img_gt_cls[overlap > 0.5] + 1
+            one_image_anchors_gt_cls[overlap > 0.5] = one_img_gt_cls[indices][overlap > 0.5] + 1
             one_image_anchors_gt_cls = torch.unsqueeze(one_image_anchors_gt_cls, dim=1)  # [anchors_num, 1]
 
             # [anchors_num, 5]
@@ -235,7 +239,8 @@ class RetinaLoss(nn.Module):
             cls_loss: torch.tensor(number)
             reg_loss: torch.tensor(number)
         """
-        cls_heads = torch.cat(cls_heads, dim=1)
+        # 这里把每张图片5个特征层进行的合并
+        cls_heads = torch.cat(cls_heads, dim=1)   # 由原来的list变成一个 [B, all_nums, 80]
         reg_heads = torch.cat(reg_heads, dim=1)
         batch_anchors = torch.cat(batch_anchors, dim=1)
 
@@ -263,8 +268,8 @@ class RetinaLoss(nn.Module):
                 one_img_reg_loss = self.compute_one_image_smooth_l1_loss(per_img_reg_heads, per_img_anchors_annots)
                 cls_loss.append(one_img_cls_loss)
                 reg_loss.append(one_img_reg_loss)
-            cls_loss = sum(cls_loss) / valid_image_num
-            reg_loss = sum(reg_loss) / valid_image_num
+        cls_loss = sum(cls_loss) / valid_image_num
+        reg_loss = sum(reg_loss) / valid_image_num
 
         return cls_loss, reg_loss
 
@@ -284,7 +289,8 @@ class RetinaLoss(nn.Module):
         num_classes = per_image_cls_heads.shape[1]
 
         # generate 80 binary ground truth classes for each anchor
-        loss_ground_truth = F.one_hot(per_image_cls_heads[:, 4], num_classes=num_classes + 1).float()
+        loss_ground_truth = F.one_hot(per_image_cls_heads[:, 4].long(), num_classes=num_classes + 1)
+        loss_ground_truth = loss_ground_truth.float()
         loss_ground_truth = loss_ground_truth[:, 1:]  # [anchor_num, num_classes]
 
         # [anchor_num, num_classes]

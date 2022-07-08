@@ -2,7 +2,7 @@ import os
 import sys
 import cv2
 
-from utils.custom_dataset import CocoDetection, Resizer, RandomFlip
+from utils.custom_dataset import CocoDetection, VocDetection, Resizer, RandomFlip, Normalize
 from torchvision import transforms, datasets
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -36,10 +36,12 @@ class Config:
     data_transform = {
         'train': transforms.Compose([
             RandomFlip(flip_prob=0.5),
-            Resizer(resize=input_image_size)
+            Resizer(resize=input_image_size),
+            Normalize()
         ]),
         'val': transforms.Compose([
-            Resizer(resize=input_image_size)
+            Resizer(resize=input_image_size),
+            Normalize()
         ])
     }
 
@@ -53,13 +55,15 @@ class Config:
                                 set='val2017',
                                 transform=data_transform['val'])
 
+    # val_dataset = VocDetection(root_dir='/nfs/home57/weihule/data/dl/VOCdataset')
+
     epochs = 12
     batch_size = 32
     lr = 1e-4
     lrf = 0.001
     num_workers = 2
     print_interval = 100
-    apex = False
+    apex = True
 
 
 if __name__ == "__main__":

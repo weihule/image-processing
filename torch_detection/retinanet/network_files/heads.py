@@ -19,6 +19,7 @@ class RetinaClsHead(nn.Module):
                 nn.Conv2d(in_channels, in_channels, 3, 1, 1)
             ),
             layers.append(nn.ReLU(inplace=True))
+        self.num_classes = 80
         self.cls_head = nn.Sequential(*layers)
         self.cls_out = nn.Conv2d(in_channels,
                                  num_anchors*num_classes,
@@ -38,7 +39,10 @@ class RetinaClsHead(nn.Module):
 
     def forward(self, x):
         x = self.cls_head(x)
-        x = self.cls_out(x)
+        x = self.cls_out(x)     # [B, num_anchors*num_classes, H, W]
+        b, _, h, w = x.shape
+        x = x.permute(0, 2, 3, 1).contiguous()    # [B, H, W, num_anchors*num_classes]
+        x = x.reshape((b, -1, self.num_classes))    # [B, H*W*num_anchors, num_classes]
         x = self.sigmoid(x)
 
         return x
@@ -71,6 +75,9 @@ class RetinaRegHead(nn.Module):
 
     def forward(self, x):
         x = self.reg_head(x)
-        x = self.reg_out(x)
+        x = self.reg_out(x)    # [B, num_anchors*4, H, W]
+        b, _, h, w = x.shape
+        x = x.permute(0, 2, 3, 1).contiguous()    # [B, H, W, num_anchors*4]
+        x = x.reshape((b, -1, 4))    # [B, H*W*num_anchors, 4]
 
         return x

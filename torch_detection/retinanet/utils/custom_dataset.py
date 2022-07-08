@@ -5,7 +5,7 @@ import random
 import numpy as np
 import json
 import cv2
-
+import jpeg4py
 from torch.utils.data import Dataset, DataLoader
 from pycocotools.coco import COCO
 import xml.etree.ElementTree as ET
@@ -71,9 +71,10 @@ class CocoDetection(Dataset):
         path = os.path.join(self.image_root_dir, img_info['file_name'])
         img = cv2.imread(path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        # img = jpeg4py.JPEG(path).decode()
 
         # opencv读取的图片转成RGB之后并归一化
-        return img.astype(np.float32) / 255
+        return img.astype(np.float32) / 255.
 
     def load_annotations(self, image_index):
         """
@@ -159,7 +160,7 @@ class VocDetection(Dataset):
 
         # 这里的category_id指的就是二十个类别的名字
         self.category_id_to_voc_lable = dict()
-        with open('pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
+        with open('./utils/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
             self.category_id_to_voc_lable = json.load(fr)
 
         self.voc_lable_to_category_id = {v: k for k, v in self.category_id_to_voc_lable.items()}
@@ -194,8 +195,9 @@ class VocDetection(Dataset):
         img_path = os.path.join(img_id[0], 'JPEGImages', img_id[1] + '.jpg')
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        # img = jpeg4py.JPEG(img_path).decode()
 
-        return img.astype(np.float32) / 225.
+        return img.astype(np.float32) / 255.
 
     def load_annotations(self, img_id):
         xml_path = os.path.join(img_id[0], 'Annotations', img_id[1] + '.xml')
@@ -228,7 +230,7 @@ class VocDetection(Dataset):
         return float(w) / float(h)
 
 
-class COCODataPrefetcher():
+class DataPrefetcher():
     """
     数据预读取就是模型在进行本次batch的前向计算和反向传播时
     就预先加载下一个batch的数据, 这样就节省了下加载数据的时间
@@ -268,78 +270,10 @@ class COCODataPrefetcher():
         return inputs, annots
 
 
-class RetinaStyleResize:
-    def __init__(self,
-                 resize=600,
-                 divisor=32,
-                 stride=32,
-                 multi_scale=False,
-                 multi_scale_range=None):
-        if multi_scale_range is None:
-            multi_scale_range = [0.8, 1.0]
-        self.resize = resize
-        self.divisor = divisor
-        self.stride = stride
-        self.multi_scale = multi_scale
-        self.multi_scale_range = multi_scale_range
-        self.ratio = 1333. / 800
-
-    def __call__(self, sample):
-        """
-        sample must be a dict,contains 'img'、'annot'、'scale' keys.
-        """
-        image, annots, scale = sample['img'], sample['annot'], sample[
-            'scale']
-        h, w, _ = image.shape
-
-        if self.multi_scale:
-            scale_range = [
-                int(self.multi_scale_range[0] * self.resize),
-                int(self.multi_scale_range[1] * self.resize)
-            ]
-            resize_list = [
-                i // self.stride * self.stride
-                for i in range(scale_range[0], scale_range[1] + self.stride)
-            ]
-            resize_list = list(set(resize_list))
-
-            random_idx = np.random.randint(0, len(resize_list))
-            scales = (resize_list[random_idx],
-                      int(round(self.resize * self.ratio)))
-        else:
-            scales = (self.resize, int(round(self.resize * self.ratio)))
-            print(scales)
-
-        max_long_edge, max_short_edge = max(scales), min(scales)
-        factor = min(max_long_edge / max(h, w), max_short_edge / min(h, w))
-
-        resize_h, resize_w = int(round(h * factor)), int(round(w * factor))
-        image = cv2.resize(image, (resize_w, resize_h))
-
-        pad_w = 0 if resize_w % self.divisor == 0 else self.divisor - resize_w % self.divisor
-        pad_h = 0 if resize_h % self.divisor == 0 else self.divisor - resize_h % self.divisor
-
-        padded_image = np.zeros((resize_h + pad_h, resize_w + pad_w, 3),
-                                dtype=np.float32)
-        padded_image[:resize_h, :resize_w, :] = image
-
-        factor = np.float32(factor)
-        annots[:, :4] *= factor
-        scale *= factor
-
-        return {
-            'img': padded_image,
-            'annot': annots,
-            'scale': scale,
-        }
-
-
 class Resizer:
-    """Convert ndarrays in sample to Tensors."""
     def __init__(self,
                  resize=600):
         self.resize = resize
-        self.ratio = 1333. / 800
 
     def __call__(self, sample):
         image, annots = sample['img'], sample['annot']
@@ -387,11 +321,29 @@ class RandomFlip:
         return sample
 
 
+class Normalize:
+    def __init__(self):
+        self.mean = np.array([[[0.471, 0.448, 0.408]]])
+        self.std = np.array([[[0.234, 0.239, 0.242]]])
+
+    def __call__(self, sample):
+        # image shape: [h, w, 3], 这里三分量的顺序已经调整成 RGB 了
+        image, annots, scale = sample['img'], sample['annot'], sample['scale']
+        image = (image - self.mean) / self.std
+        return {
+            'img': image,
+            'annot': annots,
+            'scale': scale,
+        }
+
+
 def collater(datas):
     """
     对于一个batch的images和annotations,
     我们最后还需要用collater函数将images
     和annotations的shape全部对齐后才能输入模型进行训练。
+    这里也将 numpy 转成 Tensor  参见：padded_img
+    也进行了维度转换
     """
     batch_size = len(datas)
     imgs = [p['img'] for p in datas]
@@ -407,6 +359,7 @@ def collater(datas):
     for i in range(batch_size):
         img = imgs[i]
         padded_img[i, :img.shape[0], :img.shape[1], :] = torch.from_numpy(img)
+    padded_img = padded_img.permute(0, 3, 1, 2).contiguous()
 
     # imgs = torch.from_numpy(np.stack(imgs, axis=0))
     max_num_annots = max([annot.shape[0] for annot in annots])

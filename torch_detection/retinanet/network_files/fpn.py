@@ -54,7 +54,7 @@ class FPN(nn.Module):
         p3 = self.p3_1(c3)
         p3 += F.interpolate(p4, size=(p3.shape[2], p3.shape[3]), mode='nearest')
 
-        p6 = self.p6(c5)
+        p6 = self.p6(p5)
         p7 = self.p7(p6)
 
         p5 = self.p5_2(p5)

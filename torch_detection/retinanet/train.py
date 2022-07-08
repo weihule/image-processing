@@ -1,5 +1,4 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '6'
 import sys
 import argparse
 import random
@@ -8,22 +7,25 @@ import time
 import math
 import warnings
 import json
-
+from tqdm import tqdm
+import cv2
 import numpy as np
 import torch
 import torch.nn as nn
+from torchvision.transforms.functional import to_pil_image
 from thop import profile
 from thop import clever_format
-# from apex import amp
+import matplotlib.pyplot as plt
 from torch.cuda import amp
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
+from torchvision.utils import make_grid, draw_bounding_boxes
 from torchvision import transforms
-from utils.custom_dataset import COCODataPrefetcher, collater
+from utils.custom_dataset import DataPrefetcher, collater
 from utils.losses import RetinaLoss
 from utils.retina_decode import RetinaNetDecoder
-from network_files.model import RetinaNet
+from network_files.retinanet_model import resnet50_retinanet
 from config import Config
 from utils.util import get_logger
 from pycocotools.cocoeval import COCOeval
@@ -131,35 +133,41 @@ def evaluate_coco(val_dataset, model, decoder):
     return all_eval_result
 
 
-def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, args, scaler):
+def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, args):
     cls_losses, reg_losses, losses = list(), list(), list()
     model.train()
     iters = len(train_loader.dataset) // args.batch_size
-    # pre_fetcher = COCODataPrefetcher(train_loader)
+    # pre_fetcher = DataPrefetcher(train_loader)
     # images, annotations = pre_fetcher.next()
 
     iter_index = 1
-    for datas in train_loader:
+    train_bar = tqdm(train_loader)
+    for datas in train_bar:
         images, annotations = datas['img'], datas['annot']
-        print(images.shape, annotations.shape)
+        # print(images.shape, annotations.shape)
         images, annotations = images.cuda().float(), annotations.cuda()
-        cls_heads, reg_heads, batch_anchors = model(images)
-        cls_loss, reg_loss = criterion(cls_heads, reg_heads, batch_anchors, annotations)
-        loss = cls_loss + reg_loss
-        if cls_losses == 0.0 or reg_loss == 0.0:
-            optimizer.zero_grad()
-            continue
+        optimizer.zero_grad()
 
         if args.apex:
+            scaler = amp.GradScaler()
+            autocast = amp.autocast
+            with autocast():
+                cls_heads, reg_heads, batch_anchors = model(images)
+                cls_loss, reg_loss = criterion(cls_heads, reg_heads, batch_anchors, annotations)
+                loss = cls_loss + reg_loss
             scaler.scale(loss).backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             scaler.step(optimizer)
             scaler.update()
         else:
+            cls_heads, reg_heads, batch_anchors = model(images)
+            cls_loss, reg_loss = criterion(cls_heads, reg_heads, batch_anchors, annotations)
+            loss = cls_loss + reg_loss
+            if cls_losses == 0.0 or reg_loss == 0.0:
+                continue
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
-            optimizer.zero_grad()
 
         cls_losses.append(cls_loss.item())
         reg_losses.append(reg_loss.item())
@@ -173,6 +181,8 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, a
                 cls_loss: {cls_loss.item():.2f}, reg_loss: {reg_loss.item():.2f}, total_loss: {loss.item():.2f}"
             )
         iter_index += 1
+
+    train_bar.desc = 'epoch: {}/{}'.format(epoch, args.epoches)
 
     scheduler.step()
 
@@ -205,15 +215,16 @@ def main(logger, args):
                               batch_size=args.batch_size,
                               shuffle=True,
                               num_workers=args.num_workers,
+                              prefetch_factor=2,
                               collate_fn=collater)
     logger.info('finish loading data')
 
-    model = RetinaNet(num_classes=args.num_classes)
+    model = resnet50_retinanet()
 
-    flops_input = torch.rand(1, 3, args.input_image_size, args.input_image_size)
-    flops, params = profile(model, inputs=(flops_input,))
-    flops, params = clever_format([flops, params], '%.3f')
-    logger.info(f"model: resnet50_backbone, flops: {flops}, params: {params}")
+    # flops_input = torch.rand(1, 3, args.input_image_size, args.input_image_size)
+    # flops, params = profile(model, inputs=(flops_input,))
+    # flops, params = clever_format([flops, params], '%.3f')
+    # logger.info(f"model: resnet50_backbone, flops: {flops}, params: {params}")
 
     criterion = RetinaLoss(image_w=args.input_image_size,
                            image_h=args.input_image_size,
@@ -222,7 +233,6 @@ def main(logger, args):
                                image_h=args.input_image_size).cuda()
     model = model.cuda()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    scaler = GradScaler()
 
     lf = lambda x: ((1 + math.cos(x * math.pi / args.epochs)) / 2) * (1 - args.lrf) + args.lrf  # cosine
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
@@ -261,8 +271,7 @@ def main(logger, args):
                                                scheduler=scheduler,
                                                epoch=epoch,
                                                logger=logger,
-                                               args=args,
-                                               scaler=scaler)
+                                               args=args)
         logger.info(
             f"train: epoch {epoch:3d}, cls_loss: {cls_losses:.2f}, reg_loss: {reg_losses:.2f}, loss: {losses:.2f}"
         )
@@ -309,19 +318,55 @@ def main(logger, args):
     # )
 
 
+def test_make_grid():
+    val_loader = DataLoader(Config.val_dataset,
+                            batch_size=8,
+                            shuffle=True,
+                            num_workers=2,
+                            collate_fn=collater)
+    mean = np.array([[[0.471, 0.448, 0.408]]])
+    std = np.array([[[0.234, 0.239, 0.242]]])
+    # datas是一个dict, key就是定义的三个key, 对应的value已经打了batch
+    datas = next(iter(val_loader))
+    batch_annots = datas['annot']
+    batch_images = datas['img']
+    # batch_images = batch_images * 255.
+
+    c = 0
+    for img, annot in zip(batch_images, batch_annots):
+        c += 1
+        img, annot = img.numpy(), annot.numpy()
+        img = img.transpose(1, 2, 0)    # [c, h, w] -> [h, w, c] RGB
+
+        img = (img * std + mean) * 255.
+        img = np.uint8(img)
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)   # RGB -> BGR
+        for point in annot:
+            point = np.int32(point[:4])
+            cv2.rectangle(img, [point[0], point[1]], [point[2], point[3]], (0, 255, 0), 1)
+        cv2.imwrite(str(c)+'.png', img)
+
+    # img = make_grid(batch_images, nrow=8)
+    # img = img.numpy()
+    # img = img.transpose(1, 2, 0)
+    # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    # cv2.imwrite('test.jpg', img)
+
+
 if __name__ == "__main__":
     args = parse_args()
     logger = get_logger(__name__, args.log)
     main(logger=logger, args=args)
 
-    # inputs1 = torch.rand(4, 3, 640, 640).cuda()
-    # inputs2 = torch.rand(4, 3, 640, 640).cuda()
-    # inputs = [inputs1, inputs2]
-    #
-    # args = parse_args()
-    # model = RetinaNet(num_classes=args.num_classes)
-    # model = model.cuda()
-    #
+    # test_make_grid()
+
+    # range_loader = tqdm(range(10000))
+    # c = 0
+    # for i in range_loader:
+    #     c = i
+    #     time.sleep(0.01)
+    # range_loader.desc = f'this is {c}'
+
     # flops, params = profile(model, inputs=(inputs[0],))
     # flops, params = clever_format([flops, params], '%.3f')
 

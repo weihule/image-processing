@@ -287,13 +287,37 @@ def custom_softmax(inputs, dim):
 
 
 if __name__ == "__main__":
-    arr = torch.arange(12).reshape(3, 4).float()
-    print(arr, arr.shape)
-    arr_prob = F.softmax(arr, dim=-1)
-    print(arr_prob, arr_prob.shape)
+    arr = torch.rand(12, 5)
+    bbox = arr[:, :4]
+    labels = arr[:, 4]
+    mask = torch.tensor([0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1])
+    mask = mask > 0
+    # print(bbox.shape, labels.shape)
+    # print(labels)
+    # print(labels[mask])
 
-    res = custom_softmax(arr.numpy(), dim=1)
-    print(res)
+    # one_img_gt_cls = torch.tensor([21, 3, 45])
+    # indices = torch.tensor([1, 0, 2, 2, 0, 0, 2, 0, 1, 0, 2, 2])
+    # overlap = torch.rand(12)
+    # print(overlap)
+    # print(indices[overlap > 0.45])
+    # anchor_gt_cls = one_img_gt_cls[indices][overlap > 0.45]
+    # print(anchor_gt_cls)
+
+    # one_img_gt_bbs = torch.rand(3, 4)
+    # print(one_img_gt_bbs)
+    # indices = torch.tensor([1, 0, 2, 2, 0, 0, 2, 0, 1, 0, 2, 2])
+    # per_image_anchors_gt_bboxes = one_img_gt_bbs[indices]
+    # print(per_image_anchors_gt_bboxes)
+    # print(per_image_anchors_gt_bboxes.shape)
+
+    a = torch.rand(3, 2)
+    print(a)
+    a = a.long()
+    print(a, a.shape)
+
+    
+
 
 
 
