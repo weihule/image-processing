@@ -31,7 +31,7 @@ class Config:
     pre_trained = False
     num_classes = 80
     seed = 0
-    input_image_size = 640
+    input_image_size = 600
 
     data_transform = {
         'train': transforms.Compose([
@@ -45,23 +45,27 @@ class Config:
         ])
     }
 
-    train_dataset = CocoDetection(image_root_dir=train_dataset_path,
-                                  annotation_root_dir=dataset_annot_path,
-                                  set='train2017',
-                                  transform=data_transform['train'])
+    # train_dataset = CocoDetection(image_root_dir=train_dataset_path,
+    #                               annotation_root_dir=dataset_annot_path,
+    #                               set='train2017',
+    #                               transform=data_transform['train'])
+    #
+    # val_dataset = CocoDetection(image_root_dir=val_dataset_path,
+    #                             annotation_root_dir=dataset_annot_path,
+    #                             set='val2017',
+    #                             transform=data_transform['val'])
 
-    val_dataset = CocoDetection(image_root_dir=val_dataset_path,
-                                annotation_root_dir=dataset_annot_path,
-                                set='val2017',
-                                transform=data_transform['val'])
+    voc_root_dir = '/nfs/home57/weihule/data/dl/VOCdataset'
+    if not os.path.exists(voc_root_dir):
+        voc_root_dir = '/ssd/weihule/data/dl/VOCdataset'
+    train_dataset = VocDetection(root_dir=voc_root_dir)
+    val_dataset = VocDetection(root_dir=voc_root_dir, image_sets=[('2007', 'test')])
 
-    # val_dataset = VocDetection(root_dir='/nfs/home57/weihule/data/dl/VOCdataset')
-
-    epochs = 12
-    batch_size = 32
+    epochs = 5
+    batch_size = 2
     lr = 1e-4
     lrf = 0.001
-    num_workers = 2
+    num_workers = 4
     print_interval = 100
     apex = True
 
@@ -73,3 +77,5 @@ if __name__ == "__main__":
     # img_path = '/nfs/home57/weihule/data/dl/flower/test/tulips05.jpg'
     # img = cv2.imread(img_path)
     # print(img.shape)
+    print(len(Config.train_dataset))
+    print(len(Config.val_dataset))

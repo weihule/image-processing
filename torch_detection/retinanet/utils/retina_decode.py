@@ -31,7 +31,7 @@ class RetinaNetDecoder(nn.Module):
 
     # 这里输入的是5个feature map的结果
     # 传入的是list形式，里面有5个元素, 每个元素一个三维向量
-    # 以cls_heads为例: [[B, f1_anchor_num, 80], [B, f1_anchor_num, 80], ...]
+    # 以cls_heads为例: [[B, f1_anchor_num, 80], [B, f2_anchor_num, 80], ...]
     def forward(self, cls_heads, reg_heads, batch_anchors):
         with torch.no_grad():
             devices = cls_heads[0].device

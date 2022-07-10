@@ -301,7 +301,7 @@ if __name__ == "__main__":
     # overlap = torch.rand(12)
     # print(overlap)
     # print(indices[overlap > 0.45])
-    # anchor_gt_cls = one_img_gt_cls[indices][overlap > 0.45]
+    # anchor_gt_cls = one_img_gt_cls[indices[overlap > 0.45]] + 1
     # print(anchor_gt_cls)
 
     # one_img_gt_bbs = torch.rand(3, 4)
@@ -311,12 +311,52 @@ if __name__ == "__main__":
     # print(per_image_anchors_gt_bboxes)
     # print(per_image_anchors_gt_bboxes.shape)
 
-    a = torch.rand(3, 2)
-    print(a)
-    a = a.long()
-    print(a, a.shape)
+    # one_image_anchors_gt_cls = torch.ones(10) * (-1)
+    # overlaps = torch.rand(10)
+    # one_image_anchors_gt_cls[overlaps > 0.5] = 1
+    # print(one_image_anchors_gt_cls)
 
+    # a = torch.tensor([2., 5., 1., 0., 3.])
+    # arr1 = a.unsqueeze(-1)
+    # arr2 = torch.unsqueeze(a, dim=1)
+    # print(a, a.shape)
+    # print(arr1, arr1.shape)
+    # print(arr2, arr2.shape)
+
+
+    # sigmoid_layer = nn.Sigmoid()
+    # loss_f = nn.BCELoss()
+    # inputs = torch.randn((3, 4))
+    # labels = torch.tensor([1, 1, 2])
+    # one_hot_labels = F.one_hot(labels.long(), num_classes=inputs.shape[1])
+    # one_hot_labels = one_hot_labels.float()
+    # inputs = sigmoid_layer(inputs)
+    # loss = loss_f(inputs, one_hot_labels)
+    # print(inputs)
+    # print(loss)
+
+    # 5个预测框, 2个gt
+    tp_lists = [0, 0, 0, 0, 0]
+    confidence_score = torch.tensor([0.78, 0.23, 0.54, 0.58, 0.49])
+    ious = torch.tensor([[0.30, 0.45, 0.52, 0.76, 0.38], 
+                        [0.56, 0.13, 0.02, 0.89, 0.21]])
+    ious_mask = torch.where(ious > 0.5, True, False)
+    print(ious_mask)
     
+    pred_big_thresholds = torch.tile(confidence_score, dims=(ious.shape[0], 1))
+    print(pred_big_thresholds)
+
+    for pred_big_threshold, iou_mask in zip(pred_big_thresholds, ious_mask):
+        print(pred_big_threshold, iou_mask)
+        sub_big_score = pred_big_threshold[iou_mask]
+        print(sub_big_score.shape)
+        score, index = torch.max(sub_big_score)
+        print(score, index)
+    
+    
+    
+    
+
 
 
 

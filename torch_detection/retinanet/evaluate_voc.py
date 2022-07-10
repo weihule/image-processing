@@ -21,10 +21,6 @@ def get_iou(bbox1, bbox2):
 
     return float(inter / union)
 
-    
-    # inter = (min(bbox1[2], bbox2[2]) - max(bbox1[0], bbox2[0])) * \
-    #         (min(bbox1[3], bbox2[3]) - max(bbox1[1], bbox2[1]))
-
 
 def get_ious(bboxs, gt):
     ares_bbs = (bboxs[:, 2] - bboxs[:, 0]) * (bboxs[:, 3] - bboxs[:, 1]) 
@@ -33,8 +29,9 @@ def get_ious(bboxs, gt):
     inter_0, inter_1 = torch.max(bboxs[:, 0], gt[0]).reshape(-1, 1), torch.max(bboxs[:, 1], gt[1]).reshape(-1, 1)
     inter_2, inter_3 = torch.min(bboxs[:, 2], gt[2]).reshape(-1, 1), torch.min(bboxs[:, 3], gt[3]).reshape(-1, 1)
     inters = torch.cat((inter_0, inter_1, inter_2, inter_3), dim=1)       # (N, 4)
-    inters = torch.clamp(inters[:, 2] - inters[:, 0], min=0.) * \
-             torch.clamp(inters[:, 3] - inters[:, 1], min=0.)             # (1, N)
+
+    # (1, N)
+    inters = torch.clamp(inters[:, 2] - inters[:, 0], min=0.) * torch.clamp(inters[:, 3] - inters[:, 1], min=0.)
 
     # print(inters)
     # print(ares_bbs, area_gt.item())
@@ -50,28 +47,28 @@ def calculate_tp(pred_boxes: Tensor, pred_scores: Tensor, gt_boxes: Tensor, gt_d
         对于匹配到同一gt的不同bboxes, 让score最高tp = 1, 其它的tp = 0
     Args:
         pred_boxes: Tensor[N, 4], 某张图片中某类别的全部预测框的坐标 (x0, y0, x1, y1)
-        pred_scores: Tensor[N, 1], 某张图片中某类别的全部预测框的score
+        pred_scores: Tensor[N], 某张图片中某类别的全部预测框的score
         gt_boxes: Tensor[M, 4], 某张图片中某类别的全部gt的坐标 (x0, y0, x1, y1)
         gt_difficult: Tensor[M, 1], 某张图片中某类别的gt中是否为difficult目标的值
         iou_thresh: iou 阈值
     Returns:
         gt_num: 某张图片中某类别的gt数量
-        tp_list: 记录某张图片中某类别的预测框是否为tp的情况
+        tp_list: 记录某张图片中某类别的预测框是否为tp, 是tp记为1, 不是记为0
         confidence_score: 记录某张图片中某类别的预测框的score值 (与tp_list相对应)
     """
     if gt_boxes.numel() == 0:
         # return 0, [], []   错误的返回, 漏掉了 FP
         # 如果gt为零, 但是还有某一类预测框存在的话, 这些框就属于FP, 即
         # 返回的 tp_list 中全为零, 个数为 len(pred_boxes)
-        return 0, [0 for _ in range(pred_boxes)], pred_scores.flatten().to_list()
+        return 0, [0 for _ in range(pred_boxes)], pred_scores.numpy().to_list()
 
     # 若无对应的boxes，则 tp 为空
     if pred_boxes.numel() == 0:
         return len(gt_boxes), [], []
 
     # 否则计算所有预测框与gt之间的iou
-    ious = pred_boxes.new_zeros((len(gt_boxes), len(pred_boxes)))   # 每一行代表所有bbox与某一个gt的iou
-    for i in range(len(gt_boxes)):
+    ious = torch.zeros((gt_boxes.shape[0], pred_boxes.shape[0]))   # 每一行代表所有bbox与某一个gt的iou
+    for i in range(gt_boxes.shape[0]):
         ious[i] = get_ious(pred_boxes, gt_boxes[i])
 
     # 在实际预测中，经常会出现多个预测框与同一个gt的IOU都大于阈值,
@@ -83,11 +80,11 @@ def calculate_tp(pred_boxes: Tensor, pred_scores: Tensor, gt_boxes: Tensor, gt_d
     #     if iou_value.item() > iou_thresh:
     #         tp_lists[idx] = 1
     
-    tp_lists = [0 for _ in range(len(pred_boxes))]
-    confidence_score = pred_scores.flatten()
+    tp_lists = [0 for _ in range(pred_boxes.shape[0])]
+    confidence_score = pred_scores
     # 对每一行的iou分别进行计算, 找是否有匹配的gt
     for iou_list in ious:
-        sub_iou_big_ids = np.where(iou_list>0.5)        # 返回的是 tuple, 元素个数和 ious 的维度相同
+        sub_iou_big_ids = torch.where(iou_list > 0.5)
         sub_scores = confidence_score[sub_iou_big_ids[0]]
         sub_max_idx = np.argmax(sub_scores)
         idx = sub_iou_big_ids[0].tolist()[sub_max_idx]

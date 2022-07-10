@@ -5,7 +5,6 @@ import random
 import numpy as np
 import json
 import cv2
-import jpeg4py
 from torch.utils.data import Dataset, DataLoader
 from pycocotools.coco import COCO
 import xml.etree.ElementTree as ET
@@ -203,6 +202,7 @@ class VocDetection(Dataset):
         xml_path = os.path.join(img_id[0], 'Annotations', img_id[1] + '.xml')
         annotations = np.zeros((0, 5))
 
+        pts = ['xmin', 'ymin', 'xmax', 'ymax']
         target = ET.parse(xml_path).getroot()
         for obj in target.iter('object'):
             difficult = int(obj.find('difficult').text)
@@ -210,7 +210,6 @@ class VocDetection(Dataset):
                 continue
             name = obj.find('name').text.lower().strip()
             bndbox = obj.find('bndbox')
-            pts = ['xmin', 'ymin', 'xmax', 'ymax']
             annotation = list()
             for p in pts:
                 annotation.append(int(bndbox.find(p).text))
@@ -238,10 +237,11 @@ class DataPrefetcher():
     """
 
     def __init__(self, loader):
-        self.next_input = None
-        self.next_annot = None
+        # self.next_input = None
+        # self.next_annot = None
         self.loader = iter(loader)
         self.stream = torch.cuda.Stream()
+        self.preload()
 
     def preload(self):
         # 当我们已经迭代完最后⼀个数据之后，

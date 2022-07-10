@@ -17,7 +17,6 @@ from thop import profile
 from thop import clever_format
 import matplotlib.pyplot as plt
 from torch.cuda import amp
-from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
 from torchvision.utils import make_grid, draw_bounding_boxes
@@ -28,7 +27,6 @@ from utils.retina_decode import RetinaNetDecoder
 from network_files.retinanet_model import resnet50_retinanet
 from config import Config
 from utils.util import get_logger
-from pycocotools.cocoeval import COCOeval
 
 warnings.filterwarnings('ignore')
 
@@ -56,102 +54,26 @@ def parse_args():
     return parse.parse_args()
 
 
-def validate(val_dataset, model, decoder):
-    # model = model.module
-    model.eval()
-    with torch.no_grad():
-        all_eval_result = evaluate_coco(val_dataset, model, decoder)
-
-
-def evaluate_coco(val_dataset, model, decoder):
-    results, image_ids = list(), list()
-    for index in range(len(val_dataset)):
-        datas = val_dataset[index]
-        scale = datas['scale']
-        val_inputs = torch.from_numpy(datas['img']).cuda().permute(2, 0, 1).unsqueeze(dim=0)
-        cls_heads, reg_heads, batch_anchors = model(val_inputs)
-
-        # for pred_cls_head, pred_reg_head, pred_batch_anchor in zip(
-        #         cls_heads, reg_heads, batch_anchors
-        # ):
-        #     print(pred_cls_head.shape, pred_reg_head.shape, pred_batch_anchor.shape)
-        scores, classes, boxes = decoder(cls_heads, reg_heads, batch_anchors)
-        scores, classes, boxes = scores.cpu(), classes.cpu(), boxes.cpu()
-        boxes /= scale
-
-        # make sure decode batch_size is 1
-        # scores shape: [1, max_detection_num]
-        # classes shape: [1, max_detection_num]
-        # boxes shape: [1, max_detection_num, 4]
-        if scores.shape[0] != 1:
-            raise ValueError('batch_size num expected 1, but got {}'.format(scores.shape[0]))
-        scores = scores.squeeze(0)
-        classes = classes.squeeze(0)
-        boxes = boxes.squeeze(0)
-
-        # for coco_eval,we need [x_min,y_min,w,h] format pred boxes
-        boxes[:, 2] = boxes[:, 2] - boxes[:, 0]
-        boxes[:, 3] = boxes[:, 3] - boxes[:, 1]
-
-        # 每个样本(anchor)记录一次
-        for object_score, object_class, object_box in zip(scores, classes, boxes):
-            object_score = float(object_score)
-            object_class = float(object_class)
-            object_box = object_box.tolist()
-
-            if object_class == -1:
-                continue
-
-            image_result = {
-                'image_id': val_dataset.image_ids[index],
-                'category_id': val_dataset.find_category_id_from_coco_label(object_class),
-                'score': object_score,
-                'bbox': object_box
-            }
-            results.append(image_result)
-        # 每张图片记录一次
-        image_ids.append(val_dataset.image_ids[index])
-
-        print('{}/{}'.format(index, len(val_dataset)))
-
-    if len(results) == 0:
-        print('No target detected in test set images')
-        return
-
-    json.dump(results, open('{}_box_results.json'.format(val_dataset.set_name), 'w'), indent=4)
-
-    # load results in COCO evaluation tool
-    coco = val_dataset.coco
-    coco_pred = coco.loadRes('{}_box_results.json'.format(val_dataset.set_name))
-    coco_eval = COCOeval(coco, coco_pred, 'bbox')
-    coco_eval.params.imgIds = image_ids
-    coco_eval.evaluate()
-    coco_eval.accumulate()
-    coco_eval.summarize()
-    all_eval_result = coco_eval.stats
-
-    return all_eval_result
-
-
 def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, args):
     cls_losses, reg_losses, losses = list(), list(), list()
     model.train()
     iters = len(train_loader.dataset) // args.batch_size
-    # pre_fetcher = DataPrefetcher(train_loader)
-    # images, annotations = pre_fetcher.next()
+    pre_fetcher = DataPrefetcher(train_loader)
+    images, annotations = pre_fetcher.next()
 
     iter_index = 1
-    train_bar = tqdm(train_loader)
-    for datas in train_bar:
-        images, annotations = datas['img'], datas['annot']
+    # train_bar = tqdm(train_loader)
+    # for datas in train_bar:
+    while images is not None:
+        # images, annotations = datas['img'], datas['annot']
         # print(images.shape, annotations.shape)
         images, annotations = images.cuda().float(), annotations.cuda()
         optimizer.zero_grad()
 
         if args.apex:
             scaler = amp.GradScaler()
-            autocast = amp.autocast
-            with autocast():
+            auto_cast = amp.autocast
+            with auto_cast():
                 cls_heads, reg_heads, batch_anchors = model(images)
                 cls_loss, reg_loss = criterion(cls_heads, reg_heads, batch_anchors, annotations)
                 loss = cls_loss + reg_loss
@@ -169,11 +91,11 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, a
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
 
+        images, annotations = pre_fetcher.next()
+
         cls_losses.append(cls_loss.item())
         reg_losses.append(reg_loss.item())
         losses.append(loss.item())
-
-        # images, annotations = pre_fetcher.next()
 
         if iter_index % args.print_interval == 0:
             logger.info(
@@ -181,8 +103,9 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, a
                 cls_loss: {cls_loss.item():.2f}, reg_loss: {reg_loss.item():.2f}, total_loss: {loss.item():.2f}"
             )
         iter_index += 1
+        print(f"epoch: {epoch}, iter_index: {iter_index}/{iters}")
 
-    train_bar.desc = 'epoch: {}/{}'.format(epoch, args.epoches)
+        # break
 
     scheduler.step()
 
@@ -215,11 +138,11 @@ def main(logger, args):
                               batch_size=args.batch_size,
                               shuffle=True,
                               num_workers=args.num_workers,
-                              prefetch_factor=2,
+                              pin_memory=True,
                               collate_fn=collater)
     logger.info('finish loading data')
 
-    model = resnet50_retinanet()
+    model = resnet50_retinanet(pre_trained=True, pre_train='')
 
     # flops_input = torch.rand(1, 3, args.input_image_size, args.input_image_size)
     # flops, params = profile(model, inputs=(flops_input,))
@@ -275,6 +198,7 @@ def main(logger, args):
         logger.info(
             f"train: epoch {epoch:3d}, cls_loss: {cls_losses:.2f}, reg_loss: {reg_losses:.2f}, loss: {losses:.2f}"
         )
+        # break
 
     #     if epoch % 5 == 0 or epoch == args.epochs:
     #         all_eval_result = validate(Config.val_dataset, model, decoder)
