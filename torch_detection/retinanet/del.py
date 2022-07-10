@@ -343,15 +343,10 @@ if __name__ == "__main__":
     ious_mask = torch.where(ious > 0.5, True, False)
     print(ious_mask)
     
-    pred_big_thresholds = torch.tile(confidence_score, dims=(ious.shape[0], 1))
-    print(pred_big_thresholds)
+    iou_values, indices = torch.max(ious, dim=1)
+    print(iou_values, indices)
 
-    for pred_big_threshold, iou_mask in zip(pred_big_thresholds, ious_mask):
-        print(pred_big_threshold, iou_mask)
-        sub_big_score = pred_big_threshold[iou_mask]
-        print(sub_big_score.shape)
-        score, index = torch.max(sub_big_score)
-        print(score, index)
+
     
     
     
