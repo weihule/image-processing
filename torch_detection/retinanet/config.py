@@ -29,7 +29,7 @@ class Config:
     dataset_annot_path = os.path.join(data_set_root, 'annotations')
 
     pre_trained = False
-    num_classes = 80
+    num_classes = 20
     seed = 0
     input_image_size = 600
 
@@ -58,15 +58,18 @@ class Config:
     voc_root_dir = '/nfs/home57/weihule/data/dl/VOCdataset'
     if not os.path.exists(voc_root_dir):
         voc_root_dir = '/ssd/weihule/data/dl/VOCdataset'
-    train_dataset = VocDetection(root_dir=voc_root_dir)
-    val_dataset = VocDetection(root_dir=voc_root_dir, image_sets=[('2007', 'test')])
+    train_dataset = VocDetection(root_dir=voc_root_dir,
+                                 transform=data_transform['train'])
+    val_dataset = VocDetection(root_dir=voc_root_dir,
+                               image_sets=[('2007', 'test')],
+                               transform=data_transform['val'])
 
-    epochs = 5
-    batch_size = 2
+    epochs = 10
+    batch_size = 32
     lr = 1e-4
     lrf = 0.001
     num_workers = 4
-    print_interval = 100
+    print_interval = 10
     apex = True
 
 

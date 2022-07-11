@@ -336,15 +336,42 @@ if __name__ == "__main__":
     # print(loss)
 
     # 5个预测框, 2个gt
-    tp_lists = [0, 0, 0, 0, 0]
-    confidence_score = torch.tensor([0.78, 0.23, 0.54, 0.58, 0.49])
-    ious = torch.tensor([[0.30, 0.45, 0.52, 0.76, 0.38], 
-                        [0.56, 0.13, 0.02, 0.89, 0.21]])
-    ious_mask = torch.where(ious > 0.5, True, False)
-    print(ious_mask)
+    # confidence_score = torch.tensor([0.78, 0.23, 0.54, 0.58, 0.49])
+    # ious = torch.tensor([[0.30, 0.45, 0.52, 0.76, 0.38], 
+    #                     [0.56, 0.13, 0.02, 0.89, 0.21]], dtype=torch.float32)
+    # b = torch.tensor(-1, dtype=torch.float32)
+
+    # tp_lists = torch.zeros(ious.shape[1])
+    # ious_mask = torch.where(ious > 0.5, confidence_score, torch.tensor(-1, dtype=torch.float32))
+    # print(ious_mask)
+    # iou_value, indices = torch.max(ious_mask, dim=1)
+    # print(iou_value, indices)
+
+    # tp_lists[indices] = 1
+    # print(tp_lists.cpu().numpy())
+    # print(iou_value, indices)
     
-    iou_values, indices = torch.max(ious, dim=1)
-    print(iou_values, indices)
+    # iou_values, indices = torch.max(ious, dim=1)
+    # print(iou_values, indices)
+
+    # scores = torch.tensor([0.87, 0.81, 0.78, 0.76, 0.76, 0.69, 0.67, 0.60, 0.60, 0.59, 0.54])
+    # print(scores.dtype)
+    # classes = torch.tensor([2, 1, 3, 4, 2, 5, 7, 6, 4, 1, 2])
+    # unique_classes = torch.unique(classes)
+    # for per_class in unique_classes:
+    #     sub_classes = classes[classes == per_class]
+    #     sub_scores = scores[classes == per_class]
+    #     # scores = scores[mask]
+    #     # print(classes, scores)
+
+
+    per_image_cls_heads = torch.rand(10, 4)
+    per_image_anchors_annotations = torch.rand(10, 5)
+    print(per_image_cls_heads)
+    print(per_image_anchors_annotations[:, 4] > 0.4)
+    a = per_image_cls_heads[per_image_anchors_annotations[:, 4] > 0.4]
+    print(a)
+
 
 
     

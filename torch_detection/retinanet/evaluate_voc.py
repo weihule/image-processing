@@ -4,6 +4,8 @@ import numpy as np
 import time
 import timeit
 from shapely.geometry import Polygon
+from utils.custom_dataset import DataPrefetcher, collater
+from torch.utils.data import DataLoader
 
 
 def get_iou(bbox1, bbox2):
@@ -15,7 +17,7 @@ def get_iou(bbox1, bbox2):
 
     if inter_0 >= min(bbox1[2], bbox2[2]):
         return 0
-    
+
     union = (bbox1[2] - bbox1[0]) * (bbox1[3] - bbox1[1]) + (bbox2[2] - bbox2[0]) * (bbox2[3] - bbox2[1])
     inter = (inter_2 - inter_0) * (inter_3 - inter_1)
 
@@ -23,25 +25,26 @@ def get_iou(bbox1, bbox2):
 
 
 def get_ious(bboxs, gt):
-    ares_bbs = (bboxs[:, 2] - bboxs[:, 0]) * (bboxs[:, 3] - bboxs[:, 1]) 
+    ares_bbs = (bboxs[:, 2] - bboxs[:, 0]) * (bboxs[:, 3] - bboxs[:, 1])
     area_gt = (gt[2] - gt[0]) * (gt[3] - gt[1])
 
     inter_0, inter_1 = torch.max(bboxs[:, 0], gt[0]).reshape(-1, 1), torch.max(bboxs[:, 1], gt[1]).reshape(-1, 1)
     inter_2, inter_3 = torch.min(bboxs[:, 2], gt[2]).reshape(-1, 1), torch.min(bboxs[:, 3], gt[3]).reshape(-1, 1)
-    inters = torch.cat((inter_0, inter_1, inter_2, inter_3), dim=1)       # (N, 4)
+    inters = torch.cat((inter_0, inter_1, inter_2, inter_3), dim=1)  # (N, 4)
 
     # (1, N)
     inters = torch.clamp(inters[:, 2] - inters[:, 0], min=0.) * torch.clamp(inters[:, 3] - inters[:, 1], min=0.)
 
     # print(inters)
     # print(ares_bbs, area_gt.item())
-    unions = ares_bbs + area_gt - inters        # (1, N)
-    ious = inters / unions      # (1, N)
+    unions = ares_bbs + area_gt - inters  # (1, N)
+    ious = inters / unions  # (1, N)
 
     return ious
 
 
-def calculate_tp(pred_boxes: Tensor, pred_scores: Tensor, gt_boxes: Tensor, gt_difficult: Tensor=None, iou_thresh: float = 0.5):
+def calculate_tp(pred_boxes: Tensor, pred_scores: Tensor, gt_boxes: Tensor, gt_difficult: Tensor = None,
+                 iou_thresh: float = 0.5):
     """
         calculate tp/fp for all predicted bboxes for one class of one image.
         对于匹配到同一gt的不同bboxes, 让score最高tp = 1, 其它的tp = 0
@@ -67,7 +70,7 @@ def calculate_tp(pred_boxes: Tensor, pred_scores: Tensor, gt_boxes: Tensor, gt_d
         return len(gt_boxes), [], []
 
     # 否则计算所有预测框与gt之间的iou
-    ious = torch.zeros((gt_boxes.shape[0], pred_boxes.shape[0]))   # 每一行代表所有bbox与某一个gt的iou
+    ious = torch.zeros((gt_boxes.shape[0], pred_boxes.shape[0]))  # 每一行代表所有bbox与某一个gt的iou
     for i in range(gt_boxes.shape[0]):
         ious[i] = get_ious(pred_boxes, gt_boxes[i])
 
@@ -79,25 +82,32 @@ def calculate_tp(pred_boxes: Tensor, pred_scores: Tensor, gt_boxes: Tensor, gt_d
     # for iou_value, idx in zip(max_ious, max_ious_idx):
     #     if iou_value.item() > iou_thresh:
     #         tp_lists[idx] = 1
-    
-    tp_lists = [0 for _ in range(pred_boxes.shape[0])]
+
+    # tp_lists = [0 for _ in range(pred_boxes.shape[0])]
     confidence_score = pred_scores
     # 对每一行的iou分别进行计算, 找是否有匹配的gt
-    for iou_list in ious:
-        sub_iou_big_ids = torch.where(iou_list > 0.5)
-        sub_scores = confidence_score[sub_iou_big_ids[0]]
-        sub_max_idx = np.argmax(sub_scores)
-        idx = sub_iou_big_ids[0].tolist()[sub_max_idx]
-        tp_lists[idx] = 1
+    # for iou_list in ious:
+    #     sub_iou_big_ids = torch.where(iou_list > 0.5)   # 返回的是一个tuple, 取索引为1的
+    #     sub_scores = confidence_score[sub_iou_big_ids[0]]
+    #     sub_max_idx = np.argmax(sub_scores)
+    #     idx = sub_iou_big_ids[0].tolist()[sub_max_idx]
+    #     tp_lists[idx] = 1
+
+    tp_lists = torch.zeros(ious.shape[1])
+    ious_mask = torch.where(ious > 0.5, confidence_score, torch.tensor(-1, dtype=torch.float32))
+    iou_value, indices = torch.max(ious_mask, dim=1)
+    tp_lists[indices[iou_value > 0]] = 1
+    tp_lists = tp_lists.cpu().numpy()
+    confidence_score = confidence_score.cpu().numpy()
 
     # print(confidence_score)
     # print(max_score, max_score_idx)
     # for iou_list in ious:
     #     print(iou_list, iou_list>iou_thresh)
-        # idx = np.argmax(confidence_score[iou_list>iou_thresh])
-        # print('idx = ', idx)
-        # tp_lists[idx] = 1
-    
+    # idx = np.argmax(confidence_score[iou_list>iou_thresh])
+    # print('idx = ', idx)
+    # tp_lists[idx] = 1
+
     return len(gt_boxes), tp_lists, confidence_score
 
 
@@ -113,10 +123,10 @@ def calculate_pr(gt_num, tp_list, confidence_score):
     if isinstance(tp_list, (list, tuple)):
         tp_list = np.array(tp_list)
 
-    mask = np.argsort(-confidence_score)    # 按照score生成从大到小排序的mask
+    mask = np.argsort(-confidence_score)  # 按照score生成从大到小排序的mask
     tp_list = tp_list[mask]
-    recall_list = [p/gt_num for p in np.cumsum(tp_list)]
-    precision_list = [p/(idx+1) for idx, p in enumerate(np.cumsum(tp_list))]
+    recall_list = [p / gt_num for p in np.cumsum(tp_list)]
+    precision_list = [p / (idx + 1) for idx, p in enumerate(np.cumsum(tp_list))]
 
     return precision_list, recall_list
 
@@ -161,6 +171,55 @@ def voc_ap(rec, prec, use_07_metric=False):
     return ap
 
 
+def evaluate_voc(val_dataset, model, decoder, num_classes=20, iou_threshold=0.5):
+    preds, gts = list(), list()
+    val_batch_size = 32
+    val_loader = DataLoader(dataset=val_dataset,
+                            batch_size=val_batch_size,
+                            shuffle=False,
+                            pin_memory=True,
+                            collate_fn=collater)
+    pre_fetcher = DataPrefetcher(val_loader)
+    images, annotations = pre_fetcher.next()
+
+    map_res = 0
+    while images is not None:
+        images, annotations = images.cuda().float(), annotations.cuda()
+        cls_heads, reg_heads, batch_anchors = model(images)
+
+        # batch_scores : [B, 100]       100: max_detection_num
+        # batch_classes : [B, 100]
+        # batch_pred_bboxes : [B, 100, 4]
+        batch_scores, batch_classes, batch_pred_bboxes = decoder(cls_heads, reg_heads, batch_anchors)
+        print(batch_scores.shape, batch_classes.shape, batch_pred_bboxes.shape)
+        # 遍历batch中的每图片
+        for per_img_scores, per_img_classes, per_img_bboxes, per_img_annots in \
+                zip(batch_scores, batch_classes, batch_pred_bboxes, annotations):
+            unique_classes = torch.unique(per_img_classes)
+            per_img_annots = per_img_annots[:, :4][per_img_annots[:, 4] >= 0]  # 去除-1标签并取前四列
+            # 遍历每个类别
+            per_img_map = 0
+            for per_class in unique_classes:
+                # 找出属于该类别的分数, 预测框, 真实框
+                mask = per_img_classes == per_class
+                sub_per_img_scores = per_img_scores[mask]
+                sub_per_img_bboxes = per_img_bboxes[mask]
+                sub_per_img_annots = per_img_annots[per_img_annots[:, 4] == per_class]
+
+                gt_nums, tp_lists, conf_scores = calculate_tp(sub_per_img_bboxes,
+                                                              sub_per_img_scores,
+                                                              sub_per_img_annots)
+                p_list, r_list = calculate_pr(gt_nums, tp_lists, conf_scores)
+                ap_res = voc_ap(r_list, p_list)
+                per_img_map += ap_res
+            per_img_map = per_img_map / len(unique_classes)
+            map_res += per_img_map
+
+        break
+
+    map_res = map_res / len(val_dataset)
+
+
 if __name__ == "__main__":
     pred_bbs = torch.tensor([[10, 6, 15, 14], [5, 2, 10, 9], [7, 4, 12, 12], [17, 14, 20, 18],
                              [6, 14, 12, 18], [8, 9, 14, 15], [2, 20, 5, 25], [11, 7, 15, 16],
@@ -178,10 +237,15 @@ if __name__ == "__main__":
                             0.5782052874565125,
                             0.7706285119056702]).reshape(-1, 1)
 
-    gt_bbs = torch.tensor([[9, 8, 14, 15], [6, 5, 13, 11]], dtype=torch.float32)
-    print(pred_bbs.shape, gt_bbs[0].shape)
-    res = get_ious(pred_bbs, gt_bbs[1])
-    print(res)
+    from utils.retina_decode import RetinaNetDecoder
+    from network_files.retinanet_model import resnet50_retinanet
+    from config import Config
+
+    model = resnet50_retinanet(pre_trained=True, pre_train='')
+    model = model.cuda()
+    decoder = RetinaNetDecoder(image_w=Config.input_image_size,
+                               image_h=Config.input_image_size).cuda()
+    evaluate_voc(Config.val_dataset, model, decoder)
 
     # 需要注意, 这里不管传入多少个gt, 返回的 tp_list 都是 bbox 的个数
     # 只是其中可能有多个1, 1就代表tp
@@ -213,5 +277,3 @@ if __name__ == "__main__":
     # print(sub_ids)
 
     # print(sub_iou_big_ids[0].tolist()[sub_ids])
-
-

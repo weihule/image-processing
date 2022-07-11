@@ -28,6 +28,8 @@ from network_files.retinanet_model import resnet50_retinanet
 from config import Config
 from utils.util import get_logger
 
+from evaluate_voc import evaluate_voc
+
 warnings.filterwarnings('ignore')
 
 
@@ -68,6 +70,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, a
         # images, annotations = datas['img'], datas['annot']
         # print(images.shape, annotations.shape)
         images, annotations = images.cuda().float(), annotations.cuda()
+        # print('in train', images.shape, annotations.shape)
         optimizer.zero_grad()
 
         if args.apex:
@@ -75,6 +78,8 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, a
             auto_cast = amp.autocast
             with auto_cast():
                 cls_heads, reg_heads, batch_anchors = model(images)
+                # for i, p, j in zip(cls_heads, reg_heads, batch_anchors):
+                #     print(i.shape, p.shape, j.shape)
                 cls_loss, reg_loss = criterion(cls_heads, reg_heads, batch_anchors, annotations)
                 loss = cls_loss + reg_loss
             scaler.scale(loss).backward()
@@ -186,7 +191,9 @@ def main(logger, args):
         os.mkdir(args.checkpoint_path)
 
     logger.info('start training')
+    print('start training...')
     for epoch in range(start_epoch, args.epochs + 1):
+        print(epoch)
         cls_losses, reg_losses, losses = train(train_loader=train_loader,
                                                model=model,
                                                criterion=criterion,
@@ -200,8 +207,8 @@ def main(logger, args):
         )
         # break
 
-    #     if epoch % 5 == 0 or epoch == args.epochs:
-    #         all_eval_result = validate(Config.val_dataset, model, decoder)
+        if epoch % 5 == 0 or epoch == args.epochs:
+    #         all_eval_result = evaluate_voc(Config.val_dataset, model, decoder)
     #         logger.info(f'eval done.')
     #         if all_eval_result is not None:
     #             logger.info(
@@ -222,24 +229,25 @@ def main(logger, args):
     #             if all_eval_result[0] > best_map:
     #                 torch.save(model.state_dict(), os.path.join(args.checkpoints, 'best.pth'))
     #                 best_map = all_eval_result[0]
-
-    #         torch.save(
-    #             {
-    #                 'epoch': epoch,
-    #                 'best_map': best_map,
-    #                 'cls_loss': cls_losses,
-    #                 'reg_loss': reg_losses,
-    #                 'loss': losses,
-    #                 'model_state_dict': model.state_dict(),
-    #                 'optimizer_state_dict': optimizer.state_dict(),
-    #                 'scheduler_state_dict': scheduler.state_dict(),
-    #             }, os.path.join(args.checkpoint_path, 'latest.pth')
-    #         )
-    # logger.info(f'finish training, best_map: {best_map:.3f}')
-    # training_time = (time.time() - start_time) / 3600
-    # logger.info(
-    #     f'finish training, total training time: {training_time:.2f} hours'
-    # )
+    #
+            torch.save(
+                {
+                    'epoch': epoch,
+                    'best_map': best_map,
+                    'cls_loss': cls_losses,
+                    'reg_loss': reg_losses,
+                    'loss': losses,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict(),
+                }, os.path.join(args.checkpoint_path, 'latest.pth')
+            )
+    logger.info(f'finish training, best_map: {best_map:.3f}')
+    training_time = (time.time() - start_time) / 3600
+    print('finish training')
+    logger.info(
+        f'finish training, total training time: {training_time:.2f} hours'
+    )
 
 
 def test_make_grid():

@@ -82,9 +82,9 @@ class RetinaNetDecoder(nn.Module):
             batch_classes = torch.cat(batch_classes, dim=0)
             batch_pred_bboxes = torch.cat(batch_pred_bboxes, dim=0)
 
-            # batch_scores : [B, 100]
-            # batch_classes : [B, 100]
-            # batch_pred_bboxes : [B, 100, 4]
+            # batch_scores : [B, final_detection_num]
+            # batch_classes : [B, final_detection_num]
+            # batch_pred_bboxes : [B, final_detection_num, 4]
 
             return batch_scores, batch_classes, batch_pred_bboxes
 
@@ -94,17 +94,19 @@ class RetinaNetDecoder(nn.Module):
         reg_heads: [anchor_num, 4]   tx,ty,tw,th
         anchors: [anchor_num, 4]     x_min,y_min,x_max,y_max
         """
+        device = reg_heads.device
+        anchors = anchors.to(device)
         if reg_heads.shape[1] != 4 and anchors.shape[1] != 4:
             raise ValueError('shape expected anchor_num,4, but got {}'.format(reg_heads.shape))
+        if reg_heads.shape[0] != anchors.shape[0]:
+            raise ValueError('the number of reg_heads not equal anchors')
 
         anchors_wh = anchors[:, 2:] - anchors[:, :2]
         anchors_ctr = anchors[:, :2] + 0.5 * anchors_wh
 
-        devices = reg_heads.device
-
-        factor = torch.tensor([0.1, 0.1, 0.2, 0.2], device=devices)
+        factor = torch.tensor([0.1, 0.1, 0.2, 0.2], device=device)
         reg_heads = reg_heads * factor
-        pred_bboxes_wh = torch.exp(reg_heads[:, 2:]).to(devices) * anchors_wh.to(devices)
+        pred_bboxes_wh = torch.exp(reg_heads[:, 2:]).to(device) * anchors_wh.to(device)
         pred_bboxes_ctr = reg_heads[:, :2] * anchors_wh + anchors_ctr
 
         pred_bboxes_x_y_min = pred_bboxes_ctr - 0.5 * pred_bboxes_wh
