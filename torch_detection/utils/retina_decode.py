@@ -19,7 +19,7 @@ class RetinaNetDecoder(nn.Module):
     def __init__(self,
                  image_w,
                  image_h,
-                 min_score_threshold=0.05,
+                 min_score_threshold=0.1,
                  nms_threshold=0.5,
                  max_detection_num=100):
         super(RetinaNetDecoder, self).__init__()
@@ -39,7 +39,7 @@ class RetinaNetDecoder(nn.Module):
             batch_classes = list()
             batch_pred_bboxes = list()
 
-            # 把该batch中的所有样本(anchor)全部合并,所以是沿着dim=1维拼接的
+            # 把该batch中每张图片的所有样本(anchor)全部合并,所以是沿着dim=1维拼接的
             cls_heads = torch.cat(cls_heads, dim=1)     # [B, f1+...+f5_anchor_num, num_classes]
             reg_heads = torch.cat(reg_heads, dim=1)
             batch_anchors = torch.cat(batch_anchors, dim=1)

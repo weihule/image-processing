@@ -1,9 +1,8 @@
 import os
 import sys
-import cv2
 
-from utils.custom_dataset import CocoDetection, VocDetection, Resizer, RandomFlip, Normalize
-from torchvision import transforms, datasets
+from study.torch_detection.utils.custom_dataset import VocDetection, Resizer, RandomFlip, Normalize
+from torchvision import transforms
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
@@ -64,7 +63,7 @@ class Config:
                                image_sets=[('2007', 'test')],
                                transform=data_transform['val'])
 
-    epochs = 10
+    epochs = 20
     batch_size = 32
     lr = 1e-4
     lrf = 0.001

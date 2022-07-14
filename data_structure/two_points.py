@@ -8,6 +8,9 @@
 返回删除后数组的新长度。
 元素的 相对顺序 应该保持 一致 。
 """
+from shutil import move
+
+
 def main1(arr):
     fast, slow = 1, 0
     while fast < len(arr):
@@ -56,6 +59,22 @@ def main3(nums, k):
     nums[k-len(nums):] = nums[k-len(nums):][::-1]
 
 
+# 删除零
+def move_zero(nums):
+    index = 0
+    for j in range(len(nums)):
+        if nums[j] == 0:
+            continue
+        else:
+            nums[index] = nums[j]
+            index += 1
+    while(index < len(nums)):
+        nums[index] = 0
+        index += 1
+
+    return nums
+
+
 
 if __name__ == "__main__":
     # arr = [1, 1, 2, 3, 3, 4, 5]
@@ -68,12 +87,16 @@ if __name__ == "__main__":
     # res = main2(test2)
     # print(res)
 
-    nums = [1, 2, 3, 4, 5, 6, 7]
-    nums_set = set(nums)
-    if nums_set.add(8):
-        print('this is ')
-    print(nums_set)
+    # nums = [1, 2, 3, 4, 5, 6, 7]
+    # nums_set = set(nums)
+    # if nums_set.add(8):
+    #     print('this is ')
+    # print(nums_set)
 
     # k = 3
     # main3(nums, k)
     # print(nums)
+
+    nums = [0,1,0,3,12]
+    res = move_zero(nums)
+    print(res)

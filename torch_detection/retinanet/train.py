@@ -2,33 +2,27 @@ import os
 import sys
 import argparse
 import random
-import shutil
 import time
-import math
 import warnings
-import json
-from tqdm import tqdm
 import cv2
 import numpy as np
 import torch
-import torch.nn as nn
-from torchvision.transforms.functional import to_pil_image
-from thop import profile
-from thop import clever_format
-import matplotlib.pyplot as plt
 from torch.cuda import amp
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
-from torchvision.utils import make_grid, draw_bounding_boxes
-from torchvision import transforms
-from utils.custom_dataset import DataPrefetcher, collater
-from utils.losses import RetinaLoss
-from utils.retina_decode import RetinaNetDecoder
+
+BASE_DIR = os.path.dirname(
+    os.path.dirname(
+        os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+sys.path.append(BASE_DIR)
+
+from study.torch_detection.utils.custom_dataset import DataPrefetcher, collater
+from study.torch_detection.utils.losses import RetinaLoss
+from study.torch_detection.utils.retina_decode import RetinaNetDecoder
 from network_files.retinanet_model import resnet50_retinanet
 from config import Config
-from utils.util import get_logger
-
-from evaluate_voc import evaluate_voc
+from study.torch_detection.utils.util import get_logger
 
 warnings.filterwarnings('ignore')
 
@@ -112,7 +106,8 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, a
 
         # break
 
-    scheduler.step()
+    # scheduler.step()
+    scheduler.step(np.mean(losses))
 
     return np.mean(cls_losses), np.mean(reg_losses), np.mean(losses)
 
@@ -160,10 +155,15 @@ def main(logger, args):
     decoder = RetinaNetDecoder(image_w=args.input_image_size,
                                image_h=args.input_image_size).cuda()
     model = model.cuda()
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    #
+    # lf = lambda x: ((1 + math.cos(x * math.pi / args.epochs)) / 2) * (1 - args.lrf) + args.lrf  # cosine
+    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
 
-    lf = lambda x: ((1 + math.cos(x * math.pi / args.epochs)) / 2) * (1 - args.lrf) + args.lrf  # cosine
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                           patience=3,
+                                                           verbose=True)
 
     # if args.apex:
     #     model, optimizer = amp.
@@ -251,9 +251,9 @@ def main(logger, args):
 
 
 def test_make_grid():
-    val_loader = DataLoader(Config.val_dataset,
-                            batch_size=8,
-                            shuffle=True,
+    val_loader = DataLoader(Config.train_dataset,
+                            batch_size=32,
+                            shuffle=False,
                             num_workers=2,
                             collate_fn=collater)
     mean = np.array([[[0.471, 0.448, 0.408]]])
@@ -262,7 +262,6 @@ def test_make_grid():
     datas = next(iter(val_loader))
     batch_annots = datas['annot']
     batch_images = datas['img']
-    # batch_images = batch_images * 255.
 
     c = 0
     for img, annot in zip(batch_images, batch_annots):

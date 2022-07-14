@@ -1,3 +1,4 @@
+from ast import fix_missing_locations
 import os
 import numpy as np
 import torch
@@ -204,7 +205,7 @@ def gen_json():
         info_dict['COCO_CLASSES'][i] = idx
     
     json_str = json.dumps(info_dict, indent=4, ensure_ascii=False)
-    with open('utils/coco_classes.json', 'w', encoding='utf-8') as fw:
+    with open('../utils/coco_classes.json', 'w', encoding='utf-8') as fw:
         fw.write(json_str)
 
 
@@ -222,7 +223,7 @@ def re_json():
         # 'person_keypoints_val2017.json'
         ]
 
-    with open('utils/coco_classes.json', 'r', encoding='utf-8') as fr:
+    with open('../utils/coco_classes.json', 'r', encoding='utf-8') as fr:
         all_infos = json.load(fr)
         coco_classes = all_infos["COCO_CLASSES"]
         id_transform = all_infos["id_transform"]
@@ -365,12 +366,18 @@ if __name__ == "__main__":
     #     # print(classes, scores)
 
 
-    per_image_cls_heads = torch.rand(10, 4)
-    per_image_anchors_annotations = torch.rand(10, 5)
-    print(per_image_cls_heads)
-    print(per_image_anchors_annotations[:, 4] > 0.4)
-    a = per_image_cls_heads[per_image_anchors_annotations[:, 4] > 0.4]
-    print(a)
+    arr1 = torch.randint(low=0, high=10, size=(3, 2))
+    arr2 = torch.randint(low=0, high=10, size=(3, 2))
+    print(arr1)
+    print(arr2)
+    p1 = torch.pow(arr1 - arr2, 2)
+    p1 = torch.sum(p1, dim=1)
+    print(p1)
+    p2 = torch.tensor([2, 4, 5])
+    print(p1 / p2)
+
+
+
 
 
 
