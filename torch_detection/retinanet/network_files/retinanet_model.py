@@ -1,15 +1,17 @@
 import os
 import sys
-sys.path.append(os.getcwd())
-sys.path.append(os.path.join(os.getcwd(), "network_files"))
 import torch
 import torch.nn as nn
 import numpy as np
 
-from network_files import resnet
-from network_files.fpn import FPN
-from network_files.heads import RetinaClsHead, RetinaRegHead
-from network_files.anchors import RetinaAnchors
+BASE_DIR = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(BASE_DIR)
+
+from torch_detection.retinanet.network_files import resnet
+from torch_detection.retinanet.network_files.fpn import FPN
+from torch_detection.retinanet.network_files.heads import RetinaClsHead, RetinaRegHead
+from torch_detection.retinanet.network_files.anchors import RetinaAnchors
 
 __all__ = [
     'resnet34_retinanet',
@@ -68,20 +70,21 @@ class RetinaNet(nn.Module):
         return [cls_heads, reg_heads, batch_anchors]
 
 
-def _retinanet(backbone_type, backbone_pretrained_path, **kwargs):
+def _retinanet(backbone_type, backbone_pretrained_path, num_classes, **kwargs):
     model = RetinaNet(backbone_type,
                       backbone_pretrain_path=backbone_pretrained_path,
+                      num_classes=num_classes,
                       **kwargs)
 
     return model
 
 
-def resnet50_retinanet(pre_trained=False, pre_train=''):
-    return _retinanet('resnet50_backbone', pre_train)
+def resnet50_retinanet(num_classes, pre_train=''):
+    return _retinanet('resnet50_backbone', pre_train, num_classes)
 
 
-def resnet34_retinanet(pre_trained=False, pre_train=''):
-    return _retinanet('resnet34_backbone', pre_train)
+def resnet34_retinanet(num_classes, pre_train=''):
+    return _retinanet('resnet34_backbone', pre_train, num_classes)
 
 
 if __name__ == '__main__':
@@ -96,7 +99,12 @@ if __name__ == '__main__':
     #     backbone_pretrain_path='',
     # )
     # retina(inputs)
-    retina_model = resnet50_retinanet()
+    pre_train = '/workshop/weihule/data/weights/resnet/resnet50-acc76.322.pth'
+    if not os.path.exists(pre_train):
+        pre_train = '/nfs/home57/weihule/data/weights/resnet/resnet50-acc76.322.pth'
+    retina_model = resnet50_retinanet(num_classes=20,
+                                      pre_train=pre_train)
     outputs = retina_model(inputs)
-    for cls_head, reg_head, anchor in outputs:
-        print(cls_head.shape, reg_head.shape, anchor.shape)
+    for p in outputs:
+        for i in p:
+            print(i.shape)

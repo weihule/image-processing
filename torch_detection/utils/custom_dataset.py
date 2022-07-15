@@ -159,7 +159,10 @@ class VocDetection(Dataset):
 
         # 这里的category_id指的就是二十个类别的名字
         self.category_id_to_voc_lable = dict()
-        with open('./utils/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
+        file_path = '/nfs/home57/weihule/code/study/torch_detection/utils/pascal_voc_classes.json'
+        if not os.path.exists(file_path):
+            file_path = '/workshop/weihule/code/study/torch_detection/utils/pascal_voc_classes.json'
+        with open(file_path, 'r', encoding='utf-8') as fr:
             self.category_id_to_voc_lable = json.load(fr)
 
         self.voc_lable_to_category_id = {v: k for k, v in self.category_id_to_voc_lable.items()}

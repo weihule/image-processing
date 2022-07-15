@@ -50,6 +50,7 @@ class FPN(nn.Module):
 
         p5 = self.p5_1(c5)
         p4 = self.p4_1(c4)
+        # 意思是将 p5 上采样, 上采样之后的形状为 B, C, p4.shape[2], p4.shape[3]
         p4 += F.interpolate(p5, size=(p4.shape[2], p4.shape[3]), mode='nearest')
         p3 = self.p3_1(c3)
         p3 += F.interpolate(p4, size=(p3.shape[2], p3.shape[3]), mode='nearest')

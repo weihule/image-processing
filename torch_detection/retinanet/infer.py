@@ -3,7 +3,7 @@ import glob
 import cv2
 import numpy as np
 import torch
-from study.torch_detection.utils.retina_decode import RetinaNetDecoder
+from study.torch_detection.retinanet.retina_decode import RetinaNetDecoder
 from network_files.retinanet_model import resnet50_retinanet
 from config import Config
 

@@ -1,11 +1,13 @@
 import os
 import sys
-
-from study.torch_detection.utils.custom_dataset import VocDetection, Resizer, RandomFlip, Normalize
 from torchvision import transforms
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(BASE_DIR)
+
+from torch_detection.utils.custom_dataset import DataPrefetcher, collater, VocDetection
+from torch_detection.utils.custom_dataset import Normalize, Resizer, RandomFlip
 
 
 class Config:
@@ -30,7 +32,7 @@ class Config:
     pre_trained = False
     num_classes = 20
     seed = 0
-    input_image_size = 600
+    input_image_size = 640
 
     data_transform = {
         'train': transforms.Compose([
@@ -54,7 +56,7 @@ class Config:
     #                             set='val2017',
     #                             transform=data_transform['val'])
 
-    voc_root_dir = '/nfs/home57/weihule/data/dl/VOCdataset'
+    voc_root_dir = '/data/weihule/data/dl/VOCdataset'
     if not os.path.exists(voc_root_dir):
         voc_root_dir = '/ssd/weihule/data/dl/VOCdataset'
     train_dataset = VocDetection(root_dir=voc_root_dir,
@@ -63,9 +65,9 @@ class Config:
                                image_sets=[('2007', 'test')],
                                transform=data_transform['val'])
 
-    epochs = 20
+    epochs = 30
     batch_size = 32
-    lr = 1e-4
+    lr = 0.001
     lrf = 0.001
     num_workers = 4
     print_interval = 10

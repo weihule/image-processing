@@ -11,18 +11,19 @@ from torch.cuda import amp
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
 
+from losses import RetinaLoss
+from retina_decode import RetinaNetDecoder
+from config import Config
+from network_files.retinanet_model import resnet50_retinanet
+
 BASE_DIR = os.path.dirname(
     os.path.dirname(
         os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 sys.path.append(BASE_DIR)
 
-from study.torch_detection.utils.custom_dataset import DataPrefetcher, collater
-from study.torch_detection.utils.losses import RetinaLoss
-from study.torch_detection.utils.retina_decode import RetinaNetDecoder
-from network_files.retinanet_model import resnet50_retinanet
-from config import Config
-from study.torch_detection.utils.util import get_logger
+from torch_detection.utils.custom_dataset import DataPrefetcher, collater
+from torch_detection.utils.util import get_logger
 
 warnings.filterwarnings('ignore')
 
@@ -142,7 +143,11 @@ def main(logger, args):
                               collate_fn=collater)
     logger.info('finish loading data')
 
-    model = resnet50_retinanet(pre_trained=True, pre_train='')
+    pre_train = '/workshop/weihule/data/weights/resnet/resnet50-acc76.322.pth'
+    if not os.path.exists(pre_train):
+        pre_train = '/nfs/home57/weihule/data/weights/resnet/resnet50-acc76.322.pth'
+
+    model = resnet50_retinanet(num_classes=20, pre_train=pre_train)
 
     # flops_input = torch.rand(1, 3, args.input_image_size, args.input_image_size)
     # flops, params = profile(model, inputs=(flops_input,))
