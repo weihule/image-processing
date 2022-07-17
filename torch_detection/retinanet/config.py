@@ -29,20 +29,20 @@ class Config:
     val_dataset_path = os.path.join(data_set_root, 'images', 'val2017')
     dataset_annot_path = os.path.join(data_set_root, 'annotations')
 
-    pre_trained = False
+    pre_trained = True
     num_classes = 20
     seed = 0
-    input_image_size = 640
+    input_image_size = 400
 
     data_transform = {
         'train': transforms.Compose([
             RandomFlip(flip_prob=0.5),
             Resizer(resize=input_image_size),
-            Normalize()
+            # Normalize()
         ]),
         'val': transforms.Compose([
             Resizer(resize=input_image_size),
-            Normalize()
+            # Normalize()
         ])
     }
 
@@ -65,9 +65,9 @@ class Config:
                                image_sets=[('2007', 'test')],
                                transform=data_transform['val'])
 
-    epochs = 30
-    batch_size = 32
-    lr = 0.001
+    epochs = 130
+    batch_size = 64
+    lr = 0.0001
     lrf = 0.001
     num_workers = 4
     print_interval = 10

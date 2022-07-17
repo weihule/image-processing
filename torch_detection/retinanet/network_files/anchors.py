@@ -166,7 +166,7 @@ class RetinaAnchors(nn.Module):
         """
         generate batch anchors
         :param batch_size:
-        :param fpn_feature_sizes:
+        :param fpn_feature_sizes: 五个特征层的宽高 [[w1, h1], [w2, h2], ...]
         :return:
         """
         one_sample_anchors = list()

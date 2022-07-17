@@ -98,5 +98,4 @@ if __name__ == "__main__":
     # print(nums)
 
     nums = [0,1,0,3,12]
-    res = move_zero(nums)
-    print(res)
+    print(nums[-2])

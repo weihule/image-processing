@@ -12,6 +12,10 @@ base_dir = os.path.dirname(
 sys.path.append(base_dir)
 from utils.util import get_logger, load_state_dict
 
+__all__ = [
+    'darknet53backbone'
+]
+
 
 class ConvBnActBlock(nn.Module):
     def __init__(self,
@@ -173,6 +177,9 @@ class Darknet53Backbone(nn.Module):
 
         del x
 
+        # 这三个输出特征图的宽高分别为(w/8，h/8),(w/16,h/16),(w/32,h/32)
+        # 如果输入是(640, 640, 3)
+        # 输出是 (B, 256, 80, 80), (B, 256, 40, 40), (B, 256, 20, 20)
         return [c3, c4, c5]
 
     @staticmethod

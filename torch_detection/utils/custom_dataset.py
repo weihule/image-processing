@@ -197,7 +197,6 @@ class VocDetection(Dataset):
         img_path = os.path.join(img_id[0], 'JPEGImages', img_id[1] + '.jpg')
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # img = jpeg4py.JPEG(img_path).decode()
 
         return img.astype(np.float32) / 255.
 
@@ -326,18 +325,23 @@ class RandomFlip:
 
 class Normalize:
     def __init__(self):
-        self.mean = np.array([[[0.471, 0.448, 0.408]]])
-        self.std = np.array([[[0.234, 0.239, 0.242]]])
+        self.mean = torch.tensor([[[[0.471, 0.448, 0.408]]]], dtype=torch.float32)
+        self.std = torch.tensor([[[[0.234, 0.239, 0.242]]]], dtype=torch.float32)
 
-    def __call__(self, sample):
+    # def __call__(self, sample):
+    #     # image shape: [h, w, 3], 这里三分量的顺序已经调整成 RGB 了
+    #     image, annots, scale = sample['img'], sample['annot'], sample['scale']
+    #     image = (image - self.mean) / self.std
+    #     return {
+    #         'img': image,
+    #         'annot': annots,
+    #         'scale': scale,
+    #     }
+
+    def __call__(self, image):
         # image shape: [h, w, 3], 这里三分量的顺序已经调整成 RGB 了
-        image, annots, scale = sample['img'], sample['annot'], sample['scale']
         image = (image - self.mean) / self.std
-        return {
-            'img': image,
-            'annot': annots,
-            'scale': scale,
-        }
+        return image
 
 
 def collater(datas):
@@ -348,6 +352,7 @@ def collater(datas):
     这里也将 numpy 转成 Tensor  参见：padded_img
     也进行了维度转换
     """
+    normalizer = Normalize()
     batch_size = len(datas)
     imgs = [p['img'] for p in datas]
     # annots 里面每一个元素都是一个二维数组, (N, 5)
@@ -362,6 +367,7 @@ def collater(datas):
     for i in range(batch_size):
         img = imgs[i]
         padded_img[i, :img.shape[0], :img.shape[1], :] = torch.from_numpy(img)
+    padded_img = normalizer(padded_img)
     padded_img = padded_img.permute(0, 3, 1, 2).contiguous()
 
     # imgs = torch.from_numpy(np.stack(imgs, axis=0))

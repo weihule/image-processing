@@ -1,9 +1,16 @@
 import os
+import sys
 import glob
 import cv2
 import numpy as np
 import torch
-from study.torch_detection.retinanet.retina_decode import RetinaNetDecoder
+from torch.backends import cudnn
+
+base_dir = os.path.dirname(
+    os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(base_dir)
+from torch_detection.retinanet.retina_decode import RetinaNetDecoder
 from network_files.retinanet_model import resnet50_retinanet
 from config import Config
 
@@ -32,13 +39,18 @@ class InferResizer:
 
 
 def main():
-    pth_file = '/workshop/weihule/data/detection_data/retinanet/checkpoints/latest.pth'
     img_root = '/workshop/weihule/data/detection_data/test_images/*.jpg'
+    model_path = '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50_retinanet-metric79.783.pth'
+
     infer_batch = 4
+    cudnn.benchmark = True
+    cudnn.deterministic = False
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = resnet50_retinanet().to(device)
-    checkpoint = torch.load(pth_file, map_location=torch.device('cpu'))
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model = resnet50_retinanet(num_classes=80).to(device)
+    checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
+    checkpoint = {key.replace('P', 'p'): value for key, value in checkpoint.items()}
+
+    model.load_state_dict(checkpoint)
     model.eval()
     decoder = RetinaNetDecoder(image_w=Config.input_image_size,
                                image_h=Config.input_image_size)
@@ -47,7 +59,7 @@ def main():
     img_spilt_lists = [img_lists[start: start + infer_batch] for start in range(0, len(img_lists), infer_batch)]
     for img_spilt_list in img_spilt_lists:
         images_src = [cv2.imread(p) for p in img_spilt_list]
-        images_name = [p.split(os.sep) for p in img_spilt_list]
+        images_name = [p.split(os.sep)[-1] for p in img_spilt_list]
         images = [infer_resizer(p).to(device) for p in images_src]
         images_tensor = torch.stack(images, dim=0)
         images_tensor = images_tensor.permute(0, 3, 1, 2).contiguous()
@@ -61,8 +73,8 @@ def main():
                 pt1 = np.asarray([bbox[0], bbox[1]], dtype=np.int32)
                 pt2 = np.asarray([bbox[2], bbox[3]], dtype=np.int32)
                 cv2.rectangle(img, pt1, pt2, (0, 255, 0), 2)
-            # cv2.imwrite('test.jpg', img)
-        break
+            cv2.imwrite(img_name, img)
+        # break
 
 
 if __name__ == "__main__":
