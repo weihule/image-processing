@@ -65,7 +65,7 @@ class Config:
                                image_sets=[('2007', 'test')],
                                transform=data_transform['val'])
 
-    epochs = 130
+    epochs = 180
     batch_size = 64
     lr = 0.0001
     lrf = 0.001
