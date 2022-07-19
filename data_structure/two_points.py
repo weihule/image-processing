@@ -94,6 +94,24 @@ def int_reverse(x):
         return res
 
 
+def isPalindrome(s: str) -> bool:
+    s = s.lower()
+    length = len(s)
+    if length == 0 or length  == 1:
+        return True
+    slow, fast = 0, length-1
+    while slow < fast:
+        while s[slow].isalnum() is False:
+            slow += 1
+        while s[fast].isalnum() is False:
+            fast -= 1
+        if s[slow] != s[fast]:
+            return False
+        slow += 1
+        fast -= 1
+    return True
+
+
 
 if __name__ == "__main__":
     # arr = [1, 1, 2, 3, 3, 4, 5]
@@ -116,6 +134,10 @@ if __name__ == "__main__":
     # main3(nums, k)
     # print(nums)
 
-    x = -321
-    num = int_reverse(x)
-    print(num)
+    # x = -321
+    # num = int_reverse(x)
+    # print(num)
+
+    s = "A man, a plan, a canal: Panama"
+    res = isPalindrome(s)
+    print(res)
