@@ -367,6 +367,7 @@ def collater(datas):
     for i in range(batch_size):
         img = imgs[i]
         padded_img[i, :img.shape[0], :img.shape[1], :] = torch.from_numpy(img)
+        # 这里只做标准化, dataset中已经做了归一化
     padded_img = normalizer(padded_img)
     padded_img = padded_img.permute(0, 3, 1, 2).contiguous()
 

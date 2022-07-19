@@ -75,6 +75,25 @@ def move_zero(nums):
     return nums
 
 
+def int_reverse(x):
+        if x == 0:
+            return 0
+        res = 0
+        if x > 0:
+            while x > 0:
+                res = res * 10 + x % 10
+                x = x // 10
+        if x < 0:
+            x = -x
+            while x > 0:
+                res = res * 10 + x % 10
+                x = x // 10
+            res = -res
+        if res > pow(2, 31) or res < pow(-2, 31) - 1:
+            return 0
+        return res
+
+
 
 if __name__ == "__main__":
     # arr = [1, 1, 2, 3, 3, 4, 5]
@@ -97,5 +116,6 @@ if __name__ == "__main__":
     # main3(nums, k)
     # print(nums)
 
-    nums = [0,1,0,3,12]
-    print(nums[-2])
+    x = -321
+    num = int_reverse(x)
+    print(num)
