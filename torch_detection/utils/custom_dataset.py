@@ -323,6 +323,13 @@ class RandomFlip:
         return sample
 
 
+class RandomCrop:
+    def __init__(self, crop_prob=0.5):
+        self.crop_prob = crop_prob
+
+
+
+
 class Normalize:
     def __init__(self):
         self.mean = torch.tensor([[[[0.471, 0.448, 0.408]]]], dtype=torch.float32)

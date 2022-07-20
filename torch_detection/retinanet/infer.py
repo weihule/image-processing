@@ -62,7 +62,8 @@ def main():
         model = resnet50_retinanet(num_classes=20).to(device)
 
         checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
-        rep = [['p3', 'P3'], ['p4', 'P4'], ['p5', 'P5'], ['p6', 'P6'], ['p7', 'P7']]
+        # rep = [['p3', 'P3'], ['p4', 'P4'], ['p5', 'P5'], ['p6', 'P6'], ['p7', 'P7']]
+        rep = []
         model_load = {}
         for k, v in checkpoint['model_state_dict'].items():
             for p in rep:
