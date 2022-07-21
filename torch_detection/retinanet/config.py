@@ -7,7 +7,7 @@ BASE_DIR = os.path.dirname(
 sys.path.append(BASE_DIR)
 
 from torch_detection.utils.custom_dataset import DataPrefetcher, collater, VocDetection
-from torch_detection.utils.custom_dataset import Normalize, Resizer, RandomFlip
+from torch_detection.utils.custom_dataset import Normalize, Resizer, RandomFlip, RandomCrop, RandomTranslate
 
 
 class Config:
@@ -36,8 +36,10 @@ class Config:
 
     data_transform = {
         'train': transforms.Compose([
-            RandomFlip(flip_prob=0.5),
+            RandomFlip(flip_prob=0.3),
+            RandomCrop(crop_prob=0.3),
             Resizer(resize=input_image_size),
+            # RandomTranslate(translate_prob=0.3),
             # Normalize()
         ]),
         'val': transforms.Compose([

@@ -257,9 +257,11 @@ def main(logger, args):
 
 def test_make_grid():
     val_loader = DataLoader(Config.train_dataset,
-                            batch_size=32,
+                            batch_size=16,
                             shuffle=False,
                             num_workers=2,
+                            prefetch_factor=4,
+                            pin_memory=True,
                             collate_fn=collater)
     mean = np.array([[[0.471, 0.448, 0.408]]])
     std = np.array([[[0.234, 0.239, 0.242]]])
@@ -290,11 +292,11 @@ def test_make_grid():
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    logger = get_logger(__name__, args.log)
-    main(logger=logger, args=args)
+    # args = parse_args()
+    # logger = get_logger(__name__, args.log)
+    # main(logger=logger, args=args)
 
-    # test_make_grid()
+    test_make_grid()
 
     # range_loader = tqdm(range(10000))
     # c = 0

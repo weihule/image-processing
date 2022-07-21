@@ -331,7 +331,8 @@ class RandomCrop:
         image, annots, scale = sample['img'], sample['annot'], sample['scale']
         if annots.shape[0] == 0:
             return sample
-        if np.random.uniform(0, 1) < self.crop_prob:
+        prob = random.uniform(0, 1)
+        if prob < self.crop_prob:
             h, w, _ = image.shape
             # 找出所有gt的最小外接矩形, shape: (4, )
             max_bbox = np.concatenate((np.min(annots[:, :2], axis=0),
@@ -340,10 +341,10 @@ class RandomCrop:
             max_right_trans, max_down_trans = w - max_bbox[2], h - max_bbox[3]
 
             # crop_x_min = max(0, int(max_bbox[0]-np.random.uniform(0, max_left_trans)))
-            crop_x_min = np.random.uniform(0, max_left_trans)
-            crop_y_min = np.random.uniform(0, max_up_trans)
-            crop_x_max = max(w, max_bbox[2]+np.random.uniform(0, max_right_trans))
-            crop_y_max = max(h, max_bbox[2] + np.random.uniform(0, max_down_trans))
+            crop_x_min = int(np.random.uniform(0, max_left_trans))
+            crop_y_min = int(np.random.uniform(0, max_up_trans))
+            crop_x_max = max(w, int(max_bbox[2]+np.random.uniform(0, max_right_trans)))
+            crop_y_max = max(h, int(max_bbox[2] + np.random.uniform(0, max_down_trans)))
 
             image = image[crop_y_min: crop_y_max, crop_x_min: crop_x_max]
             annots[:, [0, 2]] = annots[:, [0, 2]] - crop_x_min
@@ -352,6 +353,37 @@ class RandomCrop:
             sample = {'img': image, 'annot': annots, 'scale': scale}
         return sample
 
+
+class RandomTranslate:
+    def __init__(self, translate_prob=0.5):
+        self.translate_prob = translate_prob
+
+    def __call__(self, sample):
+        image, annots, scale = sample['img'], sample['annot'], sample['scale']
+
+        if annots.shape[0] == 0:
+            return sample
+
+        prob = random.uniform(0, 1)
+        if prob < self.translate_prob:
+            print(prob, '发生了随机平移')
+            h, w, _ = image.shape
+            # 找出所有annots的最小外接矩形
+            max_bbox = np.concatenate((np.min(annots[:, :2], axis=0),
+                                       np.max(annots[:, 2:], axis=0)), axis=-1)
+            max_left_trans, max_up_trans = max_bbox[0], max_bbox[1]
+            max_right_trans, max_down_trans = w - max_bbox[2], h - max_bbox[3]
+
+            tx = random.uniform(-(max_left_trans-1), (max_right_trans-1))
+            ty = random.uniform(-(max_up_trans-1), (max_down_trans-1))
+
+            M = np.array([[1, 0, tx], [0, 1, ty]])
+            image = cv2.warpAffine(image, M, (w, h))
+
+            annots[:, [0, 2]] = annots[:, [0, 2]] + tx
+            annots[:, [0, 2]] = annots[:, [0, 2]] + tx
+
+        return {'img': image, 'annot': annots, 'scale': scale}
 
 
 
