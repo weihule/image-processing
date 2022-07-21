@@ -9,6 +9,7 @@ import logging
 from logging import handlers
 import torch.nn as nn
 import torch.nn.functional as F
+import random
 
 COCO_CLASSES = [
     "person",
@@ -366,15 +367,17 @@ if __name__ == "__main__":
     #     # print(classes, scores)
 
 
-    arr1 = torch.randint(low=0, high=10, size=(3, 2))
-    arr2 = torch.randint(low=0, high=10, size=(3, 2))
-    print(arr1)
-    print(arr2)
-    p1 = torch.pow(arr1 - arr2, 2)
-    p1 = torch.sum(p1, dim=1)
-    print(p1)
-    p2 = torch.tensor([2, 4, 5])
-    print(p1 / p2)
+    arr = np.random.random(size=(3, 4))
+    arr_sub1 = arr[:, :2]
+    arr_sub2 = arr[:, 2:]
+
+    min_value1 = np.min(arr_sub1, axis=0)
+    min_value2 = np.min(arr_sub2, axis=0)
+    min_value = np.concatenate((min_value1, min_value2), axis=-1)
+    print(min_value, min_value.shape)
+
+    a = random.uniform(0, 3)
+    print(a)
 
 
 

@@ -327,6 +327,31 @@ class RandomCrop:
     def __init__(self, crop_prob=0.5):
         self.crop_prob = crop_prob
 
+    def __call__(self, sample):
+        image, annots, scale = sample['img'], sample['annot'], sample['scale']
+        if annots.shape[0] == 0:
+            return sample
+        if np.random.uniform(0, 1) < self.crop_prob:
+            h, w, _ = image.shape
+            # 找出所有gt的最小外接矩形, shape: (4, )
+            max_bbox = np.concatenate((np.min(annots[:, :2], axis=0),
+                                       np.max(annots[:, 2:], axis=0)), axis=-1)
+            max_left_trans, max_up_trans = max_bbox[0], max_bbox[1]
+            max_right_trans, max_down_trans = w - max_bbox[2], h - max_bbox[3]
+
+            # crop_x_min = max(0, int(max_bbox[0]-np.random.uniform(0, max_left_trans)))
+            crop_x_min = np.random.uniform(0, max_left_trans)
+            crop_y_min = np.random.uniform(0, max_up_trans)
+            crop_x_max = max(w, max_bbox[2]+np.random.uniform(0, max_right_trans))
+            crop_y_max = max(h, max_bbox[2] + np.random.uniform(0, max_down_trans))
+
+            image = image[crop_y_min: crop_y_max, crop_x_min: crop_x_max]
+            annots[:, [0, 2]] = annots[:, [0, 2]] - crop_x_min
+            annots[:, [1, 3]] = annots[:, [1, 3]] - crop_y_min
+
+            sample = {'img': image, 'annot': annots, 'scale': scale}
+        return sample
+
 
 
 
