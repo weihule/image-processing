@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import torch
+import random
 
 
 def test():
@@ -16,9 +17,13 @@ def test():
     print(shifts.shape)
 
 if __name__ == "__main__":
-    x = np.arange(0, 5)
-    y = np.arange(0, 4)
+    # x = np.arange(0, 5)
+    # y = np.arange(0, 4)
     # shift_x, shift_y = np.meshgrid(x, y)
     # print(shift_x, shift_y)
 
-    test()
+    # test()
+    arr = np.random.random(size=(5))
+    print(arr)
+    rand_num = random.choice(arr)
+    print(rand_num)

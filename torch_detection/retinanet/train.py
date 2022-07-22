@@ -255,48 +255,11 @@ def main(logger, args):
     )
 
 
-def test_make_grid():
-    val_loader = DataLoader(Config.train_dataset,
-                            batch_size=16,
-                            shuffle=False,
-                            num_workers=2,
-                            prefetch_factor=4,
-                            pin_memory=True,
-                            collate_fn=collater)
-    mean = np.array([[[0.471, 0.448, 0.408]]])
-    std = np.array([[[0.234, 0.239, 0.242]]])
-    # datas是一个dict, key就是定义的三个key, 对应的value已经打了batch
-    datas = next(iter(val_loader))
-    batch_annots = datas['annot']
-    batch_images = datas['img']
-
-    c = 0
-    for img, annot in zip(batch_images, batch_annots):
-        c += 1
-        img, annot = img.numpy(), annot.numpy()
-        img = img.transpose(1, 2, 0)    # [c, h, w] -> [h, w, c] RGB
-
-        img = (img * std + mean) * 255.
-        img = np.uint8(img)
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)   # RGB -> BGR
-        for point in annot:
-            point = np.int32(point[:4])
-            cv2.rectangle(img, [point[0], point[1]], [point[2], point[3]], (0, 255, 0), 1)
-        cv2.imwrite(str(c)+'.png', img)
-
-    # img = make_grid(batch_images, nrow=8)
-    # img = img.numpy()
-    # img = img.transpose(1, 2, 0)
-    # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    # cv2.imwrite('test.jpg', img)
-
-
 if __name__ == "__main__":
-    # args = parse_args()
-    # logger = get_logger(__name__, args.log)
-    # main(logger=logger, args=args)
+    args = parse_args()
+    logger = get_logger(__name__, args.log)
+    main(logger=logger, args=args)
 
-    test_make_grid()
 
     # range_loader = tqdm(range(10000))
     # c = 0

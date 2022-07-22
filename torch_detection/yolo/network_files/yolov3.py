@@ -33,17 +33,21 @@ class YoloV3(nn.Module):
         # for p in features:
         #     print(p.shape)
 
-        # obj_reg_cls_heads = []
-        # for feature in features:
-        #     # feature shape: [B,H,W,3,85]
-        #     # obj_head: feature[:, :, :, :, :1], shape[B,H,W,3,1]
-        #     # reg_head: feature[:, :, :, :, 1:5], shape[B,H,W,3,4]
-        #     # cls_head: feature[:, :, :, :, 5:], shape[B,H,W,3,80]
-        #     obj_reg_cls_heads.append(feature)
-        #
-        # return obj_reg_cls_heads
+        obj_reg_cls_heads = []
+        for feature in features:
+            # feature shape: [B,H,W,3,85]
+            # obj_head: feature[:, :, :, :, :1], shape[B,H,W,3,1]
+            # reg_head: feature[:, :, :, :, 1:5], shape[B,H,W,3,4]
+            # cls_head: feature[:, :, :, :, 5:], shape[B,H,W,3,80]
+            obj_reg_cls_heads.append(feature)
+        del feature
 
-        return features
+        # if input size:[B,3,416,416]
+        # features shape:[[B, 255, 52, 52],[B, 255, 26, 26],[B, 255, 13, 13]]
+        # obj_reg_cls_heads shape:[[B, 52, 52, 3, 85],[B, 26, 26, 3, 85],[B, 13, 13, 3, 85]]
+        return obj_reg_cls_heads
+
+        # return features
 
 
 def _yolov3(backbone_type, backbone_pretrained_path):
@@ -62,7 +66,7 @@ if __name__ == "__main__":
     #                     backbone_pretrained_path=pre_weight)
 
     yolo_model = darknet53_yolov3(pre_weight)
-    inputs = torch.rand(4, 3, 416, 416)
+    inputs = torch.rand(4, 3, 416, 384)
     res = yolo_model(inputs)
     for p in res:
         print(p.shape)

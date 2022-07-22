@@ -36,10 +36,10 @@ class Config:
 
     data_transform = {
         'train': transforms.Compose([
-            RandomFlip(flip_prob=0.3),
+            RandomFlip(flip_prob=0.5),
             RandomCrop(crop_prob=0.3),
+            RandomTranslate(translate_prob=0.3),
             Resizer(resize=input_image_size),
-            # RandomTranslate(translate_prob=0.3),
             # Normalize()
         ]),
         'val': transforms.Compose([

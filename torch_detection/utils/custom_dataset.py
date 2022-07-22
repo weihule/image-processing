@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
 
 
-# COCO标注中提供了类别index，
-# 但是原始标注的类别index不连续（1-90，但是只有80个类）
+# COCO标注中提供了类别index
+# 但是原始标注的类别index不连续（1-90,但是只有80个类）
 # 我们要将其转换成连续的类别index0-79
 class CocoDetection(Dataset):
     def __init__(self,
@@ -42,12 +42,13 @@ class CocoDetection(Dataset):
 
     def load_classes(self):
         self.image_ids = self.coco.getImgIds()  # 获取图片id, 返回包含所有图片id的列表
-        self.cat_ids = self.coco.getCatIds()  # 获取类别id, 返回包含所有类别id的列表
+        self.cat_ids = self.coco.getCatIds()  # 获取类别id, 返回包含所有类别id的列表, 80个元素 [1, 2, 3, ..., 90]
 
+        # 返回包含80个元素的列表,每个元素是一个字典 {'supercategory': 'person', 'id': 1, 'name': 'person'}
         self.categories = self.coco.loadCats(self.cat_ids)
         self.categories.sort(key=lambda x: x['id'])
 
-        # category_id is an original id,coco_id is set from 0 to 79
+        # category_id is an original id, coco_id is set from 0 to 79
         self.category_id_to_coco_label = {cat['id']: idx for idx, cat in enumerate(self.categories)}
         self.coco_label_to_category_id = {idx: cat['id'] for idx, cat in enumerate(self.categories)}
 
@@ -70,7 +71,6 @@ class CocoDetection(Dataset):
         path = os.path.join(self.image_root_dir, img_info['file_name'])
         img = cv2.imread(path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # img = jpeg4py.JPEG(path).decode()
 
         # opencv读取的图片转成RGB之后并归一化
         return img.astype(np.float32) / 255.
@@ -89,8 +89,6 @@ class CocoDetection(Dataset):
         # 然后根据 ImgIdx 找到属于该ImgIdx所有的ann标注
         # 返回的即是 annotations 中的 id
         # 因为每一个annotation都有一个独一无二的id
-
-        # get ground truth annotations
         annotations_ids = self.coco.getAnnIds(
             imgIds=self.image_ids[image_index],
             iscrowd=None
@@ -158,14 +156,14 @@ class VocDetection(Dataset):
         self.categories = None
 
         # 这里的category_id指的就是二十个类别的名字
-        self.category_id_to_voc_lable = dict()
+        self.category_name_to_voc_lable = dict()
         file_path = '/nfs/home57/weihule/code/study/torch_detection/utils/pascal_voc_classes.json'
         if not os.path.exists(file_path):
             file_path = '/workshop/weihule/code/study/torch_detection/utils/pascal_voc_classes.json'
         with open(file_path, 'r', encoding='utf-8') as fr:
-            self.category_id_to_voc_lable = json.load(fr)
+            self.category_name_to_voc_lable = json.load(fr)['classes']
 
-        self.voc_lable_to_category_id = {v: k for k, v in self.category_id_to_voc_lable.items()}
+        self.voc_lable_to_category_id = {v: k for k, v in self.category_name_to_voc_lable.items()}
 
         self.keep_difficult = keep_difficult
 
@@ -215,7 +213,7 @@ class VocDetection(Dataset):
             annotation = list()
             for p in pts:
                 annotation.append(int(bndbox.find(p).text))
-            annotation.append(self.category_id_to_voc_lable[name])  # [x_min, y_min, x_max, y_max, label_id]
+            annotation.append(self.category_name_to_voc_lable[name])  # [x_min, y_min, x_max, y_max, label_id]
 
             # 这里必须要升维
             annotation = np.expand_dims(annotation, axis=0)  # (5, ) -> (1, 5)
@@ -229,47 +227,6 @@ class VocDetection(Dataset):
         h, w, _ = img.shape
 
         return float(w) / float(h)
-
-
-class DataPrefetcher():
-    """
-    数据预读取就是模型在进行本次batch的前向计算和反向传播时
-    就预先加载下一个batch的数据, 这样就节省了下加载数据的时间
-    (相当于加载数据与前向计算和反向传播并行了).
-    """
-
-    def __init__(self, loader):
-        # self.next_input = None
-        # self.next_annot = None
-        self.loader = iter(loader)
-        self.stream = torch.cuda.Stream()
-        self.preload()
-
-    def preload(self):
-        # 当我们已经迭代完最后⼀个数据之后，
-        # 再次调⽤next()函数会抛出 StopIteration的异常 ，
-        # 来告诉我们所有数据都已迭代完成，
-        # 不⽤再执⾏ next()函数了。
-        try:
-            sample = next(self.loader)
-            self.next_input, self.next_annot = sample['img'], sample['annot']
-        except StopIteration:
-            self.next_input = None
-            self.next_annot = None
-            return
-
-        with torch.cuda.stream(self.stream):
-            self.next_input = self.next_input.cuda(non_blocking=True)
-            self.next_annot = self.next_annot.cuda(non_blocking=True)
-            self.next_input = self.next_input.float()
-
-    def next(self):
-        torch.cuda.current_stream().wait_stream(self.stream)
-        inputs = self.next_input
-        annots = self.next_annot
-        self.preload()
-
-        return inputs, annots
 
 
 class Resizer:
@@ -343,7 +300,7 @@ class RandomCrop:
             # crop_x_min = max(0, int(max_bbox[0]-np.random.uniform(0, max_left_trans)))
             crop_x_min = int(np.random.uniform(0, max_left_trans))
             crop_y_min = int(np.random.uniform(0, max_up_trans))
-            crop_x_max = max(w, int(max_bbox[2]+np.random.uniform(0, max_right_trans)))
+            crop_x_max = max(w, int(max_bbox[2] + np.random.uniform(0, max_right_trans)))
             crop_y_max = max(h, int(max_bbox[2] + np.random.uniform(0, max_down_trans)))
 
             image = image[crop_y_min: crop_y_max, crop_x_min: crop_x_max]
@@ -366,7 +323,6 @@ class RandomTranslate:
 
         prob = random.uniform(0, 1)
         if prob < self.translate_prob:
-            print(prob, '发生了随机平移')
             h, w, _ = image.shape
             # 找出所有annots的最小外接矩形
             max_bbox = np.concatenate((np.min(annots[:, :2], axis=0),
@@ -374,17 +330,16 @@ class RandomTranslate:
             max_left_trans, max_up_trans = max_bbox[0], max_bbox[1]
             max_right_trans, max_down_trans = w - max_bbox[2], h - max_bbox[3]
 
-            tx = random.uniform(-(max_left_trans-1), (max_right_trans-1))
-            ty = random.uniform(-(max_up_trans-1), (max_down_trans-1))
+            tx = random.uniform(-(max_left_trans - 1), (max_right_trans - 1))
+            ty = random.uniform(-(max_up_trans - 1), (max_down_trans - 1))
 
             M = np.array([[1, 0, tx], [0, 1, ty]])
             image = cv2.warpAffine(image, M, (w, h))
 
             annots[:, [0, 2]] = annots[:, [0, 2]] + tx
-            annots[:, [0, 2]] = annots[:, [0, 2]] + tx
+            annots[:, [1, 3]] = annots[:, [1, 3]] + ty
 
         return {'img': image, 'annot': annots, 'scale': scale}
-
 
 
 class Normalize:
@@ -406,6 +361,47 @@ class Normalize:
         # image shape: [h, w, 3], 这里三分量的顺序已经调整成 RGB 了
         image = (image - self.mean) / self.std
         return image
+
+
+class DataPrefetcher():
+    """
+    数据预读取就是模型在进行本次batch的前向计算和反向传播时
+    就预先加载下一个batch的数据, 这样就节省了下加载数据的时间
+    (相当于加载数据与前向计算和反向传播并行了).
+    """
+
+    def __init__(self, loader):
+        # self.next_input = None
+        # self.next_annot = None
+        self.loader = iter(loader)
+        self.stream = torch.cuda.Stream()
+        self.preload()
+
+    def preload(self):
+        # 当我们已经迭代完最后⼀个数据之后,
+        # 再次调⽤next()函数会抛出 StopIteration的异常 ,
+        # 来告诉我们所有数据都已迭代完成,
+        # 不⽤再执⾏ next()函数了。
+        try:
+            sample = next(self.loader)
+            self.next_input, self.next_annot = sample['img'], sample['annot']
+        except StopIteration:
+            self.next_input = None
+            self.next_annot = None
+            return
+
+        with torch.cuda.stream(self.stream):
+            self.next_input = self.next_input.cuda(non_blocking=True)
+            self.next_annot = self.next_annot.cuda(non_blocking=True)
+            self.next_input = self.next_input.float()
+
+    def next(self):
+        torch.cuda.current_stream().wait_stream(self.stream)
+        inputs = self.next_input
+        annots = self.next_annot
+        self.preload()
+
+        return inputs, annots
 
 
 def collater(datas):
@@ -448,35 +444,158 @@ def collater(datas):
     return {'img': padded_img, 'annot': annot_padded, 'scale': scales}
 
 
-if __name__ == "__main__":
-    # main(2, 0)
-    # img_root = 'D:\\workspace\\data\\DL\\COCO2017\\images\\val2017'
-    # anno_root = 'D:\\workspace\\data\\DL\\COCO2017\\annotations'
+class YoloStyleResize:
+    def __init__(self,
+                 resize=640,
+                 divisor=32,
+                 stride=32,
+                 multi_scale=False,
+                 multi_scale_range=None):
+        self.resize = resize
+        self.divisor = divisor
+        self.stride = stride
+        self.multi_scale = multi_scale
+        if multi_scale_range is None:
+            self.multi_scale_range = [0.5, 1.0]
 
+    def __call__(self, sample):
+        '''
+        sample must be a dict,contains 'image'、'annots'、'scale' keys.
+        '''
+        image, annots, scale = sample['img'], sample['annot'], sample[
+            'scale']
+        h, w, _ = image.shape
+
+        if self.multi_scale:
+            scale_range = [
+                int(self.multi_scale_range[0] * self.resize),
+                int(self.multi_scale_range[1] * self.resize)
+            ]
+            resize_list = [
+                i // self.stride * self.stride
+                for i in range(scale_range[0], scale_range[1] + self.stride)
+            ]
+            resize_list = list(set(resize_list))
+
+            random_idx = np.random.randint(0, len(resize_list))
+            final_resize = resize_list[random_idx]
+        else:
+            final_resize = self.resize
+
+        factor = final_resize / max(h, w)
+
+        resize_h, resize_w = int(round(h * factor)), int(round(w * factor))
+        image = cv2.resize(image, (resize_w, resize_h))
+
+        pad_w = 0 if resize_w % self.divisor == 0 else self.divisor - resize_w % self.divisor
+        pad_h = 0 if resize_h % self.divisor == 0 else self.divisor - resize_h % self.divisor
+
+        padded_image = np.zeros((resize_h + pad_h, resize_w + pad_w, 3),
+                                dtype=np.float32)
+        padded_image[:resize_h, :resize_w, :] = image
+
+        factor = np.float32(factor)
+        annots[:, :4] *= factor
+        scale *= factor
+
+        return {
+            'img': padded_image,
+            'annot': annots,
+            'scale': scale,
+        }
+
+
+class DetectionCollater:
+    def __init__(self, divisor=32):
+        self.divisor = divisor
+
+    def __call__(self, sample):
+        normalizer = Normalize()
+        images = [s['img'] for s in sample]
+        annots = [s['annot'] for s in sample]
+        scales = [s['scale'] for s in sample]
+
+        max_h = max(image.shape[0] for image in images)
+        max_w = max(image.shape[1] for image in images)
+
+        pad_h = 0 if max_h % self.divisor == 0 else self.divisor - max_h % self.divisor
+        pad_w = 0 if max_w % self.divisor == 0 else self.divisor - max_w % self.divisor
+
+        input_images = np.zeros((len(images), max_h + pad_h, max_w + pad_w, 3),
+                                dtype=np.float32)
+        for i, image in enumerate(images):
+            input_images[i, 0:image.shape[0], 0:image.shape[1], :] = image
+
+        # B H W 3 ->B 3 H W
+        input_images = torch.from_numpy(input_images)
+        input_images = normalizer(input_images)
+        input_images = input_images.permute(0, 3, 1, 2)
+
+        max_annots_num = max(annot.shape[0] for annot in annots)
+        if max_annots_num > 0:
+            input_annots = np.ones(
+                (len(annots), max_annots_num, 5), dtype=np.float32) * (-1)
+            for i, annot in enumerate(annots):
+                if annot.shape[0] > 0:
+                    input_annots[i, :annot.shape[0], :] = annot
+        else:
+            input_annots = np.ones(
+                (len(annots), 1, 5), dtype=np.float32) * (-1)
+
+        input_annots = torch.from_numpy(input_annots)
+
+        scales = np.array(scales, dtype=np.float32)
+
+        return {
+            'img': input_images,
+            'annot': input_annots,
+            'scale': scales,
+        }
+
+
+"""
+这里采用yolov3/yolov5中的multi scale方法
+首先确定一个最小到最大尺寸的范围,比如没用multi scale前resize=416,
+那么可以确定一个范围[0.5,1.5],乘以416之后就是最小到最大尺寸的范围。
+然后,选择一个stride长度,比如yolov3/yolov5是32,
+找出最小到最大尺寸中所有能被stride长度整除的尺寸。
+最后,随机选择一个尺寸,将所有图片resize到该尺寸再填充成正方形图片就可以送入网络训练了。
+注意用multi scale时transform里不再使用resize方法
+"""
+
+
+class MultiScaleCollater():
+    def __init__(self,
+                 resize=416,
+                 multi_scale_range=None,
+                 stride=32,
+                 use_multi_scale=False):
+        self.resize = resize
+        if multi_scale_range is None:
+            self.multi_scale_range = multi_scale_range
+        self.stride = stride
+        self.use_multi_scale = use_multi_scale
+
+    def __call__(self, sample):
+        if self.use_multi_scale:
+            min_resize = int(
+                ((self.resize + self.stride) * self.multi_scale_range[0]) //
+                self.stride * self.stride)
+            max_resize = int(
+                ((self.resize + self.stride) * self.multi_scale_range[1]) //
+                self.stride * self.stride)
+            final_resize = random.choice(range(min_resize, max_resize, self.stride))
+        else:
+            final_resize = self.resize
+
+        imgs = sample['img']
+        annots = sample['annot']
+
+
+if __name__ == "__main__":
     img_root = '/nfs/home57/weihule/data/dl/COCO2017/images/val2017'
     anno_root = '/nfs/home57/weihule/data/dl/COCO2017/annotations'
 
-    # cd = CocoDetection(img_root, anno_root, set='val2017')
-    # res = cd[0]
-    # for k, v in res.items():
-    #     print(k)
-
-
-    # label_to_name = cd.coco_label_to_class_name()
-    # for i in range(20):
-    #     res = cd[i]
-    #     img = res['img']
-    #     annot = res['annot']
-    #     for anno in annot:
-    #         label = anno[-1]
-    #         cv2.putText(img, label_to_name[label], np.int32(anno[:2]), cv2.FONT_HERSHEY_PLAIN, 0.40, (255, 0, 0), 1)
-    #         img = cv2.rectangle(img, np.int32(anno[:2]), np.int32(anno[2:4]), (0, 255, 0), 1)
-    #     cv2.namedWindow('res', cv2.WINDOW_FREERATIO)
-    #     cv2.imshow('res', img)
-    #     cv2.waitKey(0)
-
-    # root = 'D:\\workspace\\data\\DL\\VOCdataset'
-    # root = '/workshop/weihule/data/DL/VOCdataset'
     root = '/nfs/home57/weihule/data/dl/VOCdataset'
 
     vd = VocDetection(root)
@@ -487,60 +606,4 @@ if __name__ == "__main__":
         print(sample_data['img'].shape)
         sample_data = retina_resize(sample_data)
         print(sample_data['img'].shape)
-        print('='*10)
-    # save_root = 'D:\\Desktop'
-    # for i in range(0, 20, 4):
-    #     batch_data = list()
-    #     for j in range(i, i + 4):
-    #         sample = vd[j]
-    #         # res = RF(res)
-    #         sample = Resizer()(sample)
-    #         batch_data.append(sample)
-    #     res = collater(batch_data)
-    #     print(res['img'].shape)
-    #     print(res['annot'].shape)
-    #     img = sample['img'] * 225.
-    #     print(i, img.shape)
-    #     image = Image.fromarray(np.uint8(img))
-    #     print(image.mode)
-    #     img_dra = ImageDraw.Draw(image)
-    #     annot = sample['annot']
-
-        # for anno in annot:
-        #     label = anno[-1]
-        #     cv2.putText(img, label_to_name[int(label)], np.int32(anno[:2]), cv2.FONT_HERSHEY_PLAIN, 0.40, (255, 0, 0), 1)
-        #     img = cv2.rectangle(img, np.int32(anno[:2]), np.int32(anno[2:4]), (0, 255, 0), 1)
-        # cv2.namedWindow('res', cv2.WINDOW_FREERATIO)
-        # cv2.imshow('res', img)
-        # cv2.waitKey(0)
-        #
-        # for anno in annot:
-        #     label = anno[-1]
-        #     img_dra.rectangle((anno[:-1].tolist()), fill=None, outline='green', width=1)
-        # plt.imshow(image)
-        # plt.xticks([])
-        # plt.yticks([])
-        # plt.axis('off')
-        # plt.show()
-        # save_path = os.path.join(save_root, str(i).rjust(3, '0')+'.png')
-        # image.save(save_path)
-
-    # arr = np.zeros((0, 4))
-    # arr1 = np.random.random((1, 4))
-    # arr2 = np.random.random((1, 4))
-    # arr = np.append(arr, arr1, axis=0)
-    # arr = np.append(arr, arr2, axis=0)
-    # print(arr)
-
-    # print(np.random.uniform(0, 1, (2, 3)))
-
-    # img_path = 'D:\\workspace\\data\\DL\\VOCdataset\\VOC2007\\JPEGImages\\000001.jpg'
-    # img = cv2.imread(img_path)
-
-    # # a = np.uint8(np.arange(36).reshape(4, 3, 3))
-    # # print(a[:, ::-1])
-    # img_flip = cv2.flip(img, 1)
-    # img_flip = img[:, ::-1, :]
-    # img_combine = np.hstack((img, img_flip))
-    # cv2.imshow('res', img_combine)
-    # cv2.waitKey(0)
+        print('=' * 10)
