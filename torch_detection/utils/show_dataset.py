@@ -13,6 +13,7 @@ from pycocotools.coco import COCO
 
 from custom_dataset import VocDetection, CocoDetection
 # from custom_dataset import DataPrefetcher, collater
+from custom_dataset import MultiScaleCollater
 from custom_dataset import Normalize, Resizer, RandomFlip, RandomCrop, RandomTranslate
 from custom_dataset import YoloStyleResize, DetectionCollater
 
@@ -25,7 +26,7 @@ def test_make_grid():
             RandomCrop(crop_prob=0.2),
             RandomTranslate(translate_prob=0.2),
             # Resizer(resize=400),
-            YoloStyleResize(resize=416, multi_scale=True)
+            # YoloStyleResize(resize=416, multi_scale=True)
             # Normalize()
         ]),
         'val': transforms.Compose([
@@ -46,21 +47,30 @@ def test_make_grid():
     # -----------------------------------
 
     # -----------------------------------
-    data_set_root = '/nfs/home57/weihule/data/dl/COCO2017'
-    if not os.path.exists(data_set_root):
-        data_set_root = '/workshop/weihule/data/dl/COCO2017'
-    elif not os.path.exists(data_set_root):
-        data_set_root = 'D:\\workspace\\data\\DL\\COCO2017'
-    train_dataset_path = os.path.join(data_set_root, 'images', 'train2017')
+    data_set_root1 = '/nfs/home57/weihule/data/dl/COCO2017'
+    data_set_root2 = '/workshop/weihule/data/dl/COCO2017'
+    data_set_root3 = 'D:\\workspace\\data\\dl\\COCO2017'
+    data_set_roots = [data_set_root1, data_set_root2, data_set_root3]
+    data_set_root = ''
+    for p in data_set_roots:
+        if os.path.exists(p):
+            data_set_root = p
+            break
+
+    # train_dataset_path = os.path.join(data_set_root, 'images', 'train2017')
     val_dataset_path = os.path.join(data_set_root, 'images', 'val2017')
     dataset_annot_path = os.path.join(data_set_root, 'annotations')
     val_dataset = CocoDetection(image_root_dir=val_dataset_path,
                                 annotation_root_dir=dataset_annot_path,
-                                set='val2017',
+                                set_name='val2017',
+                                use_mosaic=True,
                                 transform=data_transform['train'])
     # -----------------------------------
 
-    detec_collater = DetectionCollater()
+    # detec_collater = DetectionCollater()
+    detec_collater = MultiScaleCollater(resize=416,
+                                        stride=32,
+                                        use_multi_scale=True)
     val_loader = DataLoader(val_dataset,
                             batch_size=16,
                             shuffle=True,
@@ -121,6 +131,7 @@ def test_make_grid():
             img = img.transpose(1, 2, 0)  # [c, h, w] -> [h, w, c] RGB
 
             img = (img * std + mean) * 255.
+            # img *= 255.
             img = np.uint8(img)
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)  # RGB -> BGR
             image = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
@@ -137,7 +148,8 @@ def test_make_grid():
                 category_color = tuple(voc_colors[label])
                 chars_w, chars_h = font.getsize(category_name)
                 draw.rectangle(point[:4], outline=category_color, width=2)  # 绘制预测框
-                draw.rectangle((point[0], point[1] - chars_h, point[0] + chars_w, point[1]), fill=category_color)  # 文本填充框
+                draw.rectangle((point[0], point[1] - chars_h, point[0] + chars_w, point[1]),
+                               fill=category_color)  # 文本填充框
                 draw.text((point[0], point[1] - font_size), category_name, fill=(255, 255, 255), font=font)
 
             save_path = os.path.join(save_root, str(index) + '_' + str(c) + '.png')

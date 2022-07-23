@@ -19,8 +19,11 @@ class CocoDetection(Dataset):
     def __init__(self,
                  image_root_dir,
                  annotation_root_dir,
-                 set='train2017',
+                 set_name='train2017',
                  coco_classes='coco_classes.json',
+                 resize=416,
+                 use_mosaic=False,
+                 mosaic_center_range=None,
                  transform=None):
         super(Dataset, self).__init__()
         self.coco_label_to_category_id = None
@@ -30,8 +33,12 @@ class CocoDetection(Dataset):
         self.image_ids = None
         self.image_root_dir = image_root_dir
         self.annotation_root_dir = annotation_root_dir
-        self.set_name = set
+        self.set_name = set_name
         self.coco_classes = coco_classes
+        self.resize = resize
+        self.use_mosaic = use_mosaic
+        if mosaic_center_range is None:
+            self.mosaic_center_range = [0.5, 1.5]
         self.transform = transform
 
         self.coco = COCO(
@@ -56,8 +63,78 @@ class CocoDetection(Dataset):
         return len(self.image_ids)
 
     def __getitem__(self, index):
-        img = self.load_image(index)
-        annot = self.load_annotations(index)
+        if self.use_mosaic and random.uniform(0, 1.) < 0.5:
+            x_ctr, y_ctr = [
+                int(random.uniform(self.resize * self.mosaic_center_range[0],
+                                   self.resize * self.mosaic_center_range[1]))
+                for _ in range(2)
+            ]
+            # all 4 image indices
+            imgs_indices = [index] + [
+                random.randint(0, len(self.image_ids)) for _ in range(3)
+            ]
+
+            annot = []
+            # combined image by 4 images
+            img = np.full((self.resize * 2, self.resize * 2, 3), 0, dtype=np.uint8)
+
+            for i, img_idx in enumerate(imgs_indices):
+                sub_img = self.load_image(img_idx)
+                sub_annot = self.load_annotations(img_idx)      # (N, 5)
+
+                origin_h, origin_w, _ = sub_img.shape
+                resize_factor = self.resize / max(origin_h, origin_w)
+                resize_h, resize_w = int(resize_factor * origin_h), int(resize_factor * origin_w)
+                sub_img = cv2.resize(sub_img, (resize_w, resize_h))
+                sub_annot[:, :4] *= resize_factor
+
+                # top left
+                if i == 0:
+                    # combined image coordinates
+                    x1a, y1a = max(x_ctr-resize_w, 0), max(y_ctr-resize_h, 0)
+                    x2a, y2a = x_ctr, y_ctr
+
+                    # single img choose area
+                    x1b, y1b = max(resize_w-x_ctr, 0), max(resize_h-y_ctr, 0)
+                    x2b, y2b = resize_w, resize_h
+                # top right
+                elif i == 1:
+                    x1a, y1a = x_ctr, max(y_ctr-resize_h, 0)
+                    x2a, y2a = min(self.resize*2, x_ctr+resize_w), y_ctr
+
+                    x1b, y1b = 0, max(resize_h-y_ctr, 0)
+                    x2b, y2b = min(resize_w, self.resize*2-x_ctr), resize_h
+                # bottom left img
+                elif i == 2:
+                    x1a, y1a = max(x_ctr-resize_w, 0), y_ctr
+                    x2a, y2a = x_ctr, min(self.resize*2, y_ctr+resize_h)
+
+                    x1b, y1b = max(resize_w-x_ctr, 0), 0
+                    x2b, y2b = resize_w, min(resize_h, self.resize*2-y_ctr)
+                # bottom right img
+                else:
+                    x1a, y1a = x_ctr, y_ctr
+                    x2a, y2a = min(self.resize*2, x_ctr+resize_w), min(self.resize*2, y_ctr+resize_h)
+
+                    x1b, y1b = 0, 0
+                    x2b, y2b = min(resize_w, self.resize*2-x_ctr), min(resize_h, self.resize*2-y_ctr)
+
+                img[y1a: y2a, x1a: x2a] = sub_img[y1b: y2b, x1b: x2b]
+                pad_w, pad_h = x1a-x1b, y1a-y1b
+                if sub_annot.shape[0] > 0:
+                    sub_annot[:, [0, 2]] += pad_w
+                    sub_annot[:, [1, 3]] += pad_h
+
+                annot.append(sub_annot)
+
+            annot = np.concatenate(annot, axis=0)
+            annot[:, :4] = np.clip(annot[:, :4], a_min=0, a_max=self.resize*2)
+
+            annot = annot[annot[:, 2] - annot[:, 0] > 1]
+            annot = annot[annot[:, 3] - annot[:, 1] > 1]
+        else:
+            img = self.load_image(index)
+            annot = self.load_annotations(index)
 
         sample = {'img': img, 'annot': annot, 'scale': 1}
         if self.transform:
@@ -73,7 +150,7 @@ class CocoDetection(Dataset):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         # opencv读取的图片转成RGB之后并归一化
-        return img.astype(np.float32) / 255.
+        return img.astype(np.float32)
 
     def load_annotations(self, image_index):
         """
@@ -116,7 +193,7 @@ class CocoDetection(Dataset):
         annotations[:, 2] = annotations[:, 0] + annotations[:, 2]
         annotations[:, 3] = annotations[:, 1] + annotations[:, 3]
 
-        return annotations
+        return annotations.astype(np.float32)
 
     def find_coco_label_from_category_id(self, category_id):
         return self.category_id_to_coco_label[category_id]
@@ -409,7 +486,7 @@ def collater(datas):
     对于一个batch的images和annotations,
     我们最后还需要用collater函数将images
     和annotations的shape全部对齐后才能输入模型进行训练。
-    这里也将 numpy 转成 Tensor  参见：padded_img
+    这里也将 numpy 转成 Tensor  参见: padded_img
     也进行了维度转换
     """
     normalizer = Normalize()
@@ -572,11 +649,13 @@ class MultiScaleCollater():
                  use_multi_scale=False):
         self.resize = resize
         if multi_scale_range is None:
-            self.multi_scale_range = multi_scale_range
+            self.multi_scale_range = [0.5, 1.5]
         self.stride = stride
         self.use_multi_scale = use_multi_scale
+        self.mean = torch.tensor([[[[0.471, 0.448, 0.408]]]], dtype=torch.float32)
+        self.std = torch.tensor([[[[0.234, 0.239, 0.242]]]], dtype=torch.float32)
 
-    def __call__(self, sample):
+    def __call__(self, samples):
         if self.use_multi_scale:
             min_resize = int(
                 ((self.resize + self.stride) * self.multi_scale_range[0]) //
@@ -588,8 +667,41 @@ class MultiScaleCollater():
         else:
             final_resize = self.resize
 
-        imgs = sample['img']
-        annots = sample['annot']
+        imgs = [p['img'] for p in samples]
+        annots = [p['annot'] for p in samples]
+        scales = [p['scale'] for p in samples]
+
+        batch_size = len(imgs)
+
+        padded_img = torch.zeros((batch_size, final_resize, final_resize, 3))
+
+        for index, img in enumerate(imgs):
+            height, width, _ = img.shape
+            max_image_size = max(height, width)
+            resize_factor = final_resize / max_image_size
+            resize_h, resize_w = int(resize_factor * height), int(resize_factor * width)
+            img = cv2.resize(img, (resize_w, resize_h))
+            padded_img[index, :resize_h, :resize_w] = torch.from_numpy(img)
+
+            annots[index][:, :4] *= resize_factor
+            scales[index] *= resize_factor
+
+        # padded_img [B, H, W, 3] -> [B, 3, H, W]
+        padded_img = padded_img / 255.
+        padded_img = (padded_img - self.mean) / self.std
+        padded_img = padded_img.permute(0, 3, 1, 2).contiguous()
+
+        max_num_annots = max(annot.shape[0] for annot in annots)
+        if max_num_annots > 0:
+            padded_annots = torch.ones((batch_size, max_num_annots, 5)) * (-1)
+
+            for annot_index, p in enumerate(annots):
+                if p.shape[0] > 0:
+                    padded_annots[annot_index, :p.shape[0], :] = torch.from_numpy(p)
+        else:
+            padded_annots = torch.ones((batch_size, 1, 5)) * (-1)
+
+        return {'img': padded_img, 'annot': padded_annots, 'scale': scales}
 
 
 if __name__ == "__main__":

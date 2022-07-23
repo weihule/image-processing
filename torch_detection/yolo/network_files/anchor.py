@@ -22,7 +22,7 @@ class YoloV3Anchors:
         if per_level_num_anchors is None:
             self.per_level_num_anchors = 3
 
-        self.anchor_sizes = np.array(self.anchor_sizes, dtype=np.float32)
+        self.anchor_sizes = np.array(self.anchor_sizes, dtype=np.float32)   # [9, 2]
         self.strides = np.array(self.strides, dtype=np.float32)
         self.per_level_anchor_sizes = self.anchor_sizes.reshape((3, 3, 2))
 
@@ -32,20 +32,57 @@ class YoloV3Anchors:
         """
         one_image_anchors = []
         for index, per_level_anchors in enumerate(self.per_level_anchor_sizes):
-            pass
+            feature_map_anchors = self.generate_anchors_on_feature_map(per_level_anchors=per_level_anchors,
+                                                                       feature_map_size=fpn_feature_sizes[index],
+                                                                       stride=self.strides[index])
+            one_image_anchors.append(one_image_anchors)
 
-    def generate_anchors_on_feature_map(self, per_level_anchors,
+        return one_image_anchors
+
+    @staticmethod
+    def generate_anchors_on_feature_map(per_level_anchors,
                                         feature_map_size, stride):
         """
         生成每个特征层上的anchors
-        :param per_level_anchors: 九组预设anchor中的三个
+        :param per_level_anchors: [3, 2] 九组预设anchor中的三个
         :param feature_map_size: 输出的预测特征图[w, h]
         :param stride: [8, 16, 32]的其中一个
         :return:
         """
-        # shifts_x shape:[w],shifts_x shape:[h]
-        shift_x = [p for p in np.arange(0, feature_map_size.shape[0])]
-        shift_y = [p for p in np.arange(0, feature_map_size.shape[1])]
+        fm_h, fm_w = feature_map_size.shape[0], feature_map_size.shape[1]
+        shifts_x = np.arange(0, fm_h)      # [h, w]
+        shifts_y = np.arange(0, fm_w)      # [h, w]
+        mesh_shifts_x, mesh_shifts_y = np.meshgrid(shifts_x, shifts_y)
+        shifts = []
+        for mesh_shift_x, mesh_shift_y in zip(mesh_shifts_x, mesh_shifts_y):
+            mesh_shift_x, mesh_shift_y = mesh_shift_x.reshape(-1, 1), mesh_shift_y.reshape(-1, 1)
+            sub_temp = np.expand_dims(np.concatenate((mesh_shift_x, mesh_shift_y), axis=-1), axis=0)    # [1, w, 2]
+            shifts.append(sub_temp)
+        shifts = np.concatenate(shifts, axis=0)     # [h, w, 2]
+        shifts = np.expand_dims(shifts, axis=2)     # [h, w, 1, 2]
+        shifts = np.tile(shifts, (1, 1, 3, 2))      # [h, w, 3, 2], 每个cell的左上角坐标重复三次
+
+        # all_anchors_wh  [3, 2]  ->  [1, 1, 3, 2]  ->  [h, w, 3, 2]
+        all_anchors_wh = np.expand_dims(np.expand_dims(per_level_anchors, axis=0), axis=0)
+        all_anchors_wh = np.tile(all_anchors_wh, (fm_h, fm_w, 1, 1))
+
+        # all_stride [1, ]  ->  [1, 1, 1, 1]  ->  [h, w, 3, 1]
+        all_stride = np.expand_dims(
+            np.expand_dims(
+                np.expand_dims(
+                    np.expand_dims(stride, axis=0), axis=0), axis=0), axis=0)
+        all_stride = np.tile(all_stride, (fm_h, fm_w, 3, 1))
+
+        # TODO: DONT FORGET
+        # all_anchors_wh is relative wh on each feature map
+        all_anchors_wh = all_anchors_wh / all_stride
+
+        # feature_map_anchors: [h, w, 3, 5]
+        feature_map_anchors = np.concatenate(
+            (shifts, all_anchors_wh, all_stride)
+        )
+
+        return feature_map_anchors
 
 
 if __name__ == "__main__":

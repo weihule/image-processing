@@ -7,6 +7,10 @@ import torch.nn as nn
 import darknet
 from fpn import YoloV3FPNHead
 
+__all__ = [
+    'darknet53_yolov3'
+]
+
 
 class YoloV3(nn.Module):
     def __init__(self,
