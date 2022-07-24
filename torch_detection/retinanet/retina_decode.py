@@ -3,6 +3,7 @@ import torch.nn as nn
 
 from losses import compute_ious_for_one_image
 
+
 # sys.path.append(os.path.)
 
 
@@ -12,7 +13,7 @@ class RetinaNetDecoder(nn.Module):
                  image_h,
                  min_score_threshold=0.1,
                  nms_threshold=0.5,
-                 max_detection_num=100):
+                 max_detection_num=50):
         super(RetinaNetDecoder, self).__init__()
         self.image_w = image_w
         self.image_h = image_h
@@ -31,7 +32,7 @@ class RetinaNetDecoder(nn.Module):
             batch_pred_bboxes = list()
 
             # 把该batch中每张图片的所有样本(anchor)全部合并,所以是沿着dim=1维拼接的
-            cls_heads = torch.cat(cls_heads, dim=1)     # [B, f1+...+f5_anchor_num, num_classes]
+            cls_heads = torch.cat(cls_heads, dim=1)  # [B, f1+...+f5_anchor_num, num_classes]
             reg_heads = torch.cat(reg_heads, dim=1)
             batch_anchors = torch.cat(batch_anchors, dim=1)
 
@@ -61,7 +62,8 @@ class RetinaNetDecoder(nn.Module):
 
                     single_img_scores[0: final_detection_num] = sorted_keep_scores[0: final_detection_num]
                     single_img_classes[0: final_detection_num] = sorted_keep_classes[0: final_detection_num]
-                    single_img_pred_bboxes[0: final_detection_num, :] = sorted_keep_pred_bboxes[0: final_detection_num, :]
+                    single_img_pred_bboxes[0: final_detection_num, :] = sorted_keep_pred_bboxes[0: final_detection_num,
+                                                                        :]
                 single_img_scores = torch.unsqueeze(single_img_scores, dim=0)  # [1, 100]
                 single_img_classes = torch.unsqueeze(single_img_classes, dim=0)  # [1, 100]
                 single_img_pred_bboxes = torch.unsqueeze(single_img_pred_bboxes, dim=0)  # [1, 100, 4]
@@ -139,14 +141,14 @@ class RetinaNetDecoder(nn.Module):
             single_keep_scores, single_keep_classes, single_keep_pred_bboxes = list(), list(), list()
             while single_class_scores.numel() > 0:
                 top1_score = single_class_scores[0]
-                # top1_class = single_classes[0]
+                top1_class = single_classes[0]
                 top1_pred_box = single_pred_bboxes[0]
 
                 # single_keep_scores.append(top1_score)
                 # single_keep_classes.append(detected_class)
                 # single_keep_pred_bboxes.append(top1_pred_box)
                 keep_scores.append(top1_score)
-                keep_classes.append(detected_class)
+                keep_classes.append(top1_class)
                 keep_pred_bboxes.append(top1_pred_box)
 
                 top1_areas = single_pred_bboxes_areas[0]
@@ -154,24 +156,67 @@ class RetinaNetDecoder(nn.Module):
                 if single_class_scores.numel() == 1:
                     break
                 single_class_scores = single_class_scores[1:]
-                single_pred_bboxes = single_pred_bboxes[1:]
+                single_classes = single_classes[1:]
+                single_pred_bboxes = single_pred_bboxes[1:, :]
 
-                ious = compute_ious_for_one_image(single_pred_bboxes.reshape(-1, 4), top1_pred_box.reshape(-1, 4))
-                ious = ious.flatten()
+                dious = self.get_diou(single_pred_bboxes, top1_pred_box.reshape(-1, 4))
+                dious = dious.flatten()
 
-                hidden_mask = ious < self.nms_threshold
+                hidden_mask = dious < self.nms_threshold
                 single_class_scores = single_class_scores[hidden_mask]
+                single_classes = single_classes[hidden_mask]
                 single_pred_bboxes = single_pred_bboxes[hidden_mask]
             # keep_scores.append(single_keep_scores)
             # keep_classes.append(single_keep_classes)
             # keep_pred_bboxes.append(single_keep_pred_bboxes)
-        # keep_scores = torch.cat()
 
         keep_scores = torch.tensor(keep_scores)
         keep_classes = torch.tensor(keep_classes)
         keep_pred_bboxes = torch.cat(keep_pred_bboxes).reshape((-1, 4))
 
         return keep_scores, keep_classes, keep_pred_bboxes
+
+    @staticmethod
+    def get_diou(pred_bbox, annots):
+        """
+        :param pred_bbox: [N, 4]
+        :param annots: [M, 4]
+        :return: [N, M]
+        """
+        pred_bbox_wh = pred_bbox[:, 2:] - pred_bbox[:, :2]
+        pred_bbox_ctr = pred_bbox[:, :2] + 0.5 * pred_bbox_wh
+        pred_bbox_areas = pred_bbox_wh[:, 0] * pred_bbox_wh[:, 1]   # [N]
+
+        annots_wh = annots[:, 2:] - annots[:, :2]
+        annots_ctr = annots[:, :2] + 0.5 * annots_wh
+        annots_areas = annots_wh[:, 0] * annots_wh[:, 1]   # [M]
+
+        res_dious = []
+        for index, annot in enumerate(annots):
+            overlap_x1 = torch.max(pred_bbox[:, 0], annot[0])
+            overlap_y1 = torch.max(pred_bbox[:, 1], annot[1])
+            overlap_x2 = torch.max(pred_bbox[:, 2], annot[2])
+            overlap_y2 = torch.max(pred_bbox[:, 3], annot[3])
+            overlaps = torch.clamp(overlap_x2 - overlap_x1, 0) * \
+                       torch.clamp(overlap_y2 - overlap_y1, 0)
+            unions = pred_bbox_areas + annots_areas - overlaps
+            ious = overlaps / unions     # [N]
+
+            # 计算对角线差距
+            enclose_area_top_left = torch.min(annot[:2], pred_bbox[:, :2])  # [N, 2]
+            enclose_area_bot_right = torch.max(annot[2:], pred_bbox[:, 2:])  # [N, 2]
+            p2 = torch.pow(enclose_area_bot_right - enclose_area_top_left, 2)
+            p2 = torch.sum(p2, dim=1)  # [N]
+
+            # 计算中心点差距
+            p1 = torch.pow(pred_bbox_ctr - annots_ctr, 2)  # [N， 2]
+            p1 = torch.sum(p1, dim=1)  # [N]
+
+            diou = (ious - p1 / p2).reshape(-1, 1)  # [N, 1]
+            res_dious.append(diou)
+
+        # res_cious sha[e [N, M]
+        return torch.cat(res_dious, dim=1)
 
 
 if __name__ == "__main__":

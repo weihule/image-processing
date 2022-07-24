@@ -35,8 +35,11 @@ class YoloV3Anchors:
             feature_map_anchors = self.generate_anchors_on_feature_map(per_level_anchors=per_level_anchors,
                                                                        feature_map_size=fpn_feature_sizes[index],
                                                                        stride=self.strides[index])
-            one_image_anchors.append(one_image_anchors)
+            one_image_anchors.append(feature_map_anchors)
 
+        # if input_size is [416, 416, 3]
+        # one_image_anchors shape: [[52, 52, 3, 5], [26, 26, 3, 5], [13, 13, 3, 5]]
+        # per anchor format: [grids_x_idx, grids_y_idx, relative_anchor_w, relative_anchor_h, stride]
         return one_image_anchors
 
     @staticmethod
@@ -45,7 +48,7 @@ class YoloV3Anchors:
         """
         生成每个特征层上的anchors
         :param per_level_anchors: [3, 2] 九组预设anchor中的三个
-        :param feature_map_size: 输出的预测特征图[w, h]
+        :param feature_map_size: 输出的预测特征图[h, w]
         :param stride: [8, 16, 32]的其中一个
         :return:
         """

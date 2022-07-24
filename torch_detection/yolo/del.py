@@ -51,7 +51,7 @@ if __name__ == "__main__":
     shifts2 = np.expand_dims(shifts2, axis=2)
     shifts2 = np.tile(shifts2, (1, 1, 3, 1))
     test_time2 = time.time() - start
-    print(test_time2)
+    # print(test_time2)
  
     # per_level_anchors = np.array([[10, 13],
     #                               [16, 30],
@@ -62,4 +62,17 @@ if __name__ == "__main__":
     # print(all_anchors_wh)
     # print(all_anchors_wh.shape)
 
+    # 假设有4个gt, 12个anchor
+    one_img_gt_cls = np.array([1., 0., 3., 1.])    
+
+    # indices取值范围就是 0, 1, 2, 3, 一共有12个 
+    indices = np.array([np.random.randint(0, 4) for _ in range(12)])
+    overlap = np.random.uniform(low=0, high=1., size=(12))
+    one_image_anchors_gt_cls = one_img_gt_cls[indices[overlap > 0.5]]
+    
+    
+    a1 = [0, 1, 2, 3]
+    res = torch.cat(a1, dim=0)
+    print(res, res.shape)
+    
     
