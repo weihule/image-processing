@@ -1,11 +1,18 @@
 import os
+import sys
 import torch
 import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
-import cv2
 import math
 from PIL import Image
+
+BASE_DIR = os.path.dirname(
+    os.path.dirname(
+        os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+sys.path.append(BASE_DIR)
+from torch_detection.utils.iou_method import IoUMethod
 
 
 def snap_annotations_as_tx_ty_tw_th(anchors_gt_bboxes, anchors):
@@ -331,7 +338,7 @@ class RetinaLoss(nn.Module):
         # 是正样本喔, 所以需要剔除label为0的负样本才可以
         positive_anchor_num = per_image_anchors_annotations[per_image_anchors_annotations[:, 4] > 0].shape[0]
 
-        return one_img_focal_loss / positive_anchor_num
+        return (one_img_focal_loss / positive_anchor_num)*2
 
     # 计算回归损失时, 只用正样本进行的loss计算
     def compute_one_image_smooth_l1_loss(self, per_image_reg_heads, per_image_anchors_annotations):
@@ -462,37 +469,3 @@ if __name__ == "__main__":
     # res = snap_annotations_as_tx_ty_tw_th(gt_bbs, pred_bbs)
     res = compute_ious_for_one_image(pred_bbs, gt_bbs[0].reshape(-1, 4))
     res = res.flatten()
-    print(res, res.shape)
-    print(res < 0.05)
-
-    # for i in range(0, 20, 4):
-    #     batch_data = list()
-    #     for j in range(i, i + 4):
-    #         sample = vd[j]
-    #         # res = RF(res)
-    #         sample = Resizer()(sample)
-    #         batch_data.append(sample)
-    #     res = collater(batch_data)
-    #     # print(res['img'].shape)
-    #     # print(res['annot'])
-    #     get_batch_anchors_annotations(pred_bbs.reshape(4, -1, 4), res['annot'])
-    #     break
-
-    # inputs = torch.rand(3, 5)
-    # target = torch.tensor([0, 1, 4])
-    # custom_loss1 = custom_cross_entropy(inputs, target, use_custom=True, num_class=5)
-    # custom_loss2 = custom_cross_entropy(inputs, target, use_custom=False, num_class=5)
-    # official_loss = F.cross_entropy(inputs, target)
-    # print(custom_loss1, custom_loss2, official_loss)
-
-    # inputs = torch.rand(4, 2)
-    # inputs = torch.tensor([[0.8, 0.2]])
-    # target = torch.tensor([0, 1, 1, 0])
-    # cus_bce_loss = custom_bce(inputs, target)
-    # official_loss = custom_bce(inputs, target, use_custom=False)
-    # print(cus_bce_loss, official_loss)
-
-    # arr = torch.rand(3, 4)
-    # indices = torch.tensor([0, 1, 1, 2, 1, 2])
-    # print(arr)
-    # print(arr[indices])

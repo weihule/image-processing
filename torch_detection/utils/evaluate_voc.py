@@ -3,8 +3,9 @@ from torch import Tensor
 import numpy as np
 from PIL import Image, ImageDraw
 import matplotlib.pylab as plt
-from study.torch_detection.utils.custom_dataset import DataPrefetcher, collater
+from custom_dataset import DataPrefetcher, collater
 from torch.utils.data import DataLoader
+from iou_method import IoUMethod, IoUMethodNumpy
 
 
 def get_iou(bbox1, bbox2):
@@ -236,67 +237,42 @@ if __name__ == "__main__":
                             0.5782052874565125,
                             0.7706285119056702]).reshape(-1, 1)
     gt_bboxes = torch.tensor([[6., 5., 17., 11.], [9., 8., 19., 15.]])
+    pred_bbs = pred_bbs * 11.
+    gt_bboxes = gt_bboxes * 11.
     for gt_bbox in gt_bboxes:
         ious = get_ious(pred_bbs, gt_bbox)
         print(ious)
 
-    pred_bbs_numpy = pred_bbs.numpy() * 11
-    gt_bboxes_numpy = gt_bboxes.numpy() * 11
+    iou_method = IoUMethod(iou_type='CIoU')
+    iou_method_np = IoUMethodNumpy(iou_type='CIoU')
+    res = iou_method(pred_bbs, gt_bboxes)
+    res_np = iou_method_np(pred_bbs.numpy(), gt_bboxes.numpy())
+    print(res)
+    print(res_np)
 
-    image = Image.new('RGB', (300, 300), (255, 255, 255))
-    ax = plt.gca()  # 获取到当前坐标轴信息
-    ax.xaxis.set_ticks_position('top')  # 将X坐标轴移到上面
-    ax.invert_yaxis()  # 反转Y坐标轴
-    draw = ImageDraw.Draw(image)
-    for b in pred_bbs_numpy:
-        print(b)
-        draw.rectangle(b, outline=(255, 0, 0), width=1)
+    # pred_bbs_numpy = pred_bbs.numpy() * 11
+    # gt_bboxes_numpy = gt_bboxes.numpy() * 11
 
-    for gt_b in gt_bboxes_numpy:
-        print(gt_b)
-        draw.rectangle(gt_b, outline=(0, 255, 0), width=1)
-    plt.imshow(image)
-    plt.show()
-    plt.xticks([])
-    plt.yticks([])
+    # image = Image.new('RGB', (300, 300), (255, 255, 255))
+    # ax = plt.gca()  # 获取到当前坐标轴信息
+    # ax.xaxis.set_ticks_position('top')  # 将X坐标轴移到上面
+    # ax.invert_yaxis()  # 反转Y坐标轴
+    # draw = ImageDraw.Draw(image)
+    # for b in pred_bbs_numpy:
+    #     print(b)
+    #     draw.rectangle(b, outline=(255, 0, 0), width=1)
 
-    # from utils.retina_decode import RetinaNetDecoder
-    # from network_files.retinanet_model import resnet50_retinanet
-    # from config import Config
+    # for gt_b in gt_bboxes_numpy:
+    #     print(gt_b)
+    #     draw.rectangle(gt_b, outline=(0, 255, 0), width=1)
+    # plt.imshow(image)
+    # plt.show()
+    # plt.xticks([])
+    # plt.yticks([])
+    # image.save('test.png')
 
-    # model = resnet50_retinanet(pre_trained=True, pre_train='')
-    # model = model.cuda()
-    # decoder = RetinaNetDecoder(image_w=Config.input_image_size,
-    #                            image_h=Config.input_image_size).cuda()
-    # evaluate_voc(Config.val_dataset, model, decoder)
-
-    # 需要注意, 这里不管传入多少个gt, 返回的 tp_list 都是 bbox 的个数
-    # 只是其中可能有多个1, 1就代表tp
-    # gt_num, tp_list, conf_scores = calculate_tp(pred_bbs, pred_ss, gt_bbs)
-    # p_list, r_list = calculate_pr(gt_num, tp_list, conf_scores)
-    # res = voc_ap(r_list, p_list)
+    # arr1 = np.random.uniform(0, 4, size=(10))
+    # a = np.array(2.5)
+    # a = np.tile(a, reps=len(arr1))
+    # res = np.maximum(arr1, a)
     # print(res)
-    # zipped = zip(tp_list, conf_scores)
-    # zipped = sorted(zipped, key=lambda x: x[1], reverse=True)
-    # print(gt_num, tp_list, conf_scores)
-    # for i in zipped:
-    #     print(i)
-
-    # a = np.array([[1, 2, 3], [4, 5, 6]])
-    # res1 = np.cumsum(a)
-    # res2 = np.cumsum(a, axis=0)
-    # res3 = np.cumsum(a, axis=1)
-    # print(res2)
-    # print(res3)
-
-    # scores = np.array(pred_ss.flatten())
-    # ious = np.array([0.4706, 0.0145, 0.1905, 0.0000, 0.0536, 0.7317, 0.0000, 0.4200, 0.4706,
-    #     0.5128, 0.7179])
-    # sub_iou_big_ids = np.where(ious>0.5)        # 返回的是 tuple 
-    # print(sub_iou_big_ids)
-    # sub_scores = scores[sub_iou_big_ids]
-    # print(sub_scores)
-    # sub_ids = np.argmax(sub_scores)
-    # print(sub_ids)
-
-    # print(sub_iou_big_ids[0].tolist()[sub_ids])

@@ -1,10 +1,14 @@
+import os
+import sys
 import torch
 import torch.nn as nn
+from torchvision.ops import batched_nms
 
-from losses import compute_ious_for_one_image
-
-
-# sys.path.append(os.path.)
+base_dir = os.path.dirname(
+    os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(base_dir)
+from torch_detection.utils.iou_method import IoUMethod, IoUMethodNumpy
 
 
 class RetinaNetDecoder(nn.Module):
@@ -25,6 +29,7 @@ class RetinaNetDecoder(nn.Module):
     # 传入的是list形式，里面有5个元素, 每个元素一个三维向量
     # 以cls_heads为例: [[B, f1_anchor_num, 80], [B, f2_anchor_num, 80], ...]
     def forward(self, cls_heads, reg_heads, batch_anchors):
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         with torch.no_grad():
             devices = cls_heads[0].device
             batch_scores = list()
@@ -34,7 +39,7 @@ class RetinaNetDecoder(nn.Module):
             # 把该batch中每张图片的所有样本(anchor)全部合并,所以是沿着dim=1维拼接的
             cls_heads = torch.cat(cls_heads, dim=1)  # [B, f1+...+f5_anchor_num, num_classes]
             reg_heads = torch.cat(reg_heads, dim=1)
-            batch_anchors = torch.cat(batch_anchors, dim=1)
+            batch_anchors = torch.cat(batch_anchors, dim=1).to(device)
 
             for per_img_cls_heads, per_img_reg_heads, per_img_anchors in zip(
                     cls_heads, reg_heads, batch_anchors):
@@ -52,21 +57,22 @@ class RetinaNetDecoder(nn.Module):
                 single_img_pred_bboxes = torch.ones((self.max_detection_num, 4), device=devices) * (-1)
 
                 if scores.shape[0] != 0:
-                    scores, scores_classes, pred_bboxes = self.custom_batched_nms(pred_bboxes, scores, scores_classes)
+                    indices = batched_nms(pred_bboxes, scores, scores_classes, 0.5)
+                    scores, scores_classes, pred_bboxes = scores[indices], scores_classes[indices], pred_bboxes[indices]
+                    # scores, scores_classes, pred_bboxes = self.custom_batched_nms(pred_bboxes, scores, scores_classes)
 
-                    sorted_keep_scores, sorted_keep_scores_indices = torch.sort(scores, descending=True)
-                    sorted_keep_classes = scores_classes[sorted_keep_scores_indices]
-                    sorted_keep_pred_bboxes = pred_bboxes[sorted_keep_scores_indices]
+                    # sorted_keep_scores, sorted_keep_scores_indices = torch.sort(scores, descending=True)
+                    # sorted_keep_classes = scores_classes[sorted_keep_scores_indices]
+                    # sorted_keep_pred_bboxes = pred_bboxes[sorted_keep_scores_indices]
 
-                    final_detection_num = min(self.max_detection_num, sorted_keep_scores.shape[0])
+                    final_detection_num = min(self.max_detection_num, scores.shape[0])
 
-                    single_img_scores[0: final_detection_num] = sorted_keep_scores[0: final_detection_num]
-                    single_img_classes[0: final_detection_num] = sorted_keep_classes[0: final_detection_num]
-                    single_img_pred_bboxes[0: final_detection_num, :] = sorted_keep_pred_bboxes[0: final_detection_num,
-                                                                        :]
-                single_img_scores = torch.unsqueeze(single_img_scores, dim=0)  # [1, 100]
-                single_img_classes = torch.unsqueeze(single_img_classes, dim=0)  # [1, 100]
-                single_img_pred_bboxes = torch.unsqueeze(single_img_pred_bboxes, dim=0)  # [1, 100, 4]
+                    single_img_scores[0: final_detection_num] = scores[0: final_detection_num]
+                    single_img_classes[0: final_detection_num] = scores_classes[0: final_detection_num]
+                    single_img_pred_bboxes[0: final_detection_num, :] = pred_bboxes[0: final_detection_num, :]
+                single_img_scores = torch.unsqueeze(single_img_scores, dim=0)  # [1, max_detection_num]
+                single_img_classes = torch.unsqueeze(single_img_classes, dim=0)  # [1, max_detection_num]
+                single_img_pred_bboxes = torch.unsqueeze(single_img_pred_bboxes, dim=0)  # [1, max_detection_num, 4]
 
                 batch_scores.append(single_img_scores)
                 batch_classes.append(single_img_classes)
@@ -122,6 +128,7 @@ class RetinaNetDecoder(nn.Module):
         one_img_scores: [anchor_num]    classification predict scores
         one_img_classes: [anchor_num]   class indices for predict scores
         """
+        ciou_methos = IoUMethod(iou_type="CIoU", box_type='xyxy')
         # sort boxes
         sorted_scores, sorted_indices = torch.sort(one_img_scores, descending=True)
         sorted_classes = one_img_classes[sorted_indices]
@@ -157,12 +164,12 @@ class RetinaNetDecoder(nn.Module):
                     break
                 single_class_scores = single_class_scores[1:]
                 single_classes = single_classes[1:]
-                single_pred_bboxes = single_pred_bboxes[1:, :]
+                single_pred_bboxes = single_pred_bboxes[1:, :]  # [N, 4]
 
-                dious = self.get_diou(single_pred_bboxes, top1_pred_box.reshape(-1, 4))
-                dious = dious.flatten()
+                cious = ciou_methos(single_pred_bboxes, top1_pred_box.reshape(-1, 4))
+                cious = cious.flatten()
 
-                hidden_mask = dious < self.nms_threshold
+                hidden_mask = cious < self.nms_threshold
                 single_class_scores = single_class_scores[hidden_mask]
                 single_classes = single_classes[hidden_mask]
                 single_pred_bboxes = single_pred_bboxes[hidden_mask]
