@@ -12,7 +12,6 @@ BASE_DIR = os.path.dirname(
         os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 sys.path.append(BASE_DIR)
-from torch_detection.utils.iou_method import IoUMethod
 
 
 def snap_annotations_as_tx_ty_tw_th(anchors_gt_bboxes, anchors):
@@ -442,20 +441,17 @@ class RetinaLoss(nn.Module):
         p1 = torch.pow(pred_bbox_ctr - annotations_ctr, 2)    # [anchor_num， 2]
         p1 = torch.sum(p1, dim=1)  # [anchor_num]
 
+        v = torch.pow(torch.arctan(annotations_wh[:, 0] / annotations_wh[:, 1] -
+                                 torch.arctan(pred_bbox_wh[:, 0] / pred_bbox_wh[:, 1])), 2) * \
+            4 / (math.e ** 2)
         # 注意alpha作为权重系数并不回传梯度
         with torch.no_grad():
-            v = torch.pow(torch.atan(annotations_wh[:, 0] / annotations_wh[:, 1] -
-                                     torch.atan(pred_bbox_wh[:, 0] / pred_bbox_wh[:, 1])), 2) * \
-                4 / (math.e ** 2)
             alpha = v / (1 - ious + v)
 
-        v = torch.pow(torch.atan(annotations_wh[:, 0] / annotations_wh[:, 1] -
-                                 torch.atan(pred_bbox_wh[:, 0] / pred_bbox_wh[:, 1])), 2) * \
-            4 / (math.e ** 2)
         ciou = ious - p1 / p2 - alpha * v
         ciou_loss = 1 - ciou
         ciou_loss = ciou_loss.sum() / positive_anchor_num
-        ciou_loss = 2. * ciou_loss  # 这里乘2是为了平衡cls_loss
+        ciou_loss = ciou_loss  # 这里乘2是为了平衡cls_loss
 
         return ciou_loss
 
