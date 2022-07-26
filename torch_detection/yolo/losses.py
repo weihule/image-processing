@@ -42,4 +42,16 @@ class YoloV5Loss(nn.Module):
         self.obj_loss_weight = obj_loss_weight
         self.box_loss_weight = box_loss_weight
         self.cls_loss_weight = cls_loss_weight
+        self.box_loss_iou_type = box_loss_iou_type
+        self.filter_anchor_threshold = filter_anchor_threshold
+        self.iou_function = IoUMethod(iou_type=self.box_loss_iou_type)
+
+    def forward(self, preds, annotations):
+        """
+        compute obj loss, reg loss and cls loss in one batch
+        :param preds:
+        :param annotations:
+        :return:
+        """
+        device = annotations.device
 
