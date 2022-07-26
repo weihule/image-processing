@@ -23,7 +23,7 @@ class Config:
 
     log = os.path.join(save_root, 'log')  # path to save log
     checkpoint_path = os.path.join(save_root, 'checkpoints')  # path to store checkpoint model
-    resume = os.path.join(checkpoint_path, 'latest.pth')
+    resume = os.path.join(checkpoint_path, '50_epoch_train_weight.pth')
     evaluate = None  # evaluate model path
     train_dataset_path = os.path.join(data_set_root, 'images', 'train2017')
     val_dataset_path = os.path.join(data_set_root, 'images', 'val2017')
@@ -67,7 +67,7 @@ class Config:
                                image_sets=[('2007', 'test')],
                                transform=data_transform['val'])
 
-    epochs = 240
+    epochs = 150
     batch_size = 64
     lr = 0.0001
     lrf = 0.001

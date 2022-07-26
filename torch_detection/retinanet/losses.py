@@ -337,7 +337,7 @@ class RetinaLoss(nn.Module):
         # 是正样本喔, 所以需要剔除label为0的负样本才可以
         positive_anchor_num = per_image_anchors_annotations[per_image_anchors_annotations[:, 4] > 0].shape[0]
 
-        return (one_img_focal_loss / positive_anchor_num)*2
+        return one_img_focal_loss / positive_anchor_num
 
     # 计算回归损失时, 只用正样本进行的loss计算
     def compute_one_image_smooth_l1_loss(self, per_image_reg_heads, per_image_anchors_annotations):

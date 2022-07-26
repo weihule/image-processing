@@ -70,7 +70,7 @@ if __name__ == "__main__":
     #                     backbone_pretrained_path=pre_weight)
 
     yolo_model = darknet53_yolov3(pre_weight)
-    inputs = torch.rand(4, 3, 416, 384)
+    inputs = torch.rand(4, 3, 416, 416)
     res = yolo_model(inputs)
     for p in res:
         print(p.shape)
