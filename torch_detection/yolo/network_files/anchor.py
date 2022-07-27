@@ -52,9 +52,9 @@ class YoloV3Anchors:
         :param stride: [8, 16, 32]的其中一个
         :return:
         """
-        fm_h, fm_w = feature_map_size.shape[0], feature_map_size.shape[1]
-        shifts_x = np.arange(0, fm_h)      # [h, w]
-        shifts_y = np.arange(0, fm_w)      # [h, w]
+        # shifts_x: [w]    shifts_y: [h]
+        shifts_x = np.arange(0, feature_map_size[0])
+        shifts_y = np.arange(0, feature_map_size[1])
         mesh_shifts_x, mesh_shifts_y = np.meshgrid(shifts_x, shifts_y)
         shifts = []
         for mesh_shift_x, mesh_shift_y in zip(mesh_shifts_x, mesh_shifts_y):
@@ -89,5 +89,8 @@ class YoloV3Anchors:
 
 
 if __name__ == "__main__":
+    feature_sizes = np.array([[10, 10], [6, 6], [3, 3]])
     yolo_anchor = YoloV3Anchors()
+    one_image_anchors = yolo_anchor(feature_sizes)
+    print(one_image_anchors)
 

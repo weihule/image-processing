@@ -54,4 +54,14 @@ class YoloV5Loss(nn.Module):
         :return:
         """
         device = annotations.device
+        batch_size = annotations.shape[0]
+
+        # if input size:[B,3,416,416]
+        # features shape:[[B, 255, 52, 52],[B, 255, 26, 26],[B, 255, 13, 13]]
+        # obj_reg_cls_heads shape:[[B, 52, 52, 3, 85],[B, 26, 26, 3, 85],[B, 13, 13, 3, 85]]
+        obj_reg_cls_preds = preds[0]
+
+        # feature_size = [[h, w], ...]
+        feature_size = [[per_level_cls_head[2], per_level_cls_head[1]] for per_level_cls_head in obj_reg_cls_preds]
+        one_image_anchors = self.anchors()
 
