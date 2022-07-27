@@ -39,6 +39,7 @@ class YoloV5Loss(nn.Module):
             strides=self.strides,
             per_level_num_anchors=per_level_num_anchors
         )
+        self.per_level_num_anchors = per_level_num_anchors
         self.obj_loss_weight = obj_loss_weight
         self.box_loss_weight = box_loss_weight
         self.cls_loss_weight = cls_loss_weight
@@ -50,7 +51,7 @@ class YoloV5Loss(nn.Module):
         """
         compute obj loss, reg loss and cls loss in one batch
         :param preds:
-        :param annotations:
+        :param annotations: [B, N, 5]
         :return:
         """
         device = annotations.device
@@ -61,7 +62,34 @@ class YoloV5Loss(nn.Module):
         # obj_reg_cls_heads shape:[[B, 52, 52, 3, 85],[B, 26, 26, 3, 85],[B, 13, 13, 3, 85]]
         obj_reg_cls_preds = preds[0]
 
-        # feature_size = [[h, w], ...]
+        # feature_size = [[w, h], ...]
         feature_size = [[per_level_cls_head[2], per_level_cls_head[1]] for per_level_cls_head in obj_reg_cls_preds]
-        one_image_anchors = self.anchors()
+        # one_image_anchors shape: [[52, 52, 3, 5], [26, 26, 3, 5], [13, 13, 3, 5]]
+        one_image_anchors = self.anchors(feature_size)
+        batch_anchors = [
+            torch.tensor(per_level_anchor).unsqueeze(0).repeat(
+                batch_size, 1, 1, 1, 1) for per_level_anchor in one_image_anchors
+        ]
+
+    def get_batch_anchors_targets(self, batch_anchors, annotations):
+        """
+        Assign a ground truth target for each anchor
+        :param batch_anchors: [[B,52,52,3,5], [B,26,26,3,5], ...]
+        :param annotations:
+        :return:
+        """
+        device = annotations.device
+
+        anchor_sizes = torch.tensor(self.anchor_sizes).float().to(device)
+        anchor_sizes = anchor_sizes.view(
+            len(anchor_sizes) // self.per_level_num_anchors, -1, 2)     # [3, 3, 2]
+        all_strides = torch.tensor(self.strides).float().to(device)
+        for i in range(anchor_sizes.shape[0]):
+            anchor_sizes[i] = anchor_sizes[i] / all_strides[i]
+
+        # [0, 1, 2]
+        grid_inside_ids = [i for i in range(self.per_level_num_anchors)]
+        grid_inside_ids = torch.tensor(grid_inside_ids).to(device)
+
+        all_anchors, all_targets = [], []
 

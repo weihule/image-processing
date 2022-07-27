@@ -63,18 +63,19 @@ class YoloV3Anchors:
             shifts.append(sub_temp)
         shifts = np.concatenate(shifts, axis=0)     # [h, w, 2]
         shifts = np.expand_dims(shifts, axis=2)     # [h, w, 1, 2]
-        shifts = np.tile(shifts, (1, 1, 3, 2))      # [h, w, 3, 2], 每个cell的左上角坐标重复三次
+        shifts = np.tile(shifts, (1, 1, 3, 1))      # [h, w, 3, 2], 每个cell的左上角坐标重复三次
+        print(shifts.shape)
 
         # all_anchors_wh  [3, 2]  ->  [1, 1, 3, 2]  ->  [h, w, 3, 2]
         all_anchors_wh = np.expand_dims(np.expand_dims(per_level_anchors, axis=0), axis=0)
-        all_anchors_wh = np.tile(all_anchors_wh, (fm_h, fm_w, 1, 1))
+        all_anchors_wh = np.tile(all_anchors_wh, (feature_map_size[1], feature_map_size[0], 1, 1))
 
         # all_stride [1, ]  ->  [1, 1, 1, 1]  ->  [h, w, 3, 1]
         all_stride = np.expand_dims(
             np.expand_dims(
                 np.expand_dims(
                     np.expand_dims(stride, axis=0), axis=0), axis=0), axis=0)
-        all_stride = np.tile(all_stride, (fm_h, fm_w, 3, 1))
+        all_stride = np.tile(all_stride, (feature_map_size[1], feature_map_size[0], 3, 1))
 
         # TODO: DONT FORGET
         # all_anchors_wh is relative wh on each feature map
@@ -82,8 +83,7 @@ class YoloV3Anchors:
 
         # feature_map_anchors: [h, w, 3, 5]
         feature_map_anchors = np.concatenate(
-            (shifts, all_anchors_wh, all_stride)
-        )
+            (shifts, all_anchors_wh, all_stride), axis=-1)
 
         return feature_map_anchors
 
@@ -92,5 +92,8 @@ if __name__ == "__main__":
     feature_sizes = np.array([[10, 10], [6, 6], [3, 3]])
     yolo_anchor = YoloV3Anchors()
     one_image_anchors = yolo_anchor(feature_sizes)
-    print(one_image_anchors)
+    print(len(one_image_anchors))
+    for p in one_image_anchors:
+        print(p)
+
 
