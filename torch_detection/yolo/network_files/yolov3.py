@@ -48,6 +48,7 @@ class YoloV3(nn.Module):
 
         # if input size:[B,3,416,416]
         # features shape:[[B, 255, 52, 52],[B, 255, 26, 26],[B, 255, 13, 13]]
+        # [B, h, w, 3, 85]
         # obj_reg_cls_heads shape:[[B, 52, 52, 3, 85],[B, 26, 26, 3, 85],[B, 13, 13, 3, 85]]
         return obj_reg_cls_heads
 

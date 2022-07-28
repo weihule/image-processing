@@ -28,7 +28,9 @@ class YoloV3Anchors:
 
     def __call__(self, fpn_feature_sizes):
         """
-        generate one image anchors
+        generate one image anchor
+        :param fpn_feature_sizes: [[w, h], ...]
+        :return:
         """
         one_image_anchors = []
         for index, per_level_anchors in enumerate(self.per_level_anchor_sizes):
@@ -58,13 +60,12 @@ class YoloV3Anchors:
         mesh_shifts_x, mesh_shifts_y = np.meshgrid(shifts_x, shifts_y)
         shifts = []
         for mesh_shift_x, mesh_shift_y in zip(mesh_shifts_x, mesh_shifts_y):
-            mesh_shift_x, mesh_shift_y = mesh_shift_x.reshape(-1, 1), mesh_shift_y.reshape(-1, 1)
+            mesh_shift_x, mesh_shift_y = mesh_shift_x.reshape(-1, 1), mesh_shift_y.reshape(-1, 1)  # [1, w] -> [w, 1]
             sub_temp = np.expand_dims(np.concatenate((mesh_shift_x, mesh_shift_y), axis=-1), axis=0)    # [1, w, 2]
             shifts.append(sub_temp)
         shifts = np.concatenate(shifts, axis=0)     # [h, w, 2]
         shifts = np.expand_dims(shifts, axis=2)     # [h, w, 1, 2]
         shifts = np.tile(shifts, (1, 1, 3, 1))      # [h, w, 3, 2], 每个cell的左上角坐标重复三次
-        print(shifts.shape)
 
         # all_anchors_wh  [3, 2]  ->  [1, 1, 3, 2]  ->  [h, w, 3, 2]
         all_anchors_wh = np.expand_dims(np.expand_dims(per_level_anchors, axis=0), axis=0)
@@ -85,15 +86,17 @@ class YoloV3Anchors:
         feature_map_anchors = np.concatenate(
             (shifts, all_anchors_wh, all_stride), axis=-1)
 
+        # if one feature map shape is [w=3, h=5], this feature map anchor shape is [5, 3, 3, 5]
+        # output shape is [h, w, 3, 5] for pytorch [B, C, H, W]
         return feature_map_anchors
 
 
 if __name__ == "__main__":
-    feature_sizes = np.array([[10, 10], [6, 6], [3, 3]])
+    feature_sizes = np.array([[10, 10], [6, 6], [3, 5]])
     yolo_anchor = YoloV3Anchors()
     one_image_anchors = yolo_anchor(feature_sizes)
     print(len(one_image_anchors))
-    for p in one_image_anchors:
-        print(p)
+    # for p in one_image_anchors:
+    #     print(p)
 
 

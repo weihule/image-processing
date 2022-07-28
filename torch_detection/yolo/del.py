@@ -7,15 +7,13 @@ import random
 
 def test():
     # shifts_x shape:[w],shifts_x shape:[h]
-    shifts_x = (np.arange(0, 13))
-    shifts_y = (np.arange(0, 13))
+    shifts_x = (np.arange(0, 3))
+    shifts_y = (np.arange(0, 5))
 
     # shifts shape:[w,h,2] -> [w,h,1,2] -> [w,h,3,2] -> [h,w,3,2]
-    shifts = np.array([[[shift_x, shift_y] for shift_y in shifts_y]
-                        for shift_x in shifts_x],
-                        dtype=np.float32)
-    print(shifts)
-    print(shifts.shape)
+    mesh_shifts_x, mesh_shifts_y = np.meshgrid(shifts_x, shifts_y)
+    print(mesh_shifts_x, mesh_shifts_x.shape)
+
 
 if __name__ == "__main__":
     # x = np.arange(0, 5)
@@ -69,10 +67,12 @@ if __name__ == "__main__":
     indices = np.array([np.random.randint(0, 4) for _ in range(12)])
     overlap = np.random.uniform(low=0, high=1., size=(12))
     one_image_anchors_gt_cls = one_img_gt_cls[indices[overlap > 0.5]]
-    
-    
-    a1 = [0, 1, 2, 3]
-    res = torch.cat(a1, dim=0)
-    print(res, res.shape)
+
+    arr = torch.arange(48).reshape((3, 8, 2))
+    print(arr)
+    print(arr[:, :, 0] == arr[..., 0])
+    print(arr[:, :, 0].shape, arr[..., 0].shape)
+    print(arr[..., 0])
+
     
     
