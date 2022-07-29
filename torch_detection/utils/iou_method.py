@@ -60,11 +60,14 @@ class IoUMethod:
                     res[index2] = res[index2] - p1 / p2
                     if self.iou_type == 'CIoU':
                         # compute v and alpha
+                        with torch.no_grad():
+                            v = (4 / (math.pi ** 2)) * \
+                                torch.pow(torch.arctan(bboxes2_wh[index2][0] / bboxes2_wh[index2][1]) -
+                                          torch.arctan(bboxes1_wh[:, 0] / bboxes1_wh[:, 1]), 2)  # [N]
+                            alpha = v / torch.clamp(1 - ious_src[index2] + v, min=1e-4)  # [N]
                         v = (4 / (math.pi ** 2)) * \
                             torch.pow(torch.arctan(bboxes2_wh[index2][0] / bboxes2_wh[index2][1]) -
                                       torch.arctan(bboxes1_wh[:, 0] / bboxes1_wh[:, 1]), 2)  # [N]
-                        with torch.no_grad():
-                            alpha = v / torch.clamp(1 - ious_src[index2] + v, min=1e-4)  # [N]
                         res[index2] = res[index2] - alpha * v
                 if self.iou_type == 'DIoU':
                     return res

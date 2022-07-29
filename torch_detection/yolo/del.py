@@ -68,11 +68,42 @@ if __name__ == "__main__":
     overlap = np.random.uniform(low=0, high=1., size=(12))
     one_image_anchors_gt_cls = one_img_gt_cls[indices[overlap > 0.5]]
 
-    arr = torch.arange(48).reshape((3, 8, 2))
-    print(arr)
-    print(arr[:, :, 0] == arr[..., 0])
-    print(arr[:, :, 0].shape, arr[..., 0].shape)
-    print(arr[..., 0])
+    
+    gt_boxes = torch.randint(low=1, high=20, size=(5, 4))
+    all_strides = torch.tensor([8, 8, 8, 16, 16, 16, 32, 32, 32])
+    new_gt_boxes = ((gt_boxes[:, :2] + gt_boxes[:, 2:]) / 2).unsqueeze(1)
+    # print(new_gt_boxes, new_gt_boxes.shape)
+
+    
+    batch_anchors = [torch.randn(4, 10, 10, 3, 5), torch.randn(4, 8, 6, 3, 5), torch.randn(4, 4, 3, 3, 5)]
+    obj_reg_cls_heads = [torch.randn(4, 10, 10, 3, 85), torch.randn(4, 8, 6, 3, 85), torch.randn(4, 4, 3, 3, 85)]
+    feature_hw = []
+    per_layer_prefix_ids = [0, 0, 0]
+
+    previous_layer_prefix, cur_layer_prefix = 0, 0
+    for layer_idx, (per_level_heads, per_level_anchors) in enumerate(
+            zip(obj_reg_cls_heads, batch_anchors)):
+        B, H, W, _, _ = per_level_anchors.shape
+
+        for _ in range(3):
+            feature_hw.append([H, W])
+        if layer_idx == 0:
+            for _ in range(3):
+                per_layer_prefix_ids.append(H * W *
+                                            3)
+            previous_layer_prefix = H * W * 3
+        elif layer_idx < len(batch_anchors) - 1:
+            for _ in range(3):
+                cur_layer_prefix = H * W * 3
+                per_layer_prefix_ids.append(previous_layer_prefix +
+                                            cur_layer_prefix)
+            previous_layer_prefix = previous_layer_prefix + cur_layer_prefix
+    # print(feature_hw)
+    # print(per_layer_prefix_ids)
+
+    gt_9_boxes_ctr = torch.tensor([[1.2, 1.3], [3.5, 4.7]])
+    res = torch.floor(gt_9_boxes_ctr)
+    print(res)
 
     
     
