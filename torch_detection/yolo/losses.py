@@ -2,6 +2,7 @@ import os
 import sys
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from network_files.anchor import YoloV3Anchors
 
 BASE_DIR = os.path.dirname(
@@ -10,10 +11,10 @@ BASE_DIR = os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 sys.path.append(BASE_DIR)
 
-from torch_detection.utils.iou_methos import IoUMethod
+from torch_detection.utils.iou_methos import IoUMethod, IoUMethodSimple2Simple
 
 
-# yolov4的anchor分配机制和yolov3一致, V4和前两个有所不同
+# yolov4的anchor分配机制和yolov3一致, V5和前两个有所不同
 class YoloV4Loss(nn.Module):
     def __init__(self,
                  anchor_sizes=None,
@@ -46,7 +47,8 @@ class YoloV4Loss(nn.Module):
         self.cls_loss_weight = cls_loss_weight
         self.box_loss_iou_type = box_loss_iou_type
         self.iou_ignore_threshold = iou_ignore_threshold
-        self.iou_function = IoUMethod(iou_type=self.box_loss_iou_type)
+        # self.iou_function = IoUMethod(iou_type=self.box_loss_iou_type)
+        self.iou_function = IoUMethodSimple2Simple()
 
     def forward(self, preds, annotations):
         """
@@ -73,10 +75,32 @@ class YoloV4Loss(nn.Module):
         # batch_anchors shape is [[B, H, W, 3, 5], ...]
         batch_anchors = [
             torch.tensor(per_level_anchor).unsqueeze(0).repeat(
-                batch_size, 1, 1, 1, 1) for per_level_anchor in one_image_anchors
+                batch_size, 1, 1, 1, 1).to(device) for per_level_anchor in one_image_anchors
         ]
 
-        all_anchors, all_targets = self.get_batch_anchors_targets(batch_anchors, annotations)
+        all_preds, all_targets = self.get_batch_anchors_targets(obj_reg_cls_preds,
+                                                                  batch_anchors,
+                                                                  annotations)
+
+        # all_preds shape:[batch_size,anchor_nums,85]
+        # reg_preds format:[scaled_xmin,scaled_ymin,scaled_xmax,scaled_ymax]
+        # all_targets shape:[batch_size,anchor_nums,7]
+        # targets format:[obj_target,box_loss_scale,x_offset,y_offset,scaled_gt_w,scaled_gt_h,class_target]
+
+        conf_loss, reg_loss, cls_loss = self.compute_batch_loss(
+            all_preds, all_targets)
+
+        conf_loss = self.conf_loss_weight * conf_loss
+        reg_loss = self.box_loss_weight * reg_loss
+        cls_loss = self.cls_loss_weight * cls_loss
+
+        loss_dict = {
+            'conf_loss': conf_loss,
+            'reg_loss': reg_loss,
+            'cls_loss': cls_loss,
+        }
+
+        return loss_dict
 
     def get_batch_anchors_targets(self, obj_reg_cls_heads, batch_anchors, annotations):
         """
@@ -86,6 +110,8 @@ class YoloV4Loss(nn.Module):
                if one feature map shape is [w=3, h=5], this feature map anchor shape is [5, 3, 3, 5]
         :param annotations: [B,N,5]
         :return:
+            all_preds: [B, anchor_num, 85]
+            all_targets: [B, anchor_num, 7]
         """
         device = annotations.device
 
@@ -121,7 +147,7 @@ class YoloV4Loss(nn.Module):
                     per_layer_prefix_ids.append(H * W * self.per_level_num_anchors)
                 previous_layer_prefix = H * W * self.per_level_num_anchors
             # len(batch_anchors) - 1 = 3-1 = 2
-            if layer_idx == 1:
+            elif layer_idx < len(batch_anchors) - 1:
                 for _ in range(self.per_level_num_anchors):
                     cur_layer_prefix = H * W * self.per_level_num_anchors
                     per_layer_prefix_ids.append(previous_layer_prefix + cur_layer_prefix)
@@ -150,9 +176,10 @@ class YoloV4Loss(nn.Module):
             # per_level_targets shape is [B, H*W*self.per_level_num_anchors, 8]
             # 8: [obj_target, noobj_target, box_loss_scale,
             #       x_offset, y_offset, scaled_gt_w, scaled_gt_h, class_target]
-            per_level_targets = torch.cat((
-                per_level_obj_target, per_level_noobj_target, per_level_box_loss_scale,
-                per_level_reg_target, per_level_cls_target), dim=-1)
+
+            per_level_targets = torch.cat((per_level_obj_target, per_level_noobj_target,
+                                           per_level_box_loss_scale, per_level_reg_target,
+                                           per_level_cls_target), dim=-1)
 
             # per level anchor shape: [B, H*W*3, 5]
             # 5: [grids_x_idx, grids_y_idx, relative_anchor_w, relative_anchor_h, stride]
@@ -209,11 +236,122 @@ class YoloV4Loss(nn.Module):
                 # torch.floor向下取整到离它最近的整数
                 # 如[[3.5, 2.1]] -> [[3, 2]], 即中心点为[3.5, 2.1]的gt是属于[3, 2]这个gird cell的
                 gt_9_boxes_grid_xy = torch.floor(gt_9_boxes_ctr)
-                global_ids = ()
+                global_ids = ((gt_9_boxes_grid_xy[:, :, 1] * feature_hw[:, 1].unsqueeze(0) +
+                              gt_9_boxes_grid_xy[:, :, 0]) * self.per_level_num_anchors +
+                              grid_inside_ids.unsqueeze(0) + per_layer_prefix_ids.unsqueeze(0)).long()
 
                 # assign positive anchor which has max iou with a gt box
                 # [gt_num, 9, 2]
                 gt_9_boxes_scaled_wh = (gt_boxes[:, 2:] - gt_boxes[:, :2]
                                         ).unsqueeze(1) / all_strides.unsqueeze(0).unsqueeze(-1)
+                # gt_9_boxes_xymin = gt_9_boxes_ctr - gt_9_boxes_scaled_wh * 0.5
+                # gt_9_boxes_xymax = gt_9_boxes_ctr + gt_9_boxes_scaled_wh * 0.5
+                gt_9_boxes_xymin = -gt_9_boxes_scaled_wh * 0.5
+                gt_9_boxes_xymax = gt_9_boxes_scaled_wh * 0.5
+
+                # [gt_num, 9, 4]
+                gt_zero_ctr_9_boxes = torch.cat((gt_9_boxes_xymin, gt_9_boxes_xymax), dim=2)
+
+                # [1, 9, 2]
+                anchor_9_boxes_xymin = -anchor_sizes.unsqueeze(0) * 0.5
+                anchor_9_boxes_xymax = anchor_sizes.unsqueeze(0) * 0.5
+
+                # [1, 9, 4]
+                anchor_zero_ctr_9_boxes = torch.cat((anchor_9_boxes_xymin, anchor_9_boxes_xymax), dim=2)
+                positive_ious = self.iou_function(gt_zero_ctr_9_boxes,
+                                                  anchor_zero_ctr_9_boxes)
+                _, positive_anchor_idxs = positive_ious.max(dim=1)
+                positive_anchor_idxs_mask = F.one_hot(
+                    positive_anchor_idxs,
+                    num_classes=anchor_sizes.shape[0]).bool()
+                positive_global_ids = global_ids[positive_anchor_idxs_mask].long()
+
+                gt_9_boxes_scale = gt_9_boxes_scaled_wh / feature_hw.unsqueeze(0)
+                positive_gt_9_boxes_scale = gt_9_boxes_scale[positive_anchor_idxs_mask]
+
+                gt_9_scaled_boxes = gt_boxes.unsqueeze(1) / all_strides.unsqueeze(0).unsqueeze(-1)
+                positive_gt_9_scaled_boxes = gt_9_scaled_boxes[positive_anchor_idxs_mask]
+
+                # for positive anchor,assign obj target to 1(init value=0)
+                all_targets[img_idx, positive_global_ids, 0] = 1
+                # for positive anchor,assign noobj target to 0(init value=1)
+                all_targets[img_idx, positive_global_ids, 1] = 0
+                # for positive anchor,assign reg target:[box_loss_scale,scaled_xmin,scaled_ymin,scaled_xmax,scaled_ymax]
+                all_targets[img_idx, positive_global_ids, 2] = \
+                    2. - positive_gt_9_boxes_scale[:, 0] * positive_gt_9_boxes_scale[:, 1]
+                all_targets[img_idx, positive_global_ids, 3:7] = positive_gt_9_scaled_boxes
+                # for positive anchor,assign class target range from 1 to 80
+                all_targets[img_idx, positive_global_ids, 7] = gt_classes + 1
+
+                # assgin filter igonred anchors which ious>0.5 between anchor and gt boxes,set obj target value=-1(init=0,represent negative anchor)
+                pred_scaled_bboxes = all_preds[img_idx:img_idx + 1, :, 1:5]
+                gt_scaled_boxes = gt_boxes.unsqueeze(1) / all_anchors[img_idx, :, 4:5].unsqueeze(0)
+                filter_ious = self.iou_function(pred_scaled_bboxes,
+                                                gt_scaled_boxes,
+                                                iou_type='IoU',
+                                                box_type='xyxy')
+                filter_ious_max, _ = filter_ious.max(axis=0)
+                # for ignored anchor,assign noobj target to 0(init value=1)
+                all_targets[img_idx, filter_ious_max > self.iou_ignore_threshold, 1] = 0
 
         return all_anchors, all_targets
+
+    def compute_batch_loss(self, all_preds, all_targets):
+        """
+        compute batch loss,include conf loss(obj and noobj loss,bce loss)、reg loss(CIoU loss)、cls loss(bce loss)
+        all_preds:[batch_size,anchor_nums,85]
+        all_targets:[batch_size,anchor_nums,7]
+        """
+        device = all_targets.device
+        all_preds = all_preds.view(-1, all_preds.shape[-1])
+        all_targets = all_targets.view(-1, all_targets.shape[-1])
+
+        positive_anchors_num = all_targets[all_targets[:, 6] > 0].shape[0]
+        if positive_anchors_num == 0:
+            return torch.tensor(0.).to(device), torch.tensor(0.).to(
+                device), torch.tensor(0.).to(device)
+
+        conf_preds = all_preds[:, 0:1]
+        conf_targets = all_targets[:, 0:1]
+        reg_preds = all_preds[all_targets[:, 0] > 0][:, 1:5]
+        reg_targets = all_targets[all_targets[:, 0] > 0][:, 2:7]
+        cls_preds = all_preds[all_targets[:, 0] > 0][:, 5:]
+        cls_targets = all_targets[all_targets[:, 0] > 0][:, 7]
+
+        # compute conf loss(obj and noobj loss)
+        conf_preds = torch.clamp(conf_preds, min=1e-4, max=1. - 1e-4)
+        temp_loss = -(conf_targets * torch.log(conf_preds) +
+                      (1. - conf_targets) * torch.log(1. - conf_preds))
+        obj_mask, noobj_mask = all_targets[:, 0:1], all_targets[:, 1:2]
+        obj_sample_num = all_targets[all_targets[:, 0] > 0].shape[0]
+        obj_loss = (temp_loss * obj_mask).sum() / obj_sample_num
+        noobj_sample_num = all_targets[all_targets[:, 1] > 0].shape[0]
+        noobj_loss = (temp_loss * noobj_mask).sum() / noobj_sample_num
+        conf_loss = obj_loss + noobj_loss
+
+        # compute reg loss
+        box_loss_iou_type = 'EIoU' if self.box_loss_iou_type == 'Focal_EIoU' else self.box_loss_iou_type
+        ious = self.iou_function(reg_preds,
+                                 reg_targets[:, 1:5],
+                                 iou_type=box_loss_iou_type,
+                                 box_type='xyxy')
+        reg_loss = (1 - ious) * reg_targets[:, 0]
+        if self.box_loss_iou_type == 'Focal_EIoU':
+            gamma_ious = self.iou_function(reg_preds,
+                                           reg_targets[:, 1:5],
+                                           iou_type='IoU',
+                                           box_type='xyxy')
+            gamma_ious = torch.pow(gamma_ious, self.focal_eiou_gamma)
+            reg_loss = gamma_ious * reg_loss
+        reg_loss = reg_loss.mean()
+
+        # compute cls loss
+        cls_preds = torch.clamp(cls_preds, min=1e-4, max=1. - 1e-4)
+        cls_ground_truth = F.one_hot(cls_targets.long(),
+                                     num_classes=cls_preds.shape[1] + 1)
+        cls_ground_truth = (cls_ground_truth[:, 1:]).float()
+        cls_loss = -(cls_ground_truth * torch.log(cls_preds) +
+                     (1. - cls_ground_truth) * torch.log(1. - cls_preds))
+        cls_loss = cls_loss.mean()
+
+        return conf_loss, reg_loss, cls_loss

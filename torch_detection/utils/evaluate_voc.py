@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw
 import matplotlib.pylab as plt
 from custom_dataset import DataPrefetcher, collater
 from torch.utils.data import DataLoader
-from iou_method import IoUMethod, IoUMethodNumpy
+from iou_method import IoUMethod, IoUMethodNumpy, IoUMethodDemo
 
 
 def get_iou(bbox1, bbox2):
@@ -239,16 +239,19 @@ if __name__ == "__main__":
     gt_bboxes = torch.tensor([[6., 5., 17., 11.], [9., 8., 19., 15.]])
     pred_bbs = pred_bbs * 11.
     gt_bboxes = gt_bboxes * 11.
-    for gt_bbox in gt_bboxes:
-        ious = get_ious(pred_bbs, gt_bbox)
-        print(ious)
+    # for gt_bbox in gt_bboxes:
+    #     ious = get_ious(pred_bbs, gt_bbox)
+    #     print(ious)
 
-    iou_method = IoUMethod(iou_type='CIoU')
-    iou_method_np = IoUMethodNumpy(iou_type='CIoU')
+    iou_method = IoUMethod(iou_type='IoU')
+    iou_method_np = IoUMethodNumpy(iou_type='IoU')
+    iou_method_demo = IoUMethodDemo()
     res = iou_method(pred_bbs, gt_bboxes)
     res_np = iou_method_np(pred_bbs.numpy(), gt_bboxes.numpy())
+    res_demo = iou_method_demo(pred_bbs[:2], gt_bboxes)
     print(res)
     print(res_np)
+    print(res_demo)
 
     # pred_bbs_numpy = pred_bbs.numpy() * 11
     # gt_bboxes_numpy = gt_bboxes.numpy() * 11
