@@ -10,11 +10,9 @@ PytorchClassification/*.zip
 ML/dataset/
 */.idea/
 Re_id/dataset/
-data/
 torch_study/
 */*/runs/
 torch_detection/*/show_images/*
-*/*/*.png
 */*.log
 */*/*.log
 */*/*/*.log
