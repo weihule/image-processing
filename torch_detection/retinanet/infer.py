@@ -13,9 +13,8 @@ base_dir = os.path.dirname(
         os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(base_dir)
 from torch_detection.retinanet.retina_decode import RetinaNetDecoder
-from torch_detection.utils.custom_dataset import Normalize
 from network_files.retinanet_model import resnet50_retinanet
-from config import Config
+from study.torch_detection.utils.config import Config
 
 
 class InferResizer:

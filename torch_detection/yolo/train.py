@@ -1,18 +1,19 @@
 import os
 import sys
-import argparse
-import random
 import time
+import argparse
 import warnings
 import numpy as np
+import random
+
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from torch.cuda import amp
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
 
-from losses import RetinaLoss
-from retina_decode import RetinaNetDecoder
-from network_files.retinanet_model import resnet50_retinanet
+from losses import YoloV4Loss
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(
@@ -252,32 +253,3 @@ def main(logger, args):
     logger.info(
         f'finish training, total training time: {training_time:.2f} hours'
     )
-
-
-if __name__ == "__main__":
-    args = parse_args()
-    logger = get_logger(__name__, args.log)
-    main(logger=logger, args=args)
-
-
-    # range_loader = tqdm(range(10000))
-    # c = 0
-    # for i in range_loader:
-    #     c = i
-    #     time.sleep(0.01)
-    # range_loader.desc = f'this is {c}'
-
-    # flops, params = profile(model, inputs=(inputs[0],))
-    # flops, params = clever_format([flops, params], '%.3f')
-
-    # reti_decoder = RetinaNetDecoder(image_w=args.input_image_size, image_h=args.input_image_size)
-    #
-    # res = evaluate_coco(Config.val_dataset, model, reti_decoder)
-    # print(res)
-
-    # for inp in inputs:
-    #     pred_cls_heads, pred_reg_heads, pred_batch_anchors = model(inp)
-    #     for pred_cls_head, pred_reg_head, pred_batch_anchor in zip(
-    #             pred_cls_heads, pred_reg_heads, pred_batch_anchors
-    #     ):
-    #         print(pred_cls_head.shape, pred_reg_head.shape, pred_batch_anchor.shape)
