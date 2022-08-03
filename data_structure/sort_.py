@@ -6,10 +6,6 @@ import numpy as np
 "https://www.cnblogs.com/wuxinyan/p/8615127.html"
 "https://www.cnblogs.com/Mufasa/p/10527387.html"
 
-random.seed(0)
-arr = list(np.random.randint(1, 15, size=10))
-print(arr)
-
 def bubble(arr):
     for i in range(0, len(arr)-1):
         for j in range(0, len(arr)-i-1):
@@ -42,6 +38,9 @@ def insertion(arr):
 
 
 if __name__ == "__main__":
+    random.seed(0)
+    arr = list(np.random.randint(1, 15, size=10))
+    print(arr)
 
     # arr_new = bubble(arr)
     # arr_new = selection(arr)

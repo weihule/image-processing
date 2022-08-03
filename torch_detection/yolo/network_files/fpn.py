@@ -6,7 +6,10 @@ import torch
 import math
 import torch.nn.functional as F
 
-from darknet import ConvBnActBlock
+BASE_DIR = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(BASE_DIR)
+from torch_detection.yolo.network_files.darknet import ConvBnActBlock
 
 
 class YoloV3FPNHead(nn.Module):

@@ -6,12 +6,10 @@ import torch.nn.functional as F
 from network_files.anchor import YoloV3Anchors
 
 BASE_DIR = os.path.dirname(
-    os.path.dirname(
-        os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(BASE_DIR)
 
-from torch_detection.utils.iou_methos import IoUMethod, IoUMethodSimple2Simple
+from torch_detection.utils.iou_method import IoUMethod, IoUMethodSimple2Simple
 
 
 # yolov4的anchor分配机制和yolov3一致, V5和前两个有所不同
@@ -27,7 +25,7 @@ class YoloV4Loss(nn.Module):
                  box_loss_iou_type='CIoU',
                  iou_ignore_threshold=0.5):
         super(YoloV4Loss, self).__init__()
-        assert box_loss_iou_type in ['IoU, DIoU, CIoU'], 'Wrong IoU type'
+        assert box_loss_iou_type in ['IoU', 'DIoU', 'CIoU'], 'Wrong IoU type'
         if anchor_sizes is None:
             self.anchor_sizes = [[10, 13], [16, 30], [33, 23], [30, 61],
                                  [62, 45], [59, 119], [116, 90], [156, 198],

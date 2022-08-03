@@ -63,7 +63,7 @@ class CocoDetection(Dataset):
         return len(self.image_ids)
 
     def __getitem__(self, index):
-        if self.use_mosaic and random.uniform(0, 1.) < 0.5:
+        if self.use_mosaic and index % 2 == 0:
             x_ctr, y_ctr = [
                 int(random.uniform(self.resize * self.mosaic_center_range[0],
                                    self.resize * self.mosaic_center_range[1]))

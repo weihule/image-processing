@@ -4,8 +4,12 @@ import sys
 import torch
 import torch.nn as nn
 
-import darknet
-from fpn import YoloV3FPNHead
+BASE_DIR = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(BASE_DIR)
+
+from torch_detection.yolo.network_files import darknet
+from torch_detection.yolo.network_files.fpn import YoloV3FPNHead
 
 __all__ = [
     'darknet53_yolov3'

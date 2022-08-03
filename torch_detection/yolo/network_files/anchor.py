@@ -14,14 +14,22 @@ class YoloV3Anchors:
             self.anchor_sizes = [[10, 13], [16, 30], [33, 23], [30, 61],
                                  [62, 45], [59, 119], [116, 90], [156, 198],
                                  [373, 326]]
+        else:
+            self.anchor_sizes = anchor_sizes
         if strides is None:
             # 输出的三个预测特征层相对原始输入的比值
             # 如果输入是416*416
             # 输出的三个特征层是[B,52,52,3,85], [B,26,26,3,85], [B,13,13,3,85]
             self.strides = [8, 16, 32]
+        else:
+            self.strides = strides
+
         if per_level_num_anchors is None:
             self.per_level_num_anchors = 3
+        else:
+            self.per_level_num_anchors = per_level_num_anchors
 
+        print(self.anchor_sizes)
         self.anchor_sizes = np.array(self.anchor_sizes, dtype=np.float32)   # [9, 2]
         self.strides = np.array(self.strides, dtype=np.float32)
         self.per_level_anchor_sizes = self.anchor_sizes.reshape((3, 3, 2))

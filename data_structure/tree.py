@@ -1,5 +1,3 @@
-import os
-
 class TreeNode():
 	'''定义树节点'''
 	def __init__(self, data, left=None, right=None):
