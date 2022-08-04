@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from network_files.anchor import YoloV3Anchors
 
 BASE_DIR = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(BASE_DIR)
 
 from torch_detection.utils.iou_method import IoUMethod, IoUMethodSimple2Simple
@@ -51,7 +51,7 @@ class YoloV4Loss(nn.Module):
     def forward(self, preds, annotations):
         """
         compute obj loss, reg loss and cls loss in one batch
-        :param preds:
+        :param preds: [[B, H, W, 3, 85], ...]
         :param annotations: [B, N, 5]
         :return:
         """
@@ -61,11 +61,12 @@ class YoloV4Loss(nn.Module):
         # if input size:[B,3,416,416]
         # features shape:[[B, 255, 52, 52],[B, 255, 26, 26],[B, 255, 13, 13]]
         # obj_reg_cls_heads shape:[[B, 52, 52, 3, 85],[B, 26, 26, 3, 85],[B, 13, 13, 3, 85]]
-        # TODO: 这块需要查一下
+
         obj_reg_cls_preds = preds[0]
 
         # feature_size = [[w, h], ...]
-        feature_size = [[per_level_cls_head[2], per_level_cls_head[1]] for per_level_cls_head in obj_reg_cls_preds]
+        feature_size = [[per_level_cls_head.shape[2], per_level_cls_head.shape[1]] \
+                        for per_level_cls_head in obj_reg_cls_preds]
         # one_image_anchors shape: [[52, 52, 3, 5], [26, 26, 3, 5], [13, 13, 3, 5]]
         # 5: [grids_x_idx, grids_y_idx, relative_anchor_w, relative_anchor_h, stride] relative feature map
         one_image_anchors = self.anchors(feature_size)
@@ -77,13 +78,14 @@ class YoloV4Loss(nn.Module):
         ]
 
         all_preds, all_targets = self.get_batch_anchors_targets(obj_reg_cls_preds,
-                                                                  batch_anchors,
-                                                                  annotations)
+                                                                batch_anchors,
+                                                                annotations)
 
         # all_preds shape:[batch_size,anchor_nums,85]
         # reg_preds format:[scaled_xmin,scaled_ymin,scaled_xmax,scaled_ymax]
-        # all_targets shape:[batch_size,anchor_nums,7]
-        # targets format:[obj_target,box_loss_scale,x_offset,y_offset,scaled_gt_w,scaled_gt_h,class_target]
+        # all_targets shape:[batch_size,anchor_nums,8]
+        # targets format:[obj_target, noobj_target,
+        # box_loss_scale,x_offset,y_offset,scaled_gt_w,scaled_gt_h,class_target]
 
         conf_loss, reg_loss, cls_loss = self.compute_batch_loss(
             all_preds, all_targets)
@@ -130,7 +132,7 @@ class YoloV4Loss(nn.Module):
         grid_inside_ids = torch.tensor(grid_inside_ids).to(device)
 
         all_preds, all_anchors, all_targets = [], [], []
-        feature_hw = []     # 最终有9个元素, [[52,52], [52,52], ...]
+        feature_hw = []  # 最终有9个元素, [[52,52], [52,52], ...]
         per_layer_prefix_ids = [0, 0, 0]
         # 分别遍历一个batch中所有图片的三个层级feature map
         for layer_idx, (per_level_heads, per_level_anchors) in enumerate(zip(obj_reg_cls_heads, batch_anchors)):
@@ -186,32 +188,32 @@ class YoloV4Loss(nn.Module):
 
             # per_level_heads: [B, H*W*3, 85]
             per_level_heads = per_level_heads.view(
-                per_level_anchors.shape[0], -1, per_level_anchors.shape[-1])
-            per_level_obj_preds = per_level_heads[..., 0]
+                per_level_anchors.shape[0], -1, 85)
+            per_level_obj_preds = per_level_heads[..., 0:1]
             per_level_cls_preds = per_level_heads[..., 5:]
 
             # per_level_heads[..., 1:3] 是相对于某个cell的左上角偏移量, 所以加上per_level_anchors前两列得到中心点
             # per_level_anchors这里anchors里的数值已经相对feature map做了缩小,在anchor.py中
             # TODO: per_level_scaled_xy_ctr, per_level_scaled_wh 就是 bx, by, bw, bh
-            per_level_scaled_xy_ctr = per_level_heads[..., 1:3] + per_level_anchors[..., :2]    # [B, H*W*3, 2]
+            per_level_scaled_xy_ctr = per_level_heads[..., 1:3] + per_level_anchors[..., 0:2]  # [B, H*W*3, 2]
             per_level_scaled_wh = torch.exp(per_level_heads[..., 3:5]) * per_level_heads[..., 2:4]
 
             per_level_scaled_xymin = per_level_scaled_xy_ctr - per_level_scaled_wh * 0.5
             per_level_scaled_xymax = per_level_scaled_xy_ctr + per_level_scaled_wh * 0.5
 
-            # per reg preds shape: [B, H*W*3, 4]
-            # per reg preds format:[scaled_xmin,scaled_ymin,scaled_xmax,scaled_ymax]
+            # per_level_reg_heads shape: [B, H*W*3, 4]
+            # format:[scaled_xmin,scaled_ymin,scaled_xmax,scaled_ymax]
             per_level_reg_heads = torch.cat((per_level_scaled_xymin, per_level_scaled_xymax), dim=2)
 
             per_level_heads = torch.cat((per_level_obj_preds, per_level_reg_heads, per_level_cls_preds), dim=2)
 
-            all_preds.append(per_level_heads)       # [[B, H*W*3, 85], ...]
-            all_anchors.append(per_level_anchors)   # [[B, H*W*3, 5], ...]
-            all_targets.append(per_level_targets)   # [[B, H*W*3, 8], ...]
+            all_preds.append(per_level_heads)  # [[B, H*W*3, 85], ...]
+            all_anchors.append(per_level_anchors)  # [[B, H*W*3, 5], ...]
+            all_targets.append(per_level_targets)  # [[B, H*W*3, 8], ...]
 
-        all_preds = torch.cat(all_preds, dim=1)         # [B, H1*W1*3+H2*W2*3+H3*W3*3, 85]
-        all_anchors = torch.cat(all_anchors, dim=1)     # [B, H1*W1*3+H2*W2*3+H3*W3*3, 5]
-        all_targets = torch.cat(all_targets, dim=1)     # [B, H1*W1*3+H2*W2*3+H3*W3*3, 8]
+        all_preds = torch.cat(all_preds, dim=1)  # [B, H1*W1*3+H2*W2*3+H3*W3*3, 85]
+        all_anchors = torch.cat(all_anchors, dim=1)  # [B, H1*W1*3+H2*W2*3+H3*W3*3, 5]
+        all_targets = torch.cat(all_targets, dim=1)  # [B, H1*W1*3+H2*W2*3+H3*W3*3, 8]
         per_layer_prefix_ids = torch.tensor(per_layer_prefix_ids).to(device)
         feature_hw = torch.tensor(feature_hw).to(device)
 
@@ -229,13 +231,14 @@ class YoloV4Loss(nn.Module):
                 # gt_9_boxes_ctr: [gt_num, 2] -> [gt_num, 1, 2] -> [gt_num, 9, 2]
                 # all_strides: [9, ] -> [1, 9] -> [1, 9, 1]
                 gt_9_boxes_ctr = (
-                    (gt_boxes[:, :2] + gt_boxes[:, 2:]) * 0.5).unsqueeze(1) / all_strides.unsqueeze(0).unsqueeze(-1)
+                                         (gt_boxes[:, :2] + gt_boxes[:, 2:]) * 0.5).unsqueeze(
+                    1) / all_strides.unsqueeze(0).unsqueeze(-1)
 
                 # torch.floor向下取整到离它最近的整数
                 # 如[[3.5, 2.1]] -> [[3, 2]], 即中心点为[3.5, 2.1]的gt是属于[3, 2]这个gird cell的
                 gt_9_boxes_grid_xy = torch.floor(gt_9_boxes_ctr)
                 global_ids = ((gt_9_boxes_grid_xy[:, :, 1] * feature_hw[:, 1].unsqueeze(0) +
-                              gt_9_boxes_grid_xy[:, :, 0]) * self.per_level_num_anchors +
+                               gt_9_boxes_grid_xy[:, :, 0]) * self.per_level_num_anchors +
                               grid_inside_ids.unsqueeze(0) + per_layer_prefix_ids.unsqueeze(0)).long()
 
                 # assign positive anchor which has max iou with a gt box
@@ -281,7 +284,8 @@ class YoloV4Loss(nn.Module):
                 # for positive anchor,assign class target range from 1 to 80
                 all_targets[img_idx, positive_global_ids, 7] = gt_classes + 1
 
-                # assgin filter igonred anchors which ious>0.5 between anchor and gt boxes,set obj target value=-1(init=0,represent negative anchor)
+                # assgin filter igonred anchors which ious>0.5
+                # between anchor and gt boxes,set obj target value=-1(init=0,represent negative anchor)
                 pred_scaled_bboxes = all_preds[img_idx:img_idx + 1, :, 1:5]
                 gt_scaled_boxes = gt_boxes.unsqueeze(1) / all_anchors[img_idx, :, 4:5].unsqueeze(0)
                 filter_ious = self.iou_function(pred_scaled_bboxes,
@@ -292,17 +296,18 @@ class YoloV4Loss(nn.Module):
                 # for ignored anchor,assign noobj target to 0(init value=1)
                 all_targets[img_idx, filter_ious_max > self.iou_ignore_threshold, 1] = 0
 
-        return all_anchors, all_targets
+        return all_preds, all_targets
 
     def compute_batch_loss(self, all_preds, all_targets):
         """
         compute batch loss,include conf loss(obj and noobj loss,bce loss)、reg loss(CIoU loss)、cls loss(bce loss)
-        all_preds:[batch_size,anchor_nums,85]
-        all_targets:[batch_size,anchor_nums,7]
+        all_preds:[batch_size, anchor_nums, 85]
+        all_targets:[batch_size, anchor_nums, 8]
+        8 format: obj, noobj, box_loss_scale, x_offset, y_offset, scaled_gt_w, scaled_gt_h, class_target
         """
         device = all_targets.device
-        all_preds = all_preds.view(-1, all_preds.shape[-1])
-        all_targets = all_targets.view(-1, all_targets.shape[-1])
+        all_preds = all_preds.view(-1, all_preds.shape[-1])     # [B*anchor_nums, 85]
+        all_targets = all_targets.view(-1, all_targets.shape[-1])    # [B*anchor_nums, 7]
 
         positive_anchors_num = all_targets[all_targets[:, 6] > 0].shape[0]
         if positive_anchors_num == 0:
@@ -311,8 +316,10 @@ class YoloV4Loss(nn.Module):
 
         conf_preds = all_preds[:, 0:1]
         conf_targets = all_targets[:, 0:1]
+
         reg_preds = all_preds[all_targets[:, 0] > 0][:, 1:5]
         reg_targets = all_targets[all_targets[:, 0] > 0][:, 2:7]
+
         cls_preds = all_preds[all_targets[:, 0] > 0][:, 5:]
         cls_targets = all_targets[all_targets[:, 0] > 0][:, 7]
 

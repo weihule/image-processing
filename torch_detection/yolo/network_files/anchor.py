@@ -29,7 +29,6 @@ class YoloV3Anchors:
         else:
             self.per_level_num_anchors = per_level_num_anchors
 
-        print(self.anchor_sizes)
         self.anchor_sizes = np.array(self.anchor_sizes, dtype=np.float32)   # [9, 2]
         self.strides = np.array(self.strides, dtype=np.float32)
         self.per_level_anchor_sizes = self.anchor_sizes.reshape((3, 3, 2))

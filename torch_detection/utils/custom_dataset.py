@@ -71,7 +71,7 @@ class CocoDetection(Dataset):
             ]
             # all 4 image indices
             imgs_indices = [index] + [
-                random.randint(0, len(self.image_ids)) for _ in range(3)
+                random.randint(0, len(self.image_ids)-1) for _ in range(3)
             ]
 
             annot = []
@@ -650,6 +650,8 @@ class MultiScaleCollater():
         self.resize = resize
         if multi_scale_range is None:
             self.multi_scale_range = [0.5, 1.5]
+        else:
+            self.multi_scale_range = multi_scale_range
         self.stride = stride
         self.use_multi_scale = use_multi_scale
         self.mean = torch.tensor([[[[0.471, 0.448, 0.408]]]], dtype=torch.float32)

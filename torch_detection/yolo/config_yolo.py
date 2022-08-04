@@ -35,7 +35,7 @@ class Config:
     pre_trained = True
     num_classes = 20
     seed = 0
-    input_image_size = 400
+    input_image_size = 416
 
     data_transform = {
         'train': transforms.Compose([
@@ -57,8 +57,6 @@ class Config:
                                 use_mosaic=False,
                                 set_name='val2017')
 
-    collater = MultiScaleCollater(use_multi_scale=True)
-
     # voc_root_dir = '/data/weihule/data/dl/VOCdataset'
     # if not os.path.exists(voc_root_dir):
     #     voc_root_dir = '/ssd/weihule/data/dl/VOCdataset'
@@ -68,11 +66,14 @@ class Config:
     #                            image_sets=[('2007', 'test')],
     #                            transform=data_transform['val'])
 
-    epochs = 100
+    epochs = 10
     batch_size = 64
     lr = 0.0001
-    lrf = 0.001
+    lrf = 0.0001
     num_workers = 4
-    print_interval = 100
+    print_interval = 50
     apex = True
+
+    collater = MultiScaleCollater(resize=input_image_size,
+                                  use_multi_scale=True)
 

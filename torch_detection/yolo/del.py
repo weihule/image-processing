@@ -15,6 +15,15 @@ def test():
     print(mesh_shifts_x, mesh_shifts_x.shape)
 
 
+def test_return():
+    obj_reg_cls_heads = []
+    obj_reg_cls_heads.append(torch.randn((3, 4)))
+    obj_reg_cls_heads.append(torch.randn((3, 4)))
+    obj_reg_cls_heads.append(torch.randn((3, 4)))
+
+    return [obj_reg_cls_heads]
+
+
 if __name__ == "__main__":
     # x = np.arange(0, 5)
     # y = np.arange(0, 4)
@@ -95,6 +104,17 @@ if __name__ == "__main__":
                 per_layer_prefix_ids.append(previous_layer_prefix +
                                             cur_layer_prefix)
             previous_layer_prefix = previous_layer_prefix + cur_layer_prefix
-    print(feature_hw)
-    print(per_layer_prefix_ids)
+    # print(feature_hw)
+    # print(per_layer_prefix_ids)
+
+    # res = test_return()
+    # print(type(res), len(res))
+
+    arr1 = torch.randn((3, 4, 4))
+    arr2 = torch.randn((3, 4, 2))
+    arrs = torch.cat((arr1, arr2), dim=2)
+    sub1 = arr1[..., :2]
+    sub2 = arr1[..., 0:1]
+    print(arrs.shape)
+    print(sub1.shape, sub2.shape)
     
