@@ -58,6 +58,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, C
                     continue
 
             # 反向传播在autocast上下文之外
+            optimizer.zero_grad()
             scaler.scale(losses).backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             scaler.step(optimizer)

@@ -1,5 +1,7 @@
 import os
 import sys
+
+import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -57,7 +59,7 @@ class YoloV3Anchors:
         """
         生成每个特征层上的anchors
         :param per_level_anchors: [3, 2] 九组预设anchor中的三个
-        :param feature_map_size: 输出的预测特征图[h, w]
+        :param feature_map_size: 输出的预测特征图[w, h]
         :param stride: [8, 16, 32]的其中一个
         :return:
         """
@@ -99,11 +101,26 @@ class YoloV3Anchors:
 
 
 if __name__ == "__main__":
-    feature_sizes = np.array([[10, 10], [6, 6], [3, 5]])
+    feature_sizes = np.array([[52, 52], [26, 26], [13, 13]])
     yolo_anchor = YoloV3Anchors()
     one_image_anchors = yolo_anchor(feature_sizes)
     print(len(one_image_anchors))
-    # for p in one_image_anchors:
-    #     print(p)
+
+    from PIL import Image, ImageDraw
+    img = Image.new('RGB', (520, 520), (255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    for idx, p in enumerate(one_image_anchors):
+        if idx == 0:
+            per_layer_bboxes = np.reshape(p, (-1, 5))
+            temp = per_layer_bboxes[:, :4]
+            for bbox_idx, bbox in enumerate(temp):
+                bbox[2], bbox[3] = bbox[0] + bbox[2], bbox[1] + bbox[3]
+                bbox = bbox * 10
+                print(bbox)
+                # draw.rectangle((0, 0, 10, 10), outline=(0, 255, 0), width=1)
+                draw.rectangle(bbox.tolist(), outline=(0, 255, 0), width=1)
+                if bbox_idx == 2:
+                    break
+    img.save('anchor.png')
 
 

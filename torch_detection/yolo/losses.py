@@ -111,7 +111,7 @@ class YoloV4Loss(nn.Module):
         :param annotations: [B,N,5]
         :return:
             all_preds: [B, anchor_num, 85]
-            all_targets: [B, anchor_num, 7]
+            all_targets: [B, anchor_num, 8]
         """
         device = annotations.device
 
@@ -136,6 +136,7 @@ class YoloV4Loss(nn.Module):
         per_layer_prefix_ids = [0, 0, 0]
         # 分别遍历一个batch中所有图片的三个层级feature map
         for layer_idx, (per_level_heads, per_level_anchors) in enumerate(zip(obj_reg_cls_heads, batch_anchors)):
+            # 这里 per_level_anchors 已经相对每个feature map做了缩小
             B, H, W, _, _ = per_level_anchors.shape
             for _ in range(self.per_level_num_anchors):
                 feature_hw.append([H, W])
@@ -196,7 +197,7 @@ class YoloV4Loss(nn.Module):
             # per_level_anchors这里anchors里的数值已经相对feature map做了缩小,在anchor.py中
             # TODO: per_level_scaled_xy_ctr, per_level_scaled_wh 就是 bx, by, bw, bh
             per_level_scaled_xy_ctr = per_level_heads[..., 1:3] + per_level_anchors[..., 0:2]  # [B, H*W*3, 2]
-            per_level_scaled_wh = torch.exp(per_level_heads[..., 3:5]) * per_level_heads[..., 2:4]
+            per_level_scaled_wh = torch.exp(per_level_heads[..., 3:5]) * per_level_anchors[..., 2:4]
 
             per_level_scaled_xymin = per_level_scaled_xy_ctr - per_level_scaled_wh * 0.5
             per_level_scaled_xymax = per_level_scaled_xy_ctr + per_level_scaled_wh * 0.5
@@ -207,9 +208,9 @@ class YoloV4Loss(nn.Module):
 
             per_level_heads = torch.cat((per_level_obj_preds, per_level_reg_heads, per_level_cls_preds), dim=2)
 
-            all_preds.append(per_level_heads)  # [[B, H*W*3, 85], ...]
-            all_anchors.append(per_level_anchors)  # [[B, H*W*3, 5], ...]
-            all_targets.append(per_level_targets)  # [[B, H*W*3, 8], ...]
+            all_preds.append(per_level_heads)  # [[B, H1*W1*3, 85], ...]
+            all_anchors.append(per_level_anchors)  # [[B, H1*W1*3, 5], ...]
+            all_targets.append(per_level_targets)  # [[B, H1*W1*3, 8], ...]
 
         all_preds = torch.cat(all_preds, dim=1)  # [B, H1*W1*3+H2*W2*3+H3*W3*3, 85]
         all_anchors = torch.cat(all_anchors, dim=1)  # [B, H1*W1*3+H2*W2*3+H3*W3*3, 5]
@@ -230,6 +231,9 @@ class YoloV4Loss(nn.Module):
                 # for 9 anchor of each gt boxes, compute anchor global idx
                 # gt_9_boxes_ctr: [gt_num, 2] -> [gt_num, 1, 2] -> [gt_num, 9, 2]
                 # all_strides: [9, ] -> [1, 9] -> [1, 9, 1]
+                # 这里9的意思是，有三个feature map,每个feature的每个cell有三个anchor,
+                # 这三个anchor的左上坐标(cell的左上坐标)是一样的, 所以是9
+                # 即前三个是一个feature map上的，中间三个是第二个feature map上的，后三个是第三个feature map上的
                 gt_9_boxes_ctr = (
                                          (gt_boxes[:, :2] + gt_boxes[:, 2:]) * 0.5).unsqueeze(
                     1) / all_strides.unsqueeze(0).unsqueeze(-1)
@@ -237,6 +241,10 @@ class YoloV4Loss(nn.Module):
                 # torch.floor向下取整到离它最近的整数
                 # 如[[3.5, 2.1]] -> [[3, 2]], 即中心点为[3.5, 2.1]的gt是属于[3, 2]这个gird cell的
                 gt_9_boxes_grid_xy = torch.floor(gt_9_boxes_ctr)
+                # gt_9_boxes_grid_xy[:, :, 1] shape is [anchor_num, 9]
+
+                # 这里应该是计算, gt映射在三个feature map上, 负责预测这些gt的anchor的索引
+                # anchor总数是 (h1*w1*3 + ...)
                 global_ids = ((gt_9_boxes_grid_xy[:, :, 1] * feature_hw[:, 1].unsqueeze(0) +
                                gt_9_boxes_grid_xy[:, :, 0]) * self.per_level_num_anchors +
                               grid_inside_ids.unsqueeze(0) + per_layer_prefix_ids.unsqueeze(0)).long()

@@ -2,6 +2,7 @@ import os
 import numpy as np
 import cv2
 from PIL import Image, ImageDraw, ImageFont
+import matplotlib.pyplot as plt
 import json
 from tqdm import tqdm
 import time
@@ -194,6 +195,34 @@ def test_coco_api():
     print(coco_annotations[0])
 
 
+class ShowSigma:
+    def __init__(self, x):
+        self.x = x
+
+    def sigma_fuc(self):
+        y = 1 / (1 + np.power(np.e, -self.x))
+        return y
+
+    def sigma_variant_func(self):
+        y = 2 / (1 + np.power(np.e, -self.x)) - 0.5
+        return y
+
+    def visualize(self):
+        sigma_y = self.sigma_fuc()
+        sigma_variant_y = self.sigma_variant_func()
+
+        plt.figure(figsize=(10, 10))
+        line1, = plt.plot(x, sigma_y, 'r-')
+        line2, = plt.plot(x, sigma_variant_y, 'g--')
+        plt.legend(handles=[line1, line2], labels=["sigma", "scale"], loc="best", fontsize=12)
+        plt.savefig('test.png')
+
+
 if __name__ == "__main__":
-    test_make_grid()
+    # test_make_grid()
     # test_coco_api()
+
+    x = np.arange(-10, 10, 0.5)
+    print(x)
+    ss = ShowSigma(x)
+    ss.visualize()

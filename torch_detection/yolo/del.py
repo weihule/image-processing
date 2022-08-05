@@ -82,39 +82,139 @@ if __name__ == "__main__":
     new_gt_boxes = ((gt_boxes[:, :2] + gt_boxes[:, 2:]) / 2).unsqueeze(1)
     # print(new_gt_boxes, new_gt_boxes.shape)
 
-    batch_anchors = [torch.randn(4, 10, 10, 3, 5), torch.randn(4, 8, 6, 3, 5), torch.randn(4, 4, 3, 3, 5)]
-    obj_reg_cls_heads = [torch.randn(4, 10, 10, 3, 85), torch.randn(4, 8, 6, 3, 85), torch.randn(4, 4, 3, 3, 85)]
-    feature_hw = []
-    per_layer_prefix_ids = [0, 0, 0]
+    # batch_anchors = [torch.randn(4, 10, 10, 3, 5), torch.randn(4, 8, 6, 3, 5), torch.randn(4, 4, 3, 3, 5)]
+    # obj_reg_cls_heads = [torch.randn(4, 10, 10, 3, 85), torch.randn(4, 8, 6, 3, 85), torch.randn(4, 4, 3, 3, 85)]
+    # feature_hw = []
+    # per_layer_prefix_ids = [0, 0, 0]
 
-    previous_layer_prefix, cur_layer_prefix = 0, 0
-    for layer_idx, (per_level_heads, per_level_anchors) in enumerate(
-            zip(obj_reg_cls_heads, batch_anchors)):
-        B, H, W, _, _ = per_level_anchors.shape
+    # previous_layer_prefix, cur_layer_prefix = 0, 0
+    # for layer_idx, (per_level_heads, per_level_anchors) in enumerate(
+    #         zip(obj_reg_cls_heads, batch_anchors)):
+    #     B, H, W, _, _ = per_level_anchors.shape
 
-        for _ in range(3):
-            feature_hw.append([H, W])
-        if layer_idx == 0:
-            for _ in range(3):
-                per_layer_prefix_ids.append(H * W * 3)
-            previous_layer_prefix = H * W * 3
-        elif layer_idx < len(batch_anchors) - 1:
-            for _ in range(3):
-                cur_layer_prefix = H * W * 3
-                per_layer_prefix_ids.append(previous_layer_prefix +
-                                            cur_layer_prefix)
-            previous_layer_prefix = previous_layer_prefix + cur_layer_prefix
+    #     for _ in range(3):
+    #         feature_hw.append([H, W])
+    #     if layer_idx == 0:
+    #         for _ in range(3):
+    #             per_layer_prefix_ids.append(H * W * 3)
+    #         previous_layer_prefix = H * W * 3
+    #     elif layer_idx < len(batch_anchors) - 1:
+    #         for _ in range(3):
+    #             cur_layer_prefix = H * W * 3
+    #             per_layer_prefix_ids.append(previous_layer_prefix +
+    #                                         cur_layer_prefix)
+    #         previous_layer_prefix = previous_layer_prefix + cur_layer_prefix
     # print(feature_hw)
     # print(per_layer_prefix_ids)
 
     # res = test_return()
     # print(type(res), len(res))
 
-    arr1 = torch.randn((3, 4, 4))
-    arr2 = torch.randn((3, 4, 2))
-    arrs = torch.cat((arr1, arr2), dim=2)
-    sub1 = arr1[..., :2]
-    sub2 = arr1[..., 0:1]
-    print(arrs.shape)
-    print(sub1.shape, sub2.shape)
+    gt_9_boxes_grid_xy = torch.tensor([[[65., 48.],
+         [65., 48.],
+         [65., 48.],
+         [32., 24.],
+         [32., 24.],
+         [32., 24.],
+         [16., 12.],
+         [16., 12.],
+         [16., 12.]],
+
+        [[75., 46.],
+         [75., 46.],
+         [75., 46.],
+         [37., 23.],
+         [37., 23.],
+         [37., 23.],
+         [18., 11.],
+         [18., 11.],
+         [18., 11.]],
+
+        [[72., 46.],
+         [72., 46.],
+         [72., 46.],
+         [36., 23.],
+         [36., 23.],
+         [36., 23.],
+         [18., 11.],
+         [18., 11.],
+         [18., 11.]],
+
+        [[79., 46.],
+         [79., 46.],
+         [79., 46.],
+         [39., 23.],
+         [39., 23.],
+         [39., 23.],
+         [19., 11.],
+         [19., 11.],
+         [19., 11.]],
+
+        [[ 9., 52.],
+         [ 9., 52.],
+         [ 9., 52.],
+         [ 4., 26.],
+         [ 4., 26.],
+         [ 4., 26.],
+         [ 2., 13.],
+         [ 2., 13.],
+         [ 2., 13.]],
+
+        [[23., 47.],
+         [23., 47.],
+         [23., 47.],
+         [11., 23.],
+         [11., 23.],
+         [11., 23.],
+         [ 5., 11.],
+         [ 5., 11.],
+         [ 5., 11.]],
+
+        [[37., 40.],
+         [37., 40.],
+         [37., 40.],
+         [18., 20.],
+         [18., 20.],
+         [18., 20.],
+         [ 9., 10.],
+         [ 9., 10.],
+         [ 9., 10.]],
+
+        [[62., 78.],
+         [62., 78.],
+         [62., 78.],
+         [31., 39.],
+         [31., 39.],
+         [31., 39.],
+         [15., 19.],
+         [15., 19.],
+         [15., 19.]],
+
+        [[34., 71.],
+         [34., 71.],
+         [34., 71.],
+         [17., 35.],
+         [17., 35.],
+         [17., 35.],
+         [ 8., 17.],
+         [ 8., 17.],
+         [ 8., 17.]]])
+
+    feature_hw = torch.tensor([[80, 80], [80, 80], [80, 80],
+                               [40, 40], [40, 40], [40, 40],
+                               [20, 20], [20, 20], [20, 20]])
+
+    per_level_num_anchors = 3
+
+    grid_inside_ids = torch.tensor([0, 1, 2, 0, 1, 2, 0, 1, 2])
+    per_layer_prefix_ids = torch.tensor([0, 0, 0, 19200, 19200, 19200, 4800, 4800, 4800])
+
+    print(grid_inside_ids.unsqueeze(0).shape)
+
+
+    global_ids = ((gt_9_boxes_grid_xy[:, :, 1] * feature_hw[:, 1].unsqueeze(0) +
+                gt_9_boxes_grid_xy[:, :, 0]) * per_level_num_anchors +
+                grid_inside_ids.unsqueeze(0) + per_layer_prefix_ids.unsqueeze(0)).long()
+
+    print(global_ids)
     
