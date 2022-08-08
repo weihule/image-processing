@@ -452,12 +452,15 @@ def init_pretrained_weights(model, key=''):
         ENV_TORCH_HOME = 'TORCH_HOME'
         ENV_XDG_CACHE_HOME = 'XDG_CACHE_HOME'
         # DEFAULT_CACHE_DIR = '~/.cache'
-        DEFAULT_CACHE_DIR = 'D:\\workspace\\data\\weights\\reid'
+        DEFAULT_CACHE_DIR = 'D:\\workspace\\data\\weights\\reid\\'
+        if not os.path.exists(DEFAULT_CACHE_DIR):
+            DEFAULT_CACHE_DIR = '/workshop/weihule/data/weights/osnet'
         torch_home = os.path.expanduser(
             os.getenv(
                 ENV_TORCH_HOME,
                 os.path.join(
-                    os.getenv(ENV_XDG_CACHE_HOME, DEFAULT_CACHE_DIR), 'torch'
+                    # os.getenv(ENV_XDG_CACHE_HOME, DEFAULT_CACHE_DIR), 'torch'
+                    os.getenv(ENV_XDG_CACHE_HOME, DEFAULT_CACHE_DIR)
                 )
             )
         )
@@ -487,7 +490,7 @@ def init_pretrained_weights(model, key=''):
 
     for k, v in state_dict.items():
         if k.startswith('module.'):
-            k = k[7:] # discard module.
+            k = k[7:]   # discard module.
 
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v

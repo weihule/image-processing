@@ -3,6 +3,7 @@ import sys
 import logging
 from logging import handlers
 import torch
+import torch.nn.functional as F
 
 
 def get_logger(name, log_dir):
@@ -50,8 +51,78 @@ def load_state_dict(saved_model_path, model, excluded_layer_name=()):
 
     return
 
+def custom_cross_entropy(input_data, target, num_class, use_custom=True):
+    """
+    :param use_custom: bool
+    :param input_data: [N, num_class]
+    :param target: [N]
+    :param num_class: int
+    :return:
+    """
+    if use_custom:
+        one_hot = F.one_hot(target, num_classes=num_class).float()  # [N, num_class]
+        custom_softmax = torch.exp(input_data) / torch.sum(torch.exp(input_data), dim=1).reshape((-1, 1))
+        losses = -torch.sum(one_hot * torch.log(custom_softmax)) / input_data.shape[0]
+    else:
+        # 1
+        # log_soft = F.log_softmax(input_data, dim=1)
+        # losses = F.nll_loss(log_soft, target)
+
+        # 2
+        losses = F.cross_entropy(input_data, target)
+
+    return losses
+
+
+def custom_bce(input_data, target, num_class, use_custom=True):
+    one_hot_target = F.one_hot(target, num_classes=num_class).float()
+
+    if use_custom:
+        print(input_data)
+        print(one_hot_target)
+        losses = -one_hot_target * torch.log(torch.sigmoid(input_data)) \
+                 - (1 - one_hot_target) * (torch.log(1 - torch.sigmoid(input_data)))
+        losses = losses.mean()
+    else:
+        # losses = F.binary_cross_entropy(input_data, one_hot_target)
+        losses = F.binary_cross_entropy_with_logits(input_data, one_hot_target)
+
+    return losses
+
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO,
-                        format='%(asctime)s %(levelname)s %(message)s')
-    logging.info('this is a info')
+    # logging.basicConfig(level=logging.INFO,
+    #                     format='%(asctime)s %(levelname)s %(message)s')
+    # logging.info('this is a info')
+
+    inputs = torch.rand((3, 4))
+    labels = torch.tensor([0, 2, 3])
+    custom_ce_loss = custom_cross_entropy(input_data=inputs,
+                                          target=labels,
+                                          num_class=4,
+                                          use_custom=True)
+    offical_ce_loss = custom_cross_entropy(input_data=inputs,
+                                           target=labels,
+                                           num_class=4,
+                                           use_custom=False)
+    
+    # print(custom_ce_loss, offical_ce_loss)
+    # inputs = torch.tensor([[0.9893, 0.4266, 0.7232, 0.5329],
+    #                       [0.8937, 0.9865, 0.8116, 0.4274],
+    #                       [0.6525, 0.1494, 0.6610, 0.6263]])
+
+    # inputs = torch.tensor([[0.9893, 0.1023, 0.0987, 0.0777],
+    #                       [0.1023, 0.0987, 0.9654, 0.1098],
+    #                       [0.9999, 0.0078, 0.0976, 0.9999]])
+
+    custom_bce_loss = custom_bce(input_data=inputs,
+                                 target=labels,
+                                 num_class=4,
+                                 use_custom=True)
+    offical_bce_loss = custom_bce(input_data=inputs,
+                                 target=labels,
+                                 num_class=4,
+                                 use_custom=False)
+    print(custom_bce_loss, offical_bce_loss)
+
+    

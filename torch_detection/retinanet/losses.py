@@ -145,42 +145,6 @@ def get_batch_anchors_annotations(batch_anchors, annotations):
     return batch_anchors_annotations
 
 
-def custom_cross_entropy(input_data, target, num_class, use_custom=True):
-    """
-    :param use_custom: bool
-    :param input_data: [N, num_class]
-    :param target: [N]
-    :param num_class: int
-    :return:
-    """
-    if use_custom:
-        one_hot = F.one_hot(target, num_classes=num_class).float()  # [N, num_class]
-        custom_softmax = torch.exp(input_data) / torch.sum(torch.exp(input_data), dim=1).reshape((-1, 1))
-        losses = -torch.sum(one_hot * torch.log(custom_softmax)) / input_data.shape[0]
-    else:
-        log_soft = F.log_softmax(input_data, dim=1)
-        losses = F.nll_loss(log_soft, target)
-
-    return losses
-
-
-def custom_bce(input_data, target, use_custom=True):
-    one_hot_target = F.one_hot(target, num_classes=2).float()
-
-    if use_custom:
-        losses = -one_hot_target * torch.log(torch.sigmoid(input_data)) \
-                 - (1 - one_hot_target) * (torch.log(1 - torch.sigmoid(input_data)))
-        # print(1-one_hot_target)
-        # print(1-torch.log(input_data))
-        # print(losses1, losses2)
-        losses = torch.sum(losses) / (2 * input_data.shape[0])
-    else:
-        # losses = F.binary_cross_entropy(input_data, one_hot_target)
-        losses = F.binary_cross_entropy_with_logits(input_data, one_hot_target)
-
-    return losses
-
-
 def drop_out_border_anchors_and_heads(cls_heads, reg_heads,
                                       batch_anchors, image_w, image_h):
     """

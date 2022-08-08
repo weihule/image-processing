@@ -7,6 +7,7 @@ import json
 from tqdm import tqdm
 import time
 
+import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.utils import make_grid
@@ -37,40 +38,41 @@ def test_make_grid():
     }
 
     # -----------------------------------
-    # voc_root_dir = '/data/weihule/data/dl/VOCdataset'
-    # if not os.path.exists(voc_root_dir):
-    #     voc_root_dir = '/ssd/weihule/data/dl/VOCdataset'
-    # train_dataset = VocDetection(root_dir=voc_root_dir,
-    #                              transform=data_transform['train'])
-    # val_dataset = VocDetection(root_dir=voc_root_dir,
-    #                            image_sets=[('2007', 'test')],
-    #                            transform=data_transform['val'])
+    voc_root_dir = '/data/weihule/data/dl/VOCdataset'
+    if not os.path.exists(voc_root_dir):
+        voc_root_dir = '/ssd/weihule/data/dl/VOCdataset'
+    dataset = VocDetection(root_dir=voc_root_dir,
+                           transform=data_transform['train'])
     # -----------------------------------
 
     # -----------------------------------
-    data_set_root1 = '/nfs/home57/weihule/data/dl/COCO2017'
-    data_set_root2 = '/workshop/weihule/data/dl/COCO2017'
-    data_set_root3 = 'D:\\workspace\\data\\dl\\COCO2017'
-    data_set_roots = [data_set_root1, data_set_root2, data_set_root3]
-    data_set_root = ''
-    for p in data_set_roots:
-        if os.path.exists(p):
-            data_set_root = p
-            break
-
-    dataset_path = os.path.join(data_set_root, 'images', 'train2017')
-    dataset_annot_path = os.path.join(data_set_root, 'annotations')
-    dataset = CocoDetection(image_root_dir=dataset_path,
-                            annotation_root_dir=dataset_annot_path,
-                            set_name='train2017',
-                            use_mosaic=True,
-                            transform=data_transform['train'])
+    # data_set_root1 = '/nfs/home57/weihule/data/dl/COCO2017'
+    # data_set_root2 = '/workshop/weihule/data/dl/COCO2017'
+    # data_set_root3 = 'D:\\workspace\\data\\dl\\COCO2017'
+    # data_set_roots = [data_set_root1, data_set_root2, data_set_root3]
+    # data_set_root = ''
+    # for p in data_set_roots:
+    #     if os.path.exists(p):
+    #         data_set_root = p
+    #         break
+    #
+    # dataset_path = os.path.join(data_set_root, 'images', 'train2017')
+    # dataset_annot_path = os.path.join(data_set_root, 'annotations')
+    # dataset = CocoDetection(image_root_dir=dataset_path,
+    #                         annotation_root_dir=dataset_annot_path,
+    #                         set_name='train2017',
+    #                         use_mosaic=True,
+    #                         transform=data_transform['train'])
     # -----------------------------------
+    # VOC
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
 
-    # detec_collater = DetectionCollater()
-    detec_collater = MultiScaleCollater(resize=416,
+    detec_collater = MultiScaleCollater(mean=mean,
+                                        std=std,
+                                        resize=400,
                                         stride=32,
-                                        use_multi_scale=True)
+                                        use_multi_scale=False)
     data_loader = DataLoader(dataset,
                              batch_size=16,
                              shuffle=True,
@@ -78,59 +80,51 @@ def test_make_grid():
                              prefetch_factor=2,
                              pin_memory=True,
                              collate_fn=detec_collater)
-    mean = np.array([[[0.471, 0.448, 0.408]]])
-    std = np.array([[[0.234, 0.239, 0.242]]])
+    # COCO
+    # mean = torch.tensor([[[[0.471, 0.448, 0.408]]]], dtype=torch.float32)
+    # std = torch.tensor([[[[0.234, 0.239, 0.242]]]], dtype=torch.float32)
+
     # datas是一个dict, key就是定义的三个key, 对应的value已经打了batch
     # datas = next(iter(val_loader))
     # batch_annots = datas['annot']
     # batch_images = datas['img']
 
-    # pre_fetcher = DataPrefetcher(val_loader)
-    # images, annotations = pre_fetcher.next()
-    # index = 0
-    # while images is not None:
-    #     index += 1
-    #     print(index)
-    #     images, annotations = pre_fetcher.next()
-
-    # for datas in tqdm(val_loader):
-    #     batch_annots, batch_images, batch_scales = datas['annot'], datas['img'], datas['scale']
-    #     print(batch_images.shape, batch_annots.shape)
-    #
-    # run_time = time.time() - start_time
-    # print('run_time = ', run_time)
-
     # -----------------------------------
-    # file_path = '/nfs/home57/weihule/code/study/torch_detection/utils/pascal_voc_classes.json'
+    file_path = 'pascal_voc_classes.json'
     # if not os.path.exists(file_path):
     #     file_path = '/workshop/weihule/code/study/torch_detection/utils/pascal_voc_classes.json'
-    # with open(file_path, 'r', encoding='utf-8') as fr:
-    #     infos = json.load(fr)
-    #     category_name_to_voc_lable = infos['classes']
-    #     voc_colors = infos['colors']
-    # voc_lable_to_category_id = {v: k for k, v in category_name_to_voc_lable.items()}
-    # -----------------------------------
-
-    file_path = 'coco_classes.json'
-    if not os.path.exists(file_path):
-        file_path = '/workshop/weihule/code/study/torch_detection/utils/coco_classes.json'
     with open(file_path, 'r', encoding='utf-8') as fr:
         infos = json.load(fr)
-        category_name_to_coco_lable = infos['COCO_CLASSES']
+        category_name_to_voc_lable = infos['classes']
         voc_colors = infos['colors']
-    coco_lable_to_category_id = {v: k for k, v in category_name_to_coco_lable.items()}
+    lable_to_category_id = {v: k for k, v in category_name_to_voc_lable.items()}
+    # -----------------------------------
 
-    # datas = next(iter(val_loader))
+    # -----------------------------------
+    # file_path = 'coco_classes.json'
+    # # if not os.path.exists(file_path):
+    # #     file_path = 'coco_classes.json'
+    # with open(file_path, 'r', encoding='utf-8') as fr:
+    #     infos = json.load(fr)
+    #     category_name_to_coco_lable = infos['COCO_CLASSES']
+    #     voc_colors = infos['colors']
+    # lable_to_category_id = {v: k for k, v in category_name_to_coco_lable.items()}
+    # -----------------------------------
+
+    b_mean = torch.tensor(mean, dtype=torch.float32).tile(1, 1, 1, 1)
+    b_std = torch.tensor(std, dtype=torch.float32).tile(1, 1, 1, 1)
     for index, datas in enumerate(data_loader):
         batch_images, batch_annots = datas['img'], datas['annot']
-        save_root = 'show_images'
+        batch_images = batch_images.permute(0, 2, 3, 1).contiguous()
+        batch_images = (batch_images * b_std + b_mean) * 255.
+        save_root = 'images_show'
         c = 0
         for img, annot in zip(batch_images, batch_annots):
             c += 1
             img, annot = img.numpy(), annot.numpy()
-            img = img.transpose(1, 2, 0)  # [c, h, w] -> [h, w, c] RGB
-
-            img = (img * std + mean) * 255.
+            # img = img.transpose(1, 2, 0)  # [c, h, w] -> [h, w, c] RGB
+            #
+            # img = (img * std + mean) * 255.
             # img *= 255.
             img = np.uint8(img)
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)  # RGB -> BGR
@@ -144,7 +138,7 @@ def test_make_grid():
                 # point = np.int32(point[:4])
                 # cv2.rectangle(img, [point[0], point[1]], [point[2], point[3]], (0, 255, 0), 1)
                 label = int(point[4])
-                category_name = coco_lable_to_category_id[label]
+                category_name = lable_to_category_id[label]
                 category_color = tuple(voc_colors[label])
                 chars_w, chars_h = font.getsize(category_name)
                 draw.rectangle(point[:4], outline=category_color, width=2)  # 绘制预测框
@@ -211,8 +205,8 @@ class ShowSigma:
         sigma_variant_y = self.sigma_variant_func()
 
         plt.figure(figsize=(10, 10))
-        line1, = plt.plot(x, sigma_y, 'r-')
-        line2, = plt.plot(x, sigma_variant_y, 'g--')
+        line1, = plt.plot(self.x, sigma_y, 'r-')
+        line2, = plt.plot(self.x, sigma_variant_y, 'g--')
         plt.legend(handles=[line1, line2], labels=["sigma", "scale"], loc="best", fontsize=12)
         plt.savefig('test.png')
 

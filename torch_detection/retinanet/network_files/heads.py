@@ -40,9 +40,9 @@ class RetinaClsHead(nn.Module):
     def forward(self, x):
         x = self.cls_head(x)
         x = self.cls_out(x)     # [B, num_anchors*num_classes, H, W]
-        b, _, h, w = x.shape
-        x = x.permute(0, 2, 3, 1).contiguous()    # [B, H, W, num_anchors*num_classes]
-        x = x.reshape((b, -1, self.num_classes))    # [B, H*W*num_anchors, num_classes]
+        # b, _, h, w = x.shape
+        # x = x.permute(0, 2, 3, 1).contiguous()    # [B, H, W, num_anchors*num_classes]
+        # x = x.reshape((b, -1, self.num_classes))    # [B, H*W*num_anchors, num_classes]
         x = self.sigmoid(x)
 
         return x
@@ -76,9 +76,9 @@ class RetinaRegHead(nn.Module):
     def forward(self, x):
         x = self.reg_head(x)
         x = self.reg_out(x)    # [B, num_anchors*4, H, W]
-        b, _, h, w = x.shape
-        x = x.permute(0, 2, 3, 1).contiguous()    # [B, H, W, num_anchors*4]
-        x = x.reshape((b, -1, 4))    # [B, H*W*num_anchors, 4]
+        # b, _, h, w = x.shape
+        # x = x.permute(0, 2, 3, 1).contiguous()    # [B, H, W, num_anchors*4]
+        # x = x.reshape((b, -1, 4))    # [B, H*W*num_anchors, 4]
 
         return x
 

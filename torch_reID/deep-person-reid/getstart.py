@@ -1,8 +1,11 @@
 # 模块引入
 import torchreid
+
+root = '/workshop/weihule/data/dl/reid'
+
 # 加载数据管理器
 datamanager = torchreid.data.ImageDataManager(
-    root='reid-data',
+    root=root,
     sources='market1501',
     targets='market1501',
     height=256,

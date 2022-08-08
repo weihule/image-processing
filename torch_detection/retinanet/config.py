@@ -6,8 +6,9 @@ BASE_DIR = os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(BASE_DIR)
 
-from torch_detection.utils.custom_dataset import DataPrefetcher, collater, VocDetection
-from torch_detection.utils.custom_dataset import Normalize, Resizer, RandomFlip, RandomCrop, RandomTranslate
+from torch_detection.utils.custom_dataset import Resizer, RandomFlip, RandomCrop, RandomTranslate
+from torch_detection.utils.custom_dataset import VocDetection, CocoDetection
+from torch_detection.utils.custom_dataset import MultiScaleCollater
 
 
 class Config:
@@ -23,7 +24,7 @@ class Config:
 
     log = os.path.join(save_root, 'log')  # path to save log
     checkpoint_path = os.path.join(save_root, 'checkpoints')  # path to store checkpoint model
-    resume = os.path.join(checkpoint_path, '50_epoch_train_weight.pth')
+    resume = os.path.join(checkpoint_path, 'latest.pth')
     evaluate = None  # evaluate model path
     train_dataset_path = os.path.join(data_set_root, 'images', 'train2017')
     val_dataset_path = os.path.join(data_set_root, 'images', 'val2017')

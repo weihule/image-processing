@@ -71,7 +71,7 @@ class CocoDetection(Dataset):
             ]
             # all 4 image indices
             imgs_indices = [index] + [
-                random.randint(0, len(self.image_ids)-1) for _ in range(3)
+                random.randint(0, len(self.image_ids) - 1) for _ in range(3)
             ]
 
             annot = []
@@ -80,10 +80,10 @@ class CocoDetection(Dataset):
 
             for i, img_idx in enumerate(imgs_indices):
                 sub_img = self.load_image(img_idx)
-                sub_annot = self.load_annotations(img_idx)      # (N, 5)
+                sub_annot = self.load_annotations(img_idx)  # (N, 5)
 
                 origin_h, origin_w, _ = sub_img.shape
-                resize_factor = self.resize*1.5 / max(origin_h, origin_w)
+                resize_factor = self.resize * 1.5 / max(origin_h, origin_w)
                 resize_h, resize_w = int(resize_factor * origin_h), int(resize_factor * origin_w)
                 sub_img = cv2.resize(sub_img, (resize_w, resize_h))
                 sub_annot[:, :4] *= resize_factor
@@ -91,36 +91,36 @@ class CocoDetection(Dataset):
                 # top left
                 if i == 0:
                     # combined image coordinates
-                    x1a, y1a = max(x_ctr-resize_w, 0), max(y_ctr-resize_h, 0)
+                    x1a, y1a = max(x_ctr - resize_w, 0), max(y_ctr - resize_h, 0)
                     x2a, y2a = x_ctr, y_ctr
 
                     # single img choose area
-                    x1b, y1b = max(resize_w-x_ctr, 0), max(resize_h-y_ctr, 0)
+                    x1b, y1b = max(resize_w - x_ctr, 0), max(resize_h - y_ctr, 0)
                     x2b, y2b = resize_w, resize_h
                 # top right
                 elif i == 1:
-                    x1a, y1a = x_ctr, max(y_ctr-resize_h, 0)
-                    x2a, y2a = min(self.resize*2, x_ctr+resize_w), y_ctr
+                    x1a, y1a = x_ctr, max(y_ctr - resize_h, 0)
+                    x2a, y2a = min(self.resize * 2, x_ctr + resize_w), y_ctr
 
-                    x1b, y1b = 0, max(resize_h-y_ctr, 0)
-                    x2b, y2b = min(resize_w, self.resize*2-x_ctr), resize_h
+                    x1b, y1b = 0, max(resize_h - y_ctr, 0)
+                    x2b, y2b = min(resize_w, self.resize * 2 - x_ctr), resize_h
                 # bottom left img
                 elif i == 2:
-                    x1a, y1a = max(x_ctr-resize_w, 0), y_ctr
-                    x2a, y2a = x_ctr, min(self.resize*2, y_ctr+resize_h)
+                    x1a, y1a = max(x_ctr - resize_w, 0), y_ctr
+                    x2a, y2a = x_ctr, min(self.resize * 2, y_ctr + resize_h)
 
-                    x1b, y1b = max(resize_w-x_ctr, 0), 0
-                    x2b, y2b = resize_w, min(resize_h, self.resize*2-y_ctr)
+                    x1b, y1b = max(resize_w - x_ctr, 0), 0
+                    x2b, y2b = resize_w, min(resize_h, self.resize * 2 - y_ctr)
                 # bottom right img
                 else:
                     x1a, y1a = x_ctr, y_ctr
-                    x2a, y2a = min(self.resize*2, x_ctr+resize_w), min(self.resize*2, y_ctr+resize_h)
+                    x2a, y2a = min(self.resize * 2, x_ctr + resize_w), min(self.resize * 2, y_ctr + resize_h)
 
                     x1b, y1b = 0, 0
-                    x2b, y2b = min(resize_w, self.resize*2-x_ctr), min(resize_h, self.resize*2-y_ctr)
+                    x2b, y2b = min(resize_w, self.resize * 2 - x_ctr), min(resize_h, self.resize * 2 - y_ctr)
 
                 img[y1a: y2a, x1a: x2a] = sub_img[y1b: y2b, x1b: x2b]
-                pad_w, pad_h = x1a-x1b, y1a-y1b
+                pad_w, pad_h = x1a - x1b, y1a - y1b
                 if sub_annot.shape[0] > 0:
                     sub_annot[:, [0, 2]] += pad_w
                     sub_annot[:, [1, 3]] += pad_h
@@ -128,7 +128,7 @@ class CocoDetection(Dataset):
                 annot.append(sub_annot)
 
             annot = np.concatenate(annot, axis=0)
-            annot[:, :4] = np.clip(annot[:, :4], a_min=0, a_max=self.resize*2)
+            annot[:, :4] = np.clip(annot[:, :4], a_min=0, a_max=self.resize * 2)
 
             annot = annot[annot[:, 2] - annot[:, 0] > 1]
             annot = annot[annot[:, 3] - annot[:, 1] > 1]
@@ -273,7 +273,7 @@ class VocDetection(Dataset):
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        return img.astype(np.float32) / 255.
+        return img.astype(np.float32)
 
     def load_annotations(self, img_id):
         xml_path = os.path.join(img_id[0], 'Annotations', img_id[1] + '.xml')
@@ -643,10 +643,14 @@ class DetectionCollater:
 
 class MultiScaleCollater():
     def __init__(self,
+                 mean,
+                 std,
                  resize=416,
                  multi_scale_range=None,
                  stride=32,
                  use_multi_scale=False):
+        self.mean = torch.tensor(mean, dtype=torch.float32).tile(1, 1, 1, 1)
+        self.std = torch.tensor(std, dtype=torch.float32).tile(1, 1, 1, 1)
         self.resize = resize
         if multi_scale_range is None:
             self.multi_scale_range = [0.5, 1.5]
@@ -654,8 +658,6 @@ class MultiScaleCollater():
             self.multi_scale_range = multi_scale_range
         self.stride = stride
         self.use_multi_scale = use_multi_scale
-        self.mean = torch.tensor([[[[0.471, 0.448, 0.408]]]], dtype=torch.float32)
-        self.std = torch.tensor([[[[0.234, 0.239, 0.242]]]], dtype=torch.float32)
 
     def __call__(self, samples):
         if self.use_multi_scale:

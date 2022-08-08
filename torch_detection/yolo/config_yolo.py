@@ -1,9 +1,10 @@
 import os
 import sys
+import torch
 from torchvision import transforms
 
 BASE_DIR = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(BASE_DIR)
 
 from torch_detection.utils.custom_dataset import VocDetection, CocoDetection
@@ -66,14 +67,18 @@ class Config:
     #                            image_sets=[('2007', 'test')],
     #                            transform=data_transform['val'])
 
-    epochs = 50
-    batch_size = 64
+    epochs = 80
+    batch_size = 32
     lr = 0.0001
     lrf = 0.0001
     num_workers = 4
     print_interval = 50
     apex = True
-
-    collater = MultiScaleCollater(resize=input_image_size,
+    # COCO
+    mean = [0.471, 0.448, 0.408]
+    std = [0.234, 0.239, 0.242]
+    collater = MultiScaleCollater(mean=mean,
+                                  std=std,
+                                  resize=input_image_size,
+                                  stride=32,
                                   use_multi_scale=True)
-

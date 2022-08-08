@@ -48,7 +48,7 @@ class BinTree():
 			while node:		# 寻找当前节点的左子节点，并将其地址添加到stack中
 				result.append(node.data)	# 将当前节点的数据项添加到result中
 				stack.append(node)
-				node = node.left        # 当某节点不再有子节点时，推出内循环
+				node = node.left        # 当某节点不再有子节点时，退出内循环
 			node = stack.pop()		# 将当前节点pop出stack，获取其地址值
 			node = node.right       # 寻找当前节点的右子节点
 		print(result)
@@ -141,6 +141,8 @@ if __name__ == "__main__":
 	# tree.preOrderStack2(tree.root)
 	# tree.inOrderStack1(tree.root)
 	# tree.inOrderStack(tree.root)
+
+	print('='*20)
 
 	tree1 = BinTree1()
 	for i in range(1, 11):

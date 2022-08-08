@@ -289,95 +289,10 @@ def custom_softmax(inputs, dim):
 
 
 if __name__ == "__main__":
-    arr = torch.rand(12, 5)
-    bbox = arr[:, :4]
-    labels = arr[:, 4]
-    mask = torch.tensor([0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1])
-    mask = mask > 0
-    # print(bbox.shape, labels.shape)
-    # print(labels)
-    # print(labels[mask])
-
-    # one_img_gt_cls = torch.tensor([21, 3, 45])
-    # indices = torch.tensor([1, 0, 2, 2, 0, 0, 2, 0, 1, 0, 2, 2])
-    # overlap = torch.rand(12)
-    # print(overlap)
-    # print(indices[overlap > 0.45])
-    # anchor_gt_cls = one_img_gt_cls[indices[overlap > 0.45]] + 1
-    # print(anchor_gt_cls)
-
-    # one_img_gt_bbs = torch.rand(3, 4)
-    # print(one_img_gt_bbs)
-    # indices = torch.tensor([1, 0, 2, 2, 0, 0, 2, 0, 1, 0, 2, 2])
-    # per_image_anchors_gt_bboxes = one_img_gt_bbs[indices]
-    # print(per_image_anchors_gt_bboxes)
-    # print(per_image_anchors_gt_bboxes.shape)
-
-    # one_image_anchors_gt_cls = torch.ones(10) * (-1)
-    # overlaps = torch.rand(10)
-    # one_image_anchors_gt_cls[overlaps > 0.5] = 1
-    # print(one_image_anchors_gt_cls)
-
-    # a = torch.tensor([2., 5., 1., 0., 3.])
-    # arr1 = a.unsqueeze(-1)
-    # arr2 = torch.unsqueeze(a, dim=1)
-    # print(a, a.shape)
-    # print(arr1, arr1.shape)
-    # print(arr2, arr2.shape)
-
-
-    # sigmoid_layer = nn.Sigmoid()
-    # loss_f = nn.BCELoss()
-    # inputs = torch.randn((3, 4))
-    # labels = torch.tensor([1, 1, 2])
-    # one_hot_labels = F.one_hot(labels.long(), num_classes=inputs.shape[1])
-    # one_hot_labels = one_hot_labels.float()
-    # inputs = sigmoid_layer(inputs)
-    # loss = loss_f(inputs, one_hot_labels)
-    # print(inputs)
-    # print(loss)
-
-    # 5个预测框, 2个gt
-    # confidence_score = torch.tensor([0.78, 0.23, 0.54, 0.58, 0.49])
-    # ious = torch.tensor([[0.30, 0.45, 0.52, 0.76, 0.38], 
-    #                     [0.56, 0.13, 0.02, 0.89, 0.21]], dtype=torch.float32)
-    # b = torch.tensor(-1, dtype=torch.float32)
-
-    # tp_lists = torch.zeros(ious.shape[1])
-    # ious_mask = torch.where(ious > 0.5, confidence_score, torch.tensor(-1, dtype=torch.float32))
-    # print(ious_mask)
-    # iou_value, indices = torch.max(ious_mask, dim=1)
-    # print(iou_value, indices)
-
-    # tp_lists[indices] = 1
-    # print(tp_lists.cpu().numpy())
-    # print(iou_value, indices)
-    
-    # iou_values, indices = torch.max(ious, dim=1)
-    # print(iou_values, indices)
-
-    # scores = torch.tensor([0.87, 0.81, 0.78, 0.76, 0.76, 0.69, 0.67, 0.60, 0.60, 0.59, 0.54])
-    # print(scores.dtype)
-    # classes = torch.tensor([2, 1, 3, 4, 2, 5, 7, 6, 4, 1, 2])
-    # unique_classes = torch.unique(classes)
-    # for per_class in unique_classes:
-    #     sub_classes = classes[classes == per_class]
-    #     sub_scores = scores[classes == per_class]
-    #     # scores = scores[mask]
-    #     # print(classes, scores)
-
-
-    arr = np.random.random(size=(3, 4))
-    arr_sub1 = arr[:, :2]
-    arr_sub2 = arr[:, 2:]
-
-    min_value1 = np.min(arr_sub1, axis=0)
-    min_value2 = np.min(arr_sub2, axis=0)
-    min_value = np.concatenate((min_value1, min_value2), axis=-1)
-    print(min_value, min_value.shape)
-
-    a = random.uniform(0, 3)
-    print(a)
+    mean = torch.tensor([[[[0.485, 0.456, 0.406]]]], dtype=torch.float32)
+    mean1 = [0.485, 0.456, 0.406]
+    mean1 = torch.tensor(mean1).tile(1, 1, 1, 1)
+    print(mean.shape, mean1.shape)
 
 
 

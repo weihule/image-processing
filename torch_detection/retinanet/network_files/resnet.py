@@ -271,18 +271,18 @@ def resnet34_backbone(pretrained_path=''):
     return model
 
 
-def resnet50_halfbackbone(pre_train_path=''):
+def resnet50_halfbackbone(pretrained_path=''):
     model = _resnetbackbone(Bottleneck, [3, 4, 6, 3],
                             32,
-                            pretrained_path=pre_train_path)
+                            pretrained_path=pretrained_path)
 
     return model
 
 
-def resnet50_backbone(pre_train_path=''):
+def resnet50_backbone(pretrained_path=''):
     model = _resnetbackbone(Bottleneck, [3, 4, 6, 3],
                             64,
-                            pretrained_path=pre_train_path)
+                            pretrained_path=pretrained_path)
 
     return model
 
@@ -305,6 +305,6 @@ def resnet152_backbone(pretrained_path=''):
 
 if __name__ == "__main__":
     inputs = torch.rand(4, 3, 600, 600)
-    model = resnet50_backbone(pre_train_path='')
+    model = resnet50_backbone(pretrained_path='')
     o3, o4, o5 = model(inputs)
     print(o3.shape, o4.shape, o5.shape)
