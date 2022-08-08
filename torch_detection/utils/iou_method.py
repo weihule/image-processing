@@ -145,7 +145,7 @@ class IoUMethodNumpy:
                     return res
 
 
-class IoUMethodSimple2Simple:
+class IoUMethodMultiple:
     def __init__(self):
         pass
 
@@ -158,7 +158,7 @@ class IoUMethodSimple2Simple:
             box_type:
 
         Returns:
-            tensor()  shape: [I, J]
+            tensor()  shape: [max(I, J), N]
             if boxes1 shape is [6, 9, 4]   boxes2 shape is [1, 9, 4]
             return shape is [6, 9]
         """

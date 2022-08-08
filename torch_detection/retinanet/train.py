@@ -1,10 +1,10 @@
 import os
 import sys
-import argparse
 import random
 import time
 import warnings
 import numpy as np
+from tqdm import tqdm
 import torch
 from torch.cuda import amp
 from torch.utils.data import DataLoader
@@ -21,7 +21,7 @@ BASE_DIR = os.path.dirname(
 sys.path.append(BASE_DIR)
 
 from torch_detection.retinanet.config import Config
-from torch_detection.utils.custom_dataset import DataPrefetcher, collater
+from torch_detection.utils.custom_dataset import collater
 from torch_detection.utils.util import get_logger
 
 warnings.filterwarnings('ignore')
@@ -31,26 +31,20 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, a
     cls_losses, reg_losses, losses = list(), list(), list()
     model.train()
     iters = len(train_loader.dataset) // Config.batch_size
-    pre_fetcher = DataPrefetcher(train_loader)
-    images, annotations = pre_fetcher.next()
 
     iter_index = 1
-    # train_bar = tqdm(train_loader)
-    # for datas in train_bar:
-    while images is not None:
-        # images, annotations = datas['img'], datas['annot']
+    train_bar = tqdm(train_loader)
+    for datas in train_bar:
+        images, annotations = datas['img'], datas['annot']
         # print(images.shape, annotations.shape)
         images, annotations = images.cuda().float(), annotations.cuda()
-        # print('in train', images.shape, annotations.shape)
         optimizer.zero_grad()
 
         if Config.apex:
             scaler = amp.GradScaler()
             auto_cast = amp.autocast
             with auto_cast():
-                cls_heads, reg_heads, batch_anchors = model(images)
-                # for i, p, j in zip(cls_heads, reg_heads, batch_anchors):
-                #     print(i.shape, p.shape, j.shape)
+                reg_cls_heads = model(images)
                 cls_loss, reg_loss = criterion(cls_heads, reg_heads, batch_anchors, annotations)
                 loss = cls_loss + reg_loss
             scaler.scale(loss).backward()

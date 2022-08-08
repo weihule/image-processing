@@ -3,7 +3,7 @@ import sys
 from torchvision import transforms
 
 BASE_DIR = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(BASE_DIR)
 
 from torch_detection.utils.custom_dataset import Resizer, RandomFlip, RandomCrop, RandomTranslate
@@ -37,16 +37,9 @@ class Config:
 
     data_transform = {
         'train': transforms.Compose([
-            RandomFlip(flip_prob=0.5),
-            RandomCrop(crop_prob=0.3),
-            RandomTranslate(translate_prob=0.3),
-            Resizer(resize=input_image_size),
-            # Normalize()
+            RandomFlip(flip_prob=0.5)
         ]),
-        'val': transforms.Compose([
-            Resizer(resize=input_image_size),
-            # Normalize()
-        ])
+        'val': None
     }
 
     # train_dataset = CocoDetection(image_root_dir=train_dataset_path,
@@ -73,8 +66,18 @@ class Config:
     lr = 0.0001
     lrf = 0.001
     num_workers = 4
-    print_interval = 10
+    print_interval = 50
     apex = True
+
+    # VOC
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+
+    collater = MultiScaleCollater(mean=mean,
+                                  std=std,
+                                  resize=input_image_size,
+                                  stride=32,
+                                  use_multi_scale=False)
 
 
 if __name__ == "__main__":

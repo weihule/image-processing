@@ -74,6 +74,7 @@ class Config:
     num_workers = 4
     print_interval = 50
     apex = True
+
     # COCO
     mean = [0.471, 0.448, 0.408]
     std = [0.234, 0.239, 0.242]

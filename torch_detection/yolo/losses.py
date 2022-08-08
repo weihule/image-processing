@@ -9,7 +9,7 @@ BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(BASE_DIR)
 
-from torch_detection.utils.iou_method import IoUMethod, IoUMethodSimple2Simple
+from torch_detection.utils.iou_method import IoUMethod, IoUMethodMultiple
 
 
 class YoloV4Loss(nn.Module):
