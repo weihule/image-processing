@@ -15,18 +15,18 @@ class BinTree():
 		'''定义add方法, 向树结构中添加元素'''
 		node = TreeNode(data)
 		# print(node)
-		if self.root == None:		# 若根节点为None，添加根节点，并把根节点的地址值添加到 self.ls 中
+		if self.root is None:		# 若根节点为None，添加根节点，并把根节点的地址值添加到 self.ls 中
 			self.root = node
 			self.ls.append(self.root)
 		else:
 			rootNode = self.ls[0]	# 将第一个元素设为根节点
-			if rootNode.left == None:
+			if rootNode.left is None:
 				rootNode.left = node
 				self.ls.append(rootNode.left)
-			elif rootNode.right == None:
+			elif rootNode.right is None:
 				rootNode.right = node
 				self.ls.append(rootNode.right)
-				self.ls.pop(0)		# 弹出 self.ls 第一个位置处的元素
+				self.ls.pop(0)		# 当前的右子树填充完之后, 弹出 self.ls 第一个位置处的元素
 
 	def preOrederTraversal(self, root):
 		'''前序遍历(根左右)：递归实现'''
@@ -94,11 +94,55 @@ class BinTree():
 			node = node.right		# 需要当前节点的右子节点
 		print(result)
 
+
+# 20220807
+class TreeNode1:
+	def __init__(self, val, left=None, right=None):
+		self.val = val
+		self.left = left
+		self.right = right
+
+
+class BinTree1:
+	def __init__(self):
+		self.root = None
+		self.ls = []
+
+	def add_val(self, value):
+		node = TreeNode1(value)
+		if self.root is None:
+			self.root = node
+			self.ls.append(node)
+		else:
+			cur_root_node = self.ls[0]
+			if cur_root_node.left is None:
+				cur_root_node.left = node
+				self.ls.append(node)
+			elif cur_root_node.right is None:
+				cur_root_node.right = node
+				self.ls.append(node)
+				self.ls.pop(0)
+
+	def pre_traverse(self, node):
+		if node is None:
+			return 
+		print(node.val)
+		self.pre_traverse(node.left)
+		self.pre_traverse(node.right)
+		
+
+
+
 if __name__ == "__main__":
 	tree = BinTree()
 	for i in range(1, 11):
 		tree.add(i)
-	# tree.preOrederTraversal(tree.root)
+	tree.preOrederTraversal(tree.root)
 	# tree.preOrderStack2(tree.root)
 	# tree.inOrderStack1(tree.root)
-	tree.inOrderStack(tree.root)
+	# tree.inOrderStack(tree.root)
+
+	tree1 = BinTree1()
+	for i in range(1, 11):
+		tree1.add_val(i)
+	tree1.pre_traverse(tree1.root)

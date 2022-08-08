@@ -33,15 +33,15 @@ class Config:
     dataset_annot_path = os.path.join(data_set_root, 'annotations')
 
     pre_trained = True
-    num_classes = 20
+    num_classes = 50
     seed = 0
     input_image_size = 416
 
     data_transform = {
         'train': transforms.Compose([
             RandomFlip(flip_prob=0.5),
-            RandomCrop(crop_prob=0.2),
-            RandomTranslate(translate_prob=0.2),
+            # RandomCrop(crop_prob=0.2),
+            # RandomTranslate(translate_prob=0.2),
         ]),
         'val': None
     }
@@ -66,7 +66,7 @@ class Config:
     #                            image_sets=[('2007', 'test')],
     #                            transform=data_transform['val'])
 
-    epochs = 10
+    epochs = 50
     batch_size = 64
     lr = 0.0001
     lrf = 0.0001

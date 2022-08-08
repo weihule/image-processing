@@ -234,8 +234,7 @@ class YoloV4Loss(nn.Module):
                 # 这里9的意思是，有三个feature map,每个feature的每个cell有三个anchor,
                 # 这三个anchor的左上坐标(cell的左上坐标)是一样的, 所以是9
                 # 即前三个是一个feature map上的，中间三个是第二个feature map上的，后三个是第三个feature map上的
-                gt_9_boxes_ctr = (
-                                         (gt_boxes[:, :2] + gt_boxes[:, 2:]) * 0.5).unsqueeze(
+                gt_9_boxes_ctr = ((gt_boxes[:, :2] + gt_boxes[:, 2:]) * 0.5).unsqueeze(
                     1) / all_strides.unsqueeze(0).unsqueeze(-1)
 
                 # torch.floor向下取整到离它最近的整数
@@ -245,6 +244,8 @@ class YoloV4Loss(nn.Module):
 
                 # 这里应该是计算, gt映射在三个feature map上, 负责预测这些gt的anchor的索引
                 # anchor总数是 (h1*w1*3 + ...)
+                # global_ids shape [anchor_num, 9]
+                # 含义是对于一个gt来说，映射在三个feature map上, 每一个feature map上的cell中有三个anchor对应去预测
                 global_ids = ((gt_9_boxes_grid_xy[:, :, 1] * feature_hw[:, 1].unsqueeze(0) +
                                gt_9_boxes_grid_xy[:, :, 0]) * self.per_level_num_anchors +
                               grid_inside_ids.unsqueeze(0) + per_layer_prefix_ids.unsqueeze(0)).long()
@@ -255,10 +256,11 @@ class YoloV4Loss(nn.Module):
                                         ).unsqueeze(1) / all_strides.unsqueeze(0).unsqueeze(-1)
                 # gt_9_boxes_xymin = gt_9_boxes_ctr - gt_9_boxes_scaled_wh * 0.5
                 # gt_9_boxes_xymax = gt_9_boxes_ctr + gt_9_boxes_scaled_wh * 0.5
-                gt_9_boxes_xymin = -gt_9_boxes_scaled_wh * 0.5
+                gt_9_boxes_xymin = gt_9_boxes_scaled_wh * 0.5
                 gt_9_boxes_xymax = gt_9_boxes_scaled_wh * 0.5
 
                 # [gt_num, 9, 4]
+                # 把这些anchor都移到以(0, 0)为中心的地方
                 gt_zero_ctr_9_boxes = torch.cat((gt_9_boxes_xymin, gt_9_boxes_xymax), dim=2)
 
                 # [1, 9, 2]
@@ -268,17 +270,27 @@ class YoloV4Loss(nn.Module):
                 # [1, 9, 4]
                 anchor_zero_ctr_9_boxes = torch.cat((anchor_9_boxes_xymin, anchor_9_boxes_xymax), dim=2)
                 positive_ious = self.iou_function(gt_zero_ctr_9_boxes,
-                                                  anchor_zero_ctr_9_boxes)
+                                                  anchor_zero_ctr_9_boxes,
+                                                  iou_type='IoU',
+                                                  box_type='xyxy')
                 _, positive_anchor_idxs = positive_ious.max(dim=1)
+
+                # positive_anchor_idxs_mask shape is [anchor_num, 9]
                 positive_anchor_idxs_mask = F.one_hot(
                     positive_anchor_idxs,
                     num_classes=anchor_sizes.shape[0]).bool()
+                # positive_global_ids shape is [anchor_num]
                 positive_global_ids = global_ids[positive_anchor_idxs_mask].long()
 
+                # gt_9_boxes_scale shape is [anchor_num, 9, 2]
                 gt_9_boxes_scale = gt_9_boxes_scaled_wh / feature_hw.unsqueeze(0)
+                # positive_gt_9_boxes_scale shape is [anchor_num, 2]
                 positive_gt_9_boxes_scale = gt_9_boxes_scale[positive_anchor_idxs_mask]
 
+                # gt_9_scaled_boxes shape is [anchor_num, 9, 4]
                 gt_9_scaled_boxes = gt_boxes.unsqueeze(1) / all_strides.unsqueeze(0).unsqueeze(-1)
+
+                # positive_gt_9_scaled_boxes shape is [anchor_num, 4]
                 positive_gt_9_scaled_boxes = gt_9_scaled_boxes[positive_anchor_idxs_mask]
 
                 # for positive anchor,assign obj target to 1(init value=0)
@@ -292,7 +304,7 @@ class YoloV4Loss(nn.Module):
                 # for positive anchor,assign class target range from 1 to 80
                 all_targets[img_idx, positive_global_ids, 7] = gt_classes + 1
 
-                # assgin filter igonred anchors which ious>0.5
+                # assign filter ignored anchors which ious>0.5
                 # between anchor and gt boxes,set obj target value=-1(init=0,represent negative anchor)
                 pred_scaled_bboxes = all_preds[img_idx:img_idx + 1, :, 1:5]
                 gt_scaled_boxes = gt_boxes.unsqueeze(1) / all_anchors[img_idx, :, 4:5].unsqueeze(0)
@@ -315,9 +327,9 @@ class YoloV4Loss(nn.Module):
         """
         device = all_targets.device
         all_preds = all_preds.view(-1, all_preds.shape[-1])     # [B*anchor_nums, 85]
-        all_targets = all_targets.view(-1, all_targets.shape[-1])    # [B*anchor_nums, 7]
+        all_targets = all_targets.view(-1, all_targets.shape[-1])    # [B*anchor_nums, 8]
 
-        positive_anchors_num = all_targets[all_targets[:, 6] > 0].shape[0]
+        positive_anchors_num = all_targets[all_targets[:, 7] > 0].shape[0]
         if positive_anchors_num == 0:
             return torch.tensor(0.).to(device), torch.tensor(0.).to(
                 device), torch.tensor(0.).to(device)
@@ -325,6 +337,7 @@ class YoloV4Loss(nn.Module):
         conf_preds = all_preds[:, 0:1]
         conf_targets = all_targets[:, 0:1]
 
+        # all_preds的 reg部分已经变成左上和右下
         reg_preds = all_preds[all_targets[:, 0] > 0][:, 1:5]
         reg_targets = all_targets[all_targets[:, 0] > 0][:, 2:7]
 
@@ -360,8 +373,9 @@ class YoloV4Loss(nn.Module):
 
         # compute cls loss
         cls_preds = torch.clamp(cls_preds, min=1e-4, max=1. - 1e-4)
+        num_classes = cls_preds.shape[1] + 1
         cls_ground_truth = F.one_hot(cls_targets.long(),
-                                     num_classes=cls_preds.shape[1] + 1)
+                                     num_classes=num_classes)
         cls_ground_truth = (cls_ground_truth[:, 1:]).float()
         cls_loss = -(cls_ground_truth * torch.log(cls_preds) +
                      (1. - cls_ground_truth) * torch.log(1. - cls_preds))

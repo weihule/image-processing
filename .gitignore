@@ -5,14 +5,11 @@ torch_detection/*/__pycache__/
 */*/*/__pycache__/
 */*/*/*/__pycache__/
 */*/*/*/*/__pycache__/
-PytorchClassification/*.zip
 .idea/
-ML/dataset/
 */.idea/
-Re_id/dataset/
-torch_study/
 */*/runs/
 torch_detection/*/show_images/*
+torch_reID/deep-person-reid/reid-data/*/*/
 */*.log
 */*/*.log
 */*/*/*.log

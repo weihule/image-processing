@@ -151,15 +151,16 @@ class IoUMethodSimple2Simple:
 
     def __call__(self, boxes1, boxes2, iou_type='IoU', box_type='xyxy'):
         """
-        boxes1, boxes2中两两框单独做iou
         Args:
-            boxes1: [N, 4]
-            boxes2: [N, 4]
+            boxes1: [I, N, 4]
+            boxes2: [J, N, 4]
             iou_type:
             box_type:
 
         Returns:
-            tensor([N])
+            tensor()  shape: [I, J]
+            if boxes1 shape is [6, 9, 4]   boxes2 shape is [1, 9, 4]
+            return shape is [6, 9]
         """
         assert iou_type in ['IoU', 'GIoU', 'DIoU', 'CIoU',
                             'EIoU'], 'wrong IoU type!'

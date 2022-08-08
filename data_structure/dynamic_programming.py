@@ -35,11 +35,48 @@ def maxProfit(prices) -> int:
     return max_profit
 
 
+# 最大自序和
+def maxSubArray(nums) -> int:
+    if len(nums) == 0:
+        return 0
+    if len(nums) == 1:
+        return nums[0]
+    
+    # 这里错了
+    # max_value = 0
+
+
+    # ====================
+    # d = []
+    # d.append(nums[0])
+    # max_value = d[0]
+    # for i in range(1, len(nums)):
+    #     curr = max(d[i-1], 0) + nums[i]
+    #     d.append(curr)
+    #     max_value = max(max_value, d[i])
+    # return max_value
+    # ====================
+
+    # ====================
+    # 代码优化
+    max_value = nums[0]
+    for i in range(1, len(nums)):
+        curr = max(max_value, 0) + nums[i]
+        max_value = max(curr, max_value)
+        print(max_value)
+    return max_value
+
+
+
 if __name__ == "__main__":
     # n = 4
     # res = pa_lou(n)
     # print('res = ', res)
 
-    arr = [7, 1, 5, 3, 6, 4]
-    res = maxProfit(arr)
-    print('res = ', res)
+    # arr = [7, 1, 5, 3, 6, 4]
+    # res = maxProfit(arr)
+    # print('res = ', res)
+
+    nums = [-2,1,-3,4,-1,2,1,-5,4]
+    max_v = maxSubArray(nums)
+    print(max_v)

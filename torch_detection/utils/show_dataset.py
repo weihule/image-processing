@@ -24,8 +24,8 @@ def test_make_grid():
     data_transform = {
         'train': transforms.Compose([
             RandomFlip(flip_prob=0.3),
-            RandomCrop(crop_prob=0.2),
-            RandomTranslate(translate_prob=0.2),
+            # RandomCrop(crop_prob=0.2),
+            # RandomTranslate(translate_prob=0.2),
             # Resizer(resize=400),
             # YoloStyleResize(resize=416, multi_scale=True)
             # Normalize()
@@ -58,27 +58,26 @@ def test_make_grid():
             data_set_root = p
             break
 
-    # train_dataset_path = os.path.join(data_set_root, 'images', 'train2017')
-    val_dataset_path = os.path.join(data_set_root, 'images', 'val2017')
+    dataset_path = os.path.join(data_set_root, 'images', 'train2017')
     dataset_annot_path = os.path.join(data_set_root, 'annotations')
-    val_dataset = CocoDetection(image_root_dir=val_dataset_path,
-                                annotation_root_dir=dataset_annot_path,
-                                set_name='val2017',
-                                use_mosaic=True,
-                                transform=data_transform['train'])
+    dataset = CocoDetection(image_root_dir=dataset_path,
+                            annotation_root_dir=dataset_annot_path,
+                            set_name='train2017',
+                            use_mosaic=True,
+                            transform=data_transform['train'])
     # -----------------------------------
 
     # detec_collater = DetectionCollater()
     detec_collater = MultiScaleCollater(resize=416,
                                         stride=32,
                                         use_multi_scale=True)
-    val_loader = DataLoader(val_dataset,
-                            batch_size=16,
-                            shuffle=True,
-                            num_workers=4,
-                            prefetch_factor=4,
-                            pin_memory=True,
-                            collate_fn=detec_collater)
+    data_loader = DataLoader(dataset,
+                             batch_size=16,
+                             shuffle=True,
+                             num_workers=4,
+                             prefetch_factor=2,
+                             pin_memory=True,
+                             collate_fn=detec_collater)
     mean = np.array([[[0.471, 0.448, 0.408]]])
     std = np.array([[[0.234, 0.239, 0.242]]])
     # datas是一个dict, key就是定义的三个key, 对应的value已经打了batch
@@ -122,7 +121,7 @@ def test_make_grid():
     coco_lable_to_category_id = {v: k for k, v in category_name_to_coco_lable.items()}
 
     # datas = next(iter(val_loader))
-    for index, datas in enumerate(val_loader):
+    for index, datas in enumerate(data_loader):
         batch_images, batch_annots = datas['img'], datas['annot']
         save_root = 'show_images'
         c = 0
@@ -219,10 +218,10 @@ class ShowSigma:
 
 
 if __name__ == "__main__":
-    # test_make_grid()
+    test_make_grid()
     # test_coco_api()
 
-    x = np.arange(-10, 10, 0.5)
-    print(x)
-    ss = ShowSigma(x)
-    ss.visualize()
+    # x = np.arange(-10, 10, 0.5)
+    # print(x)
+    # ss = ShowSigma(x)
+    # ss.visualize()

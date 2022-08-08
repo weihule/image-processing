@@ -63,7 +63,7 @@ class CocoDetection(Dataset):
         return len(self.image_ids)
 
     def __getitem__(self, index):
-        if self.use_mosaic and index % 2 == 0:
+        if self.use_mosaic and index % 5 == 0:
             x_ctr, y_ctr = [
                 int(random.uniform(self.resize * self.mosaic_center_range[0],
                                    self.resize * self.mosaic_center_range[1]))
@@ -83,7 +83,7 @@ class CocoDetection(Dataset):
                 sub_annot = self.load_annotations(img_idx)      # (N, 5)
 
                 origin_h, origin_w, _ = sub_img.shape
-                resize_factor = self.resize / max(origin_h, origin_w)
+                resize_factor = self.resize*1.5 / max(origin_h, origin_w)
                 resize_h, resize_w = int(resize_factor * origin_h), int(resize_factor * origin_w)
                 sub_img = cv2.resize(sub_img, (resize_w, resize_h))
                 sub_annot[:, :4] *= resize_factor
