@@ -5,7 +5,6 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 import math
-from PIL import Image
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(
@@ -57,183 +56,245 @@ class RetinaLoss(nn.Module):
         self.cls_loss_weight = cls_loss_weight
         self.box_loss_weight = box_loss_weight
         self.box_loss_type = box_loss_type
+        if self.box_loss_type not in ['SmoothL1', 'IoU', 'GIoU', 'DIoU', 'CIoU', 'EIoU', 'Focal_EIoU']:
+            raise ValueError('Wrong IoU type')
+        self.anchors = RetinaAnchors()
+        self.iou_function = IoUMethodMultiple()
+
+    def forward(self, preds, annotations):
+        """
+        compute cls loss and reg loss in one batch
+        :param preds:
+        :param annotations: [B, num, 5]
+        :return:
+        """
+        device = annotations.device
+        batch_size = annotations.shape[0]
+        cls_preds, reg_preds = preds
+
+        feature_size = [[
+            per_level_cls_pred.shape[2], per_level_cls_pred.shape[1]] for per_level_cls_pred in cls_preds]
+
+        # one_image_anchors shape [h, w, 9, 4]  [[80, 80, 9, 4], [40, 40, 9, 4], ...]
+        one_image_anchors = self.anchors(feature_size)
+
+        # one_image_anchors shape [h1*w1*9+h2*w2*9+..., 4]
+        one_image_anchors = torch.cat([
+            torch.tensor(p).view(-1, p.shape[-1]) for p in one_image_anchors], dim=0)
+
+        # batch_anchors shape [B, h1*w1*9+h2*w2*9+..., 4]
+        batch_anchors = one_image_anchors.unsqueeze(0).repeat(batch_size, 1, 1).to(device)
+        batch_anchors, annotations = self.get_batch_anchors_annotations(
+            batch_anchors, annotations
+        )
+
+    def get_batch_anchors_annotations(self, batch_anchors, annotations):
+        """
+        :param batch_anchors: [B, h1*w1*9+h2*w2*9+..., 4]
+        :param annotations: [B, num, 5]
+        Assign a ground truth box target and a ground truth class target for each anchor
+        if anchor gt_class index = -1,this anchor doesn't calculate cls loss and reg loss
+        if anchor gt_class index = 0,this anchor is a background class anchor and used in calculate cls loss
+        if anchor gt_class index > 0,this anchor is an object class anchor and used in
+        calculate cls loss and reg loss
+        """
+        if batch_anchors.shape[0] != annotations.shape[0]:
+            raise ValueError('batch_size is not equal')
+        device = annotations.device
+        one_image_anchor_nums = batch_anchors.shape[1]
+
+        batch_anchors_annotations = []
+        for per_img_anchors, per_img_annotations in zip(batch_anchors, annotations):
+            # drop all index = -1 class annots
+            per_img_annotations = per_img_annotations[per_img_annotations[:, 4] >= 0]
+            if per_img_annotations.shape[0] == 0:
+                per_img_annotations = torch.ones((one_image_anchor_nums, 5),
+                                                 dtype=torch.float32,
+                                                 device=device)*(-1)
+            else:
+                per_img_gt_bboxes = per_img_annotations[:, :4]      # [num, 4]
+                per_img_gt_class = per_img_annotations[:, 4]        # [num, ]
+
+                one_image_ious = self.iou_function()
+        return batch_anchors, annotations
 
 
-def snap_annotations_as_tx_ty_tw_th(anchors_gt_bboxes, anchors):
-    """
-    snap each anchor ground truth bbox form format:[x_min,y_min,x_max,y_max] to format:[tx,ty,tw,th]
-    anchors_gt_bboxes: [B, f1_anchor+f2_anchor..., 4], 是每一个anchor预测的gt, 是通过所有anchor与gt做iou取最大值得到的
-    anchors: [B, f1_anchor+f2_anchor..., 4], 五个特征层输出anchor的拼接,
-    这里求得是anchor相对gt的(tx,ty,tw,th),也是最终需要回归的数值
-    """
-    device = torch.device('cuda')
-    anchors_gt_bboxes, anchors = anchors_gt_bboxes.to(device), anchors.to(device)
-    if anchors_gt_bboxes.shape[0] != anchors.shape[0]:
-        raise ValueError('anchors_gt_bboxes number not equal anchors number')
-    anchors_w_h = anchors[:, 2:] - anchors[:, :2]  # [M, 2]
-    anchors_center = anchors[:, :2] + 0.5 * anchors_w_h  # [M, 2]
 
-    anchors_gt_bboxes_w_h = anchors_gt_bboxes[:, 2:] - anchors_gt_bboxes[:, :2]  # [M, 2]
-    anchors_gt_bboxes_w_h = torch.clamp(anchors_gt_bboxes_w_h, min=1.0)
-    anchors_gt_bboxes_center = anchors_gt_bboxes[:, :2] + 0.5 * anchors_gt_bboxes_w_h  # [M, 2]
-
-    snaped_annotations_for_anchors = torch.cat(
-        [(anchors_gt_bboxes_center - anchors_center) / anchors_w_h,
-         torch.log(anchors_gt_bboxes_w_h / anchors_w_h)], dim=1)
-
-    # 另外需要说明的是,在许多faster rcnn的实现代码中,
-    # 将box坐标按照faster rcnn中公式转换为tx，ty，tw，th后,
-    # 这四个值又除以了[0.1,0.1,0.2,0.2]进一步放大
-    factor = torch.tensor([[0.1, 0.1, 0.2, 0.2]]).to(device)
-    snaped_annotations_for_anchors = snaped_annotations_for_anchors / factor
-
-    # snaped_annotations_for_anchors shape : [M, 4]
-    return snaped_annotations_for_anchors
-
-
-def compute_ious_for_one_image(one_image_anchors,
-                               one_image_annotations):
-    """
-    compute ious between one image anchors and one image annotations
-    """
-    # make sure anchors format:[N,4],  [x_min,y_min,x_max,y_max]
-    # make sure annotations format: [M,4],  [x_min,y_min,x_max,y_max]
-    device = one_image_annotations.device
-    one_image_anchors = one_image_anchors.to(device)
-    gt_num = one_image_annotations.shape[0]
-    anchor_num = one_image_anchors.shape[0]
-    res_iou = torch.zeros((gt_num, anchor_num), dtype=torch.float32)
-
-    areas_anchors = (one_image_anchors[:, 2] - one_image_anchors[:, 0]) * \
-                    (one_image_anchors[:, 3] - one_image_anchors[:, 1])  # torch.Size([N])
-    areas_gts = (one_image_annotations[:, 2] - one_image_annotations[:, 0]) * \
-                (one_image_annotations[:, 3] - one_image_annotations[:, 1])  # torch.Size([M])
-
-    for idx, gt in enumerate(one_image_annotations):
-        inters_0 = torch.max(one_image_anchors[:, 0], gt[0]).to(device)
-        inters_1 = torch.max(one_image_anchors[:, 1], gt[1]).to(device)
-        inters_2 = torch.min(one_image_anchors[:, 2], gt[2]).to(device)
-        inters_3 = torch.min(one_image_anchors[:, 3], gt[3]).to(device)
-        inters = torch.clamp(inters_2 - inters_0, min=0.) * \
-                 torch.clamp(inters_3 - inters_1, min=0.)
-
-        unions = torch.clamp(areas_anchors + areas_gts[idx] - inters, min=1e-4)
-        ious = inters / unions
-        res_iou[idx, :] = ious
-
-    # res_iou shape is [anchors_num, gts_num]
-    return res_iou.transpose(0, 1)
+# def snap_annotations_as_tx_ty_tw_th(anchors_gt_bboxes, anchors):
+#     """
+#     snap each anchor ground truth bbox form format:[x_min,y_min,x_max,y_max] to format:[tx,ty,tw,th]
+#     anchors_gt_bboxes: [B, f1_anchor+f2_anchor..., 4], 是每一个anchor预测的gt, 是通过所有anchor与gt做iou取最大值得到的
+#     anchors: [B, f1_anchor+f2_anchor..., 4], 五个特征层输出anchor的拼接,
+#     这里求得是anchor相对gt的(tx,ty,tw,th),也是最终需要回归的数值
+#     """
+#     device = torch.device('cuda')
+#     anchors_gt_bboxes, anchors = anchors_gt_bboxes.to(device), anchors.to(device)
+#     if anchors_gt_bboxes.shape[0] != anchors.shape[0]:
+#         raise ValueError('anchors_gt_bboxes number not equal anchors number')
+#     anchors_w_h = anchors[:, 2:] - anchors[:, :2]  # [M, 2]
+#     anchors_center = anchors[:, :2] + 0.5 * anchors_w_h  # [M, 2]
+#
+#     anchors_gt_bboxes_w_h = anchors_gt_bboxes[:, 2:] - anchors_gt_bboxes[:, :2]  # [M, 2]
+#     anchors_gt_bboxes_w_h = torch.clamp(anchors_gt_bboxes_w_h, min=1.0)
+#     anchors_gt_bboxes_center = anchors_gt_bboxes[:, :2] + 0.5 * anchors_gt_bboxes_w_h  # [M, 2]
+#
+#     snaped_annotations_for_anchors = torch.cat(
+#         [(anchors_gt_bboxes_center - anchors_center) / anchors_w_h,
+#          torch.log(anchors_gt_bboxes_w_h / anchors_w_h)], dim=1)
+#
+#     # 另外需要说明的是,在许多faster rcnn的实现代码中,
+#     # 将box坐标按照faster rcnn中公式转换为tx，ty，tw，th后,
+#     # 这四个值又除以了[0.1,0.1,0.2,0.2]进一步放大
+#     factor = torch.tensor([[0.1, 0.1, 0.2, 0.2]]).to(device)
+#     snaped_annotations_for_anchors = snaped_annotations_for_anchors / factor
+#
+#     # snaped_annotations_for_anchors shape : [M, 4]
+#     return snaped_annotations_for_anchors
 
 
-def get_batch_anchors_annotations(batch_anchors, annotations):
-    """
-    Assign a ground truth box target and a ground truth class target for each anchor
-    if anchor gt_class index = -1,this anchor doesn't calculate cls loss and reg loss
-    if anchor gt_class index = 0,this anchor is a background class anchor and used in calculate cls loss
-    if anchor gt_class index > 0,this anchor is an object class anchor and used in calculate cls loss and reg loss
-    batch_anchors: [B, N, 4]    N可能是63061, 五个特征层anchor数目的相加
-    annotations: [B, M, 5]      M可能是14, 该batch图片中含有的最大gt数目
-    :returns  batch anchors annotations shape:[batch_size, anchor_nums, 5]
-    """
-    device = annotations.device
-    if batch_anchors.shape[0] != annotations.shape[0]:
-        raise ValueError('batch number not equal')
-    # 一个batch中每张图片含有的anchor数量
-    one_image_anchor_nums = batch_anchors.shape[1]
-
-    batch_anchors_annotations = list()
-    # 开始处理每张图片的anchor
-    for one_img_anchors, one_img_annots in zip(batch_anchors, annotations):
-        # drop all index=-1 class annotations
-        one_img_annots = one_img_annots[one_img_annots[:, 4] >= 0]  # [delta_M, 5] delta_M是已经去掉-1标签的gt的真实数量
-
-        if one_img_annots.shape[0] == 0:
-            # 如果该张图片中没有gt, 则该图片中的所有anchor都打上 -1 标签
-            one_image_anchor_annots = (torch.ones((one_image_anchor_nums, 5)) * (-1)).to(device)
-        else:
-            # print(one_img_annots, one_img_annots.shape)
-            one_img_gt_bbs = one_img_annots[:, 0:4]  # gt的坐标部分      # [delta_M, 4]
-            one_img_gt_cls = one_img_annots[:, 4]  # gt的标签部分        # [delta_M]
-            one_img_ious = compute_ious_for_one_image(one_img_anchors, one_img_gt_bbs)  # [anchors_num, delta_M]
-
-            # snap per gt bboxes to the best iou anchor
-            # 这里得到的是每一个anchor与该图片中所有gt的iou的最大值
-            # 所以这也就可能导致多个anchor负责预测同一个gt
-            overlap, indices = torch.max(one_img_ious, dim=1)
-            # print(f"len(overlap) = {len(overlap)}, len(indices) = {len(indices)}")
-            # per_image_anchors_gt_bboxes就是每一个anchor对应预测的gt
-            per_image_anchors_gt_bboxes = one_img_gt_bbs[indices]
-
-            # per_image_anchors_gt_bboxes 和 one_img_anchors 的shape都是 [one_image_anchor_nums, 4]
-            # transform gt bboxes to [tx,ty,tw,th] format for each anchor
-            # one_image_anchors_snaped_boxes shape is [anchors_num, 4]
-            one_image_anchors_snaped_boxes = snap_annotations_as_tx_ty_tw_th(per_image_anchors_gt_bboxes,
-                                                                             one_img_anchors)
-
-            # 这是对于上面one_image_anchors_snaped_boxes附标签
-            one_image_anchors_gt_cls = (torch.ones_like(overlap) * (-1)).to(device)
-            # if iou<0.4, assign anchors gt class as 0:background
-            one_image_anchors_gt_cls[overlap < 0.4] = 0
-            # a, b = one_image_anchors_gt_cls[overlap >= 0.5], indices[overlap >= 0.5] + 1
-            one_image_anchors_gt_cls[overlap >= 0.5] = one_img_gt_cls[indices[overlap >= 0.5]] + 1
-            one_image_anchors_gt_cls = torch.unsqueeze(one_image_anchors_gt_cls, dim=1)  # [anchors_num, 1]
-
-            # [anchors_num, 5]
-            one_image_anchor_annots = torch.cat((one_image_anchors_snaped_boxes, one_image_anchors_gt_cls), dim=1)
-        one_image_anchor_annots = torch.unsqueeze(one_image_anchor_annots, dim=0)
-        batch_anchors_annotations.append(one_image_anchor_annots)
-
-    batch_anchors_annotations = torch.cat(batch_anchors_annotations, dim=0)
-
-    # batch anchors annotations shape:[batch_size, anchor_nums, 5]
-    # 返回的是一个batch中所有图片的anchor信息和类别信息, 也是最终做回归需要的信息
-    return batch_anchors_annotations
+# def compute_ious_for_one_image(one_image_anchors,
+#                                one_image_annotations):
+#     """
+#     compute ious between one image anchors and one image annotations
+#     """
+#     # make sure anchors format:[N,4],  [x_min,y_min,x_max,y_max]
+#     # make sure annotations format: [M,4],  [x_min,y_min,x_max,y_max]
+#     device = one_image_annotations.device
+#     one_image_anchors = one_image_anchors.to(device)
+#     gt_num = one_image_annotations.shape[0]
+#     anchor_num = one_image_anchors.shape[0]
+#     res_iou = torch.zeros((gt_num, anchor_num), dtype=torch.float32)
+#
+#     areas_anchors = (one_image_anchors[:, 2] - one_image_anchors[:, 0]) * \
+#                     (one_image_anchors[:, 3] - one_image_anchors[:, 1])  # torch.Size([N])
+#     areas_gts = (one_image_annotations[:, 2] - one_image_annotations[:, 0]) * \
+#                 (one_image_annotations[:, 3] - one_image_annotations[:, 1])  # torch.Size([M])
+#
+#     for idx, gt in enumerate(one_image_annotations):
+#         inters_0 = torch.max(one_image_anchors[:, 0], gt[0]).to(device)
+#         inters_1 = torch.max(one_image_anchors[:, 1], gt[1]).to(device)
+#         inters_2 = torch.min(one_image_anchors[:, 2], gt[2]).to(device)
+#         inters_3 = torch.min(one_image_anchors[:, 3], gt[3]).to(device)
+#         inters = torch.clamp(inters_2 - inters_0, min=0.) * \
+#                  torch.clamp(inters_3 - inters_1, min=0.)
+#
+#         unions = torch.clamp(areas_anchors + areas_gts[idx] - inters, min=1e-4)
+#         ious = inters / unions
+#         res_iou[idx, :] = ious
+#
+#     # res_iou shape is [anchors_num, gts_num]
+#     return res_iou.transpose(0, 1)
 
 
-def drop_out_border_anchors_and_heads(cls_heads, reg_heads,
-                                      batch_anchors, image_w, image_h):
-    """
-    dropout out of border anchors,cls heads and reg heads
-    """
-    # if cls_heads.shape[0] != reg_heads.shape[0] and reg_heads.shape[0] != batch_anchors.shape[0]:
-    #     raise ValueError('batch number is different')
-    # print(cls_heads.shape, reg_heads.shape, batch_anchors.shape)
-    final_cls_heads, final_reg_heads, final_batch_anchors = list(), list(), list()
-    for per_img_cls_head, per_img_reg_head, per_img_anchors in \
-            zip(cls_heads, reg_heads, batch_anchors):
-        left_top_x_mask = per_img_anchors[:, 0] > 0
-        per_img_cls_head = per_img_cls_head[left_top_x_mask]
-        per_img_reg_head = per_img_reg_head[left_top_x_mask]
-        per_img_anchors = per_img_anchors[left_top_x_mask]
-
-        left_top_y_mask = per_img_anchors[:, 1] > 0
-        per_img_cls_head = per_img_cls_head[left_top_y_mask]
-        per_img_reg_head = per_img_reg_head[left_top_y_mask]
-        per_img_anchors = per_img_anchors[left_top_y_mask]
-
-        right_down_x_mask = per_img_anchors[:, 2] < image_w
-        per_img_cls_head = per_img_cls_head[right_down_x_mask]
-        per_img_reg_head = per_img_reg_head[right_down_x_mask]
-        per_img_anchors = per_img_anchors[right_down_x_mask]
-
-        right_down_y_mask = per_img_anchors[:, 3] < image_h
-        per_img_cls_head = per_img_cls_head[right_down_y_mask]
-        per_img_reg_head = per_img_reg_head[right_down_y_mask]
-        per_img_anchors = per_img_anchors[right_down_y_mask]
-
-        final_cls_heads.append(torch.unsqueeze(per_img_cls_head, 0))
-        final_reg_heads.append(torch.unsqueeze(per_img_reg_head, 0))
-        final_batch_anchors.append(torch.unsqueeze(per_img_anchors, 0))
-
-    final_cls_heads = torch.cat(final_cls_heads, 0)
-    final_reg_heads = torch.cat(final_reg_heads, 0)
-    final_batch_anchors = torch.cat(final_batch_anchors, 0)
-
-    # 每个cell有A个anchor, 需要预测的是K个类别
-    # [B, H*W*A-delta, K]
-    # [B, H*W*A-delta, 4], 4指的是回归头输出的四个参数
-    # [B, H*W*A-delta, 4], 4指的是anchor的左上右下四点坐标
-    return final_cls_heads, final_reg_heads, final_batch_anchors
+# def get_batch_anchors_annotations(batch_anchors, annotations):
+#     """
+#     Assign a ground truth box target and a ground truth class target for each anchor
+#     if anchor gt_class index = -1,this anchor doesn't calculate cls loss and reg loss
+#     if anchor gt_class index = 0,this anchor is a background class anchor and used in calculate cls loss
+#     if anchor gt_class index > 0,this anchor is an object class anchor and used in calculate cls loss and reg loss
+#     batch_anchors: [B, N, 4]    N可能是63061, 五个特征层anchor数目的相加
+#     annotations: [B, M, 5]      M可能是14, 该batch图片中含有的最大gt数目
+#     :returns  batch anchors annotations shape:[batch_size, anchor_nums, 5]
+#     """
+#     device = annotations.device
+#     if batch_anchors.shape[0] != annotations.shape[0]:
+#         raise ValueError('batch number not equal')
+#     # 一个batch中每张图片含有的anchor数量
+#     one_image_anchor_nums = batch_anchors.shape[1]
+#
+#     batch_anchors_annotations = list()
+#     # 开始处理每张图片的anchor
+#     for one_img_anchors, one_img_annots in zip(batch_anchors, annotations):
+#         # drop all index=-1 class annotations
+#         one_img_annots = one_img_annots[one_img_annots[:, 4] >= 0]  # [delta_M, 5] delta_M是已经去掉-1标签的gt的真实数量
+#
+#         if one_img_annots.shape[0] == 0:
+#             # 如果该张图片中没有gt, 则该图片中的所有anchor都打上 -1 标签
+#             one_image_anchor_annots = (torch.ones((one_image_anchor_nums, 5)) * (-1)).to(device)
+#         else:
+#             # print(one_img_annots, one_img_annots.shape)
+#             one_img_gt_bbs = one_img_annots[:, 0:4]  # gt的坐标部分      # [delta_M, 4]
+#             one_img_gt_cls = one_img_annots[:, 4]  # gt的标签部分        # [delta_M]
+#             one_img_ious = compute_ious_for_one_image(one_img_anchors, one_img_gt_bbs)  # [anchors_num, delta_M]
+#
+#             # snap per gt bboxes to the best iou anchor
+#             # 这里得到的是每一个anchor与该图片中所有gt的iou的最大值
+#             # 所以这也就可能导致多个anchor负责预测同一个gt
+#             overlap, indices = torch.max(one_img_ious, dim=1)
+#             # print(f"len(overlap) = {len(overlap)}, len(indices) = {len(indices)}")
+#             # per_image_anchors_gt_bboxes就是每一个anchor对应预测的gt
+#             per_image_anchors_gt_bboxes = one_img_gt_bbs[indices]
+#
+#             # per_image_anchors_gt_bboxes 和 one_img_anchors 的shape都是 [one_image_anchor_nums, 4]
+#             # transform gt bboxes to [tx,ty,tw,th] format for each anchor
+#             # one_image_anchors_snaped_boxes shape is [anchors_num, 4]
+#             one_image_anchors_snaped_boxes = snap_annotations_as_tx_ty_tw_th(per_image_anchors_gt_bboxes,
+#                                                                              one_img_anchors)
+#
+#             # 这是对于上面one_image_anchors_snaped_boxes附标签
+#             one_image_anchors_gt_cls = (torch.ones_like(overlap) * (-1)).to(device)
+#             # if iou<0.4, assign anchors gt class as 0:background
+#             one_image_anchors_gt_cls[overlap < 0.4] = 0
+#             # a, b = one_image_anchors_gt_cls[overlap >= 0.5], indices[overlap >= 0.5] + 1
+#             one_image_anchors_gt_cls[overlap >= 0.5] = one_img_gt_cls[indices[overlap >= 0.5]] + 1
+#             one_image_anchors_gt_cls = torch.unsqueeze(one_image_anchors_gt_cls, dim=1)  # [anchors_num, 1]
+#
+#             # [anchors_num, 5]
+#             one_image_anchor_annots = torch.cat((one_image_anchors_snaped_boxes, one_image_anchors_gt_cls), dim=1)
+#         one_image_anchor_annots = torch.unsqueeze(one_image_anchor_annots, dim=0)
+#         batch_anchors_annotations.append(one_image_anchor_annots)
+#
+#     batch_anchors_annotations = torch.cat(batch_anchors_annotations, dim=0)
+#
+#     # batch anchors annotations shape:[batch_size, anchor_nums, 5]
+#     # 返回的是一个batch中所有图片的anchor信息和类别信息, 也是最终做回归需要的信息
+#     return batch_anchors_annotations
+#
+#
+# def drop_out_border_anchors_and_heads(cls_heads, reg_heads,
+#                                       batch_anchors, image_w, image_h):
+#     """
+#     dropout out of border anchors,cls heads and reg heads
+#     """
+#     # if cls_heads.shape[0] != reg_heads.shape[0] and reg_heads.shape[0] != batch_anchors.shape[0]:
+#     #     raise ValueError('batch number is different')
+#     # print(cls_heads.shape, reg_heads.shape, batch_anchors.shape)
+#     final_cls_heads, final_reg_heads, final_batch_anchors = list(), list(), list()
+#     for per_img_cls_head, per_img_reg_head, per_img_anchors in \
+#             zip(cls_heads, reg_heads, batch_anchors):
+#         left_top_x_mask = per_img_anchors[:, 0] > 0
+#         per_img_cls_head = per_img_cls_head[left_top_x_mask]
+#         per_img_reg_head = per_img_reg_head[left_top_x_mask]
+#         per_img_anchors = per_img_anchors[left_top_x_mask]
+#
+#         left_top_y_mask = per_img_anchors[:, 1] > 0
+#         per_img_cls_head = per_img_cls_head[left_top_y_mask]
+#         per_img_reg_head = per_img_reg_head[left_top_y_mask]
+#         per_img_anchors = per_img_anchors[left_top_y_mask]
+#
+#         right_down_x_mask = per_img_anchors[:, 2] < image_w
+#         per_img_cls_head = per_img_cls_head[right_down_x_mask]
+#         per_img_reg_head = per_img_reg_head[right_down_x_mask]
+#         per_img_anchors = per_img_anchors[right_down_x_mask]
+#
+#         right_down_y_mask = per_img_anchors[:, 3] < image_h
+#         per_img_cls_head = per_img_cls_head[right_down_y_mask]
+#         per_img_reg_head = per_img_reg_head[right_down_y_mask]
+#         per_img_anchors = per_img_anchors[right_down_y_mask]
+#
+#         final_cls_heads.append(torch.unsqueeze(per_img_cls_head, 0))
+#         final_reg_heads.append(torch.unsqueeze(per_img_reg_head, 0))
+#         final_batch_anchors.append(torch.unsqueeze(per_img_anchors, 0))
+#
+#     final_cls_heads = torch.cat(final_cls_heads, 0)
+#     final_reg_heads = torch.cat(final_reg_heads, 0)
+#     final_batch_anchors = torch.cat(final_batch_anchors, 0)
+#
+#     # 每个cell有A个anchor, 需要预测的是K个类别
+#     # [B, H*W*A-delta, K]
+#     # [B, H*W*A-delta, 4], 4指的是回归头输出的四个参数
+#     # [B, H*W*A-delta, 4], 4指的是anchor的左上右下四点坐标
+#     return final_cls_heads, final_reg_heads, final_batch_anchors
 
 
 # class RetinaLoss(nn.Module):

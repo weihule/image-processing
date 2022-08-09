@@ -45,7 +45,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, a
             auto_cast = amp.autocast
             with auto_cast():
                 reg_cls_heads = model(images)
-                cls_loss, reg_loss = criterion(cls_heads, reg_heads, batch_anchors, annotations)
+                cls_loss, reg_loss = criterion(reg_cls_heads, annotations)
                 loss = cls_loss + reg_loss
             scaler.scale(loss).backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)

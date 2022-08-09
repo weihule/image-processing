@@ -288,11 +288,27 @@ def custom_softmax(inputs, dim):
     return res
 
 
+def is_all_alpha(strings):
+    """
+    判断是否是纯英文数字
+    """
+    for ch in strings:
+        if any(['0' <= ch <= '9', 'a' <= ch <= 'z', 'A' <= ch <= 'Z']) is False:
+            return False
+    return True
+
+# ABCDF
+# EFGHI
+
 if __name__ == "__main__":
-    mean = torch.tensor([[[[0.485, 0.456, 0.406]]]], dtype=torch.float32)
-    mean1 = [0.485, 0.456, 0.406]
-    mean1 = torch.tensor(mean1).tile(1, 1, 1, 1)
-    print(mean.shape, mean1.shape)
+    # mean = torch.tensor([[[[0.485, 0.456, 0.406]]]], dtype=torch.float32)
+    # mean1 = [0.485, 0.456, 0.406]
+    # mean1 = torch.tensor(mean1).tile(1, 1, 1, 1)
+    # print(mean.shape, mean1.shape)
+
+    ss = 'zhongguo中'
+    res = is_all_alpha(ss)
+    print(res)
 
 
 

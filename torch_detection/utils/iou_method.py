@@ -153,13 +153,13 @@ class IoUMethodMultiple:
         """
         Args:
             boxes1: [I, N, 4]
-            boxes2: [J, N, 4]
+            boxes2: [J, M, 4]
             iou_type:
             box_type:
 
         Returns:
-            tensor()  shape: [max(I, J), N]
-            if boxes1 shape is [6, 9, 4]   boxes2 shape is [1, 9, 4]
+            tensor()  shape: [max(I, J), max(M, N)]
+            if boxes1 shape is [6, 9, 4]   boxes2 shape is [1, 6, 4]
             return shape is [6, 9]
         """
         assert iou_type in ['IoU', 'GIoU', 'DIoU', 'CIoU',
@@ -249,7 +249,17 @@ class IoUMethodMultiple:
 
 
 if __name__ == "__main__":
-    a = torch.tensor(66.)
-    re_1 = torch.tile(a, (11,))
-    print(a.shape)
-    print(re_1)
+    bb1s = torch.tensor([[10, 6, 15, 14], [5, 2, 10, 9], [7, 4, 12, 12], [17, 14, 20, 18],
+                             [6, 10, 18, 18], [8, 9, 14, 15], [2, 20, 5, 25], [11, 7, 15, 16],
+                             [8, 6, 13, 14], [10, 8, 23, 16], [10, 9, 24, 16]], dtype=torch.float32)
+    bb2s = torch.tensor([[6., 5., 17., 11.], [9., 8., 19., 15.]])
+
+    iou_method1 = IoUMethodMultiple()
+    ious1 = iou_method1(bb1s.unsqueeze(1), bb2s.unsqueeze(0))
+
+    iou_method2 = IoUMethod()
+    ious2 = iou_method2(bb1s, bb2s)
+    ious2 = ious2.transpose(1, 0)
+
+    print(ious1, ious1.shape)
+    print(ious2, ious2.shape)
