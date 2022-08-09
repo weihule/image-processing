@@ -263,3 +263,4 @@ if __name__ == "__main__":
 
     print(ious1, ious1.shape)
     print(ious2, ious2.shape)
+    print(ious1 == ious2)

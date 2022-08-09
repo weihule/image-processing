@@ -115,7 +115,11 @@ class RetinaLoss(nn.Module):
                 per_img_gt_bboxes = per_img_annotations[:, :4]      # [num, 4]
                 per_img_gt_class = per_img_annotations[:, 4]        # [num, ]
 
-                one_image_ious = self.iou_function()
+                one_image_ious = self.iou_function(
+                    per_img_gt_bboxes.unsqueeze(1),
+                    per_img_anchors.unsqueeze(0),
+                    iou_type='IoU',
+                    box_type='xyxy')
         return batch_anchors, annotations
 
 
