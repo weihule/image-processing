@@ -84,14 +84,14 @@ class RetinaLoss(nn.Module):
 
         # batch_anchors shape [B, h1*w1*9+h2*w2*9+..., 4]
         batch_anchors = one_image_anchors.unsqueeze(0).repeat(batch_size, 1, 1).to(device)
-        batch_anchors, annotations = self.get_batch_anchors_annotations(
+        batch_anchors_annotations = self.get_batch_anchors_annotations(
             batch_anchors, annotations
         )
 
     def get_batch_anchors_annotations(self, batch_anchors, annotations):
         """
         :param batch_anchors: [B, h1*w1*9+h2*w2*9+..., 4]
-        :param annotations: [B, num, 5]
+        :param annotations: [B, gt_num, 5]
         Assign a ground truth box target and a ground truth class target for each anchor
         if anchor gt_class index = -1,this anchor doesn't calculate cls loss and reg loss
         if anchor gt_class index = 0,this anchor is a background class anchor and used in calculate cls loss
@@ -108,20 +108,48 @@ class RetinaLoss(nn.Module):
             # drop all index = -1 class annots
             per_img_annotations = per_img_annotations[per_img_annotations[:, 4] >= 0]
             if per_img_annotations.shape[0] == 0:
-                per_img_annotations = torch.ones((one_image_anchor_nums, 5),
+                per_image_anchor_annotations = torch.ones((one_image_anchor_nums, 5),
                                                  dtype=torch.float32,
                                                  device=device)*(-1)
             else:
-                per_img_gt_bboxes = per_img_annotations[:, :4]      # [num, 4]
-                per_img_gt_class = per_img_annotations[:, 4]        # [num, ]
+                per_img_gt_bboxes = per_img_annotations[:, :4]      # [per_img_gt_num, 4]
+                per_img_gt_class = per_img_annotations[:, 4]        # [per_img_gt_num, ]
 
+                # one_image_ious shape [h1*w1*9+h2*w2*9+..., per_img_gt_num]
                 one_image_ious = self.iou_function(
                     per_img_gt_bboxes.unsqueeze(1),
                     per_img_anchors.unsqueeze(0),
                     iou_type='IoU',
                     box_type='xyxy')
-        return batch_anchors, annotations
 
+                # snap per gt bboxes to the best iou anchor
+                overlap, indices = one_image_ious.max(dim=1)    # [h1*w1*9+h2*w2*9+..., ]
+                per_image_anchor_gt_class = (torch.ones_like(overlap)*(-1)).to(device)
+
+                # if iou < 0.4, assign anchors gt class as 0:background
+                per_image_anchor_gt_class[overlap < 0.4] = 0
+
+                # if iou >= 0.5
+                # assign anchors gt class as same as the max iou annotation class:80 classes index from 1 to 80(20)
+                per_image_anchor_gt_class[overlap >= 0.5] = per_img_gt_class[indices[overlap >= 0.5]] + 1
+
+                per_image_anchor_gt_class = per_image_anchor_gt_class.unsqueeze(-1)     # [h1*w1*9+h2*w2*9+..., 1]
+
+                # assign each anchor gt bboxes for max iou annotation
+                per_image_anchor_gt_bboxes = per_img_gt_bboxes[indices]
+
+                # [h1*w1*9+h2*w2*9+..., 5]
+                # 其中包含背景(class=0), 无效anchor(class=-1)
+                per_image_anchor_annotations = torch.cat((
+                    per_image_anchor_gt_bboxes, per_image_anchor_gt_class), dim=1)
+            # [1, h1*w1*9+h2*w2*9+..., 5]
+            per_image_anchor_annotations = per_image_anchor_annotations.unsqueeze(0)
+            batch_anchors_annotations.append(per_image_anchor_annotations)
+
+        # [B, h1*w1*9+h2*w2*9+..., 5]
+        batch_anchors_annotations = torch.cat(batch_anchors_annotations, dim=0)
+
+        return batch_anchors_annotations
 
 
 # def snap_annotations_as_tx_ty_tw_th(anchors_gt_bboxes, anchors):

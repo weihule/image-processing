@@ -44,7 +44,7 @@ class YoloV4Loss(nn.Module):
         self.cls_loss_weight = cls_loss_weight
         self.box_loss_iou_type = box_loss_iou_type
         self.iou_ignore_threshold = iou_ignore_threshold
-        self.iou_function = IoUMethodSimple2Simple()
+        self.iou_function = IoUMethodMultiple()
 
     def forward(self, preds, annotations):
         '''
