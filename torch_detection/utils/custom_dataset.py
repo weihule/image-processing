@@ -83,7 +83,7 @@ class CocoDetection(Dataset):
                 sub_annot = self.load_annotations(img_idx)  # (N, 5)
 
                 origin_h, origin_w, _ = sub_img.shape
-                resize_factor = self.resize * 1.5 / max(origin_h, origin_w)
+                resize_factor = self.resize * 1.5 / max(origin_h, origin_w)     # 这里的 *1.5 是自己添加的
                 resize_h, resize_w = int(resize_factor * origin_h), int(resize_factor * origin_w)
                 sub_img = cv2.resize(sub_img, (resize_w, resize_h))
                 sub_annot[:, :4] *= resize_factor

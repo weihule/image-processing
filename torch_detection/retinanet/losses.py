@@ -64,7 +64,9 @@ class RetinaLoss(nn.Module):
     def forward(self, preds, annotations):
         """
         compute cls loss and reg loss in one batch
-        :param preds:
+        :param preds: [cls_heads, reg_heads]
+                cls_heads shape:[[B, 80, 80, 9, 80],[B, 40, 40, 9, 80], ...]
+                reg_heads shape:[[B, 80, 80, 9, 4],[B, 40, 40, 9, 4], ...]
         :param annotations: [B, num, 5]
         :return:
         """
@@ -87,6 +89,19 @@ class RetinaLoss(nn.Module):
         batch_anchors_annotations = self.get_batch_anchors_annotations(
             batch_anchors, annotations
         )
+
+        cls_preds = [per_cls_pred.view(per_cls_pred[0], -1, per_cls_pred[-1])
+                     for per_cls_pred in cls_preds]
+        reg_preds = [per_reg_pred.view(per_reg_pred[0], -1, per_reg_pred[-1])
+                     for per_reg_pred in reg_preds]
+        cls_preds = torch.cat(cls_preds, dim=1)     # [B, h1*w1*9+..., 80]
+        reg_preds = torch.cat(reg_preds, dim=1)     # [B, h1*w1*9+..., 4]
+
+        cls_preds = torch.clamp(cls_preds, min=1e-4, max=1.-1e-4)
+
+        cls_preds = cls_preds.view(-1, cls_preds.shape[-1])           # [B*h1*w1*9+..., 80]
+        reg_preds = reg_preds.view(-1, reg_preds.shape[-1])           # [B*h1*w1*9+..., 4]
+        batch_anchors = batch_anchors.view(-1, batch_anchors[-1])     # [B*h1*w1*9+..., 4]
 
     def get_batch_anchors_annotations(self, batch_anchors, annotations):
         """

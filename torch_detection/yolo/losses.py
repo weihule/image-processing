@@ -47,9 +47,9 @@ class YoloV4Loss(nn.Module):
         self.iou_function = IoUMethodMultiple()
 
     def forward(self, preds, annotations):
-        '''
+        """
         compute obj loss, reg loss and cls loss in one batch
-        '''
+        """
         device = annotations.device
         batch_size = annotations.shape[0]
         obj_reg_cls_preds = preds[0]
