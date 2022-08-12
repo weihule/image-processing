@@ -580,5 +580,3 @@ if __name__ == "__main__":
     gt_bbs = torch.tensor([[9, 8, 14, 15], [6, 5, 13, 11]], dtype=torch.float32)
     rl = RetinaLoss(32, 32)
     # res = snap_annotations_as_tx_ty_tw_th(gt_bbs, pred_bbs)
-    res = compute_ious_for_one_image(pred_bbs, gt_bbs[0].reshape(-1, 4))
-    res = res.flatten()
