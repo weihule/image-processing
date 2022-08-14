@@ -1,3 +1,6 @@
+from turtle import left
+
+
 class TreeNode():
 	'''定义树节点'''
 	def __init__(self, data, left=None, right=None):
@@ -96,40 +99,78 @@ class BinTree():
 
 
 # 20220807
-class TreeNode1:
+class TreeNode1():
 	def __init__(self, val, left=None, right=None):
 		self.val = val
 		self.left = left
 		self.right = right
 
 
-class BinTree1:
+class BinTree1():
+
+	# 初始化完全二叉树
 	def __init__(self):
 		self.root = None
 		self.ls = []
-
+	
 	def add_val(self, value):
 		node = TreeNode1(value)
 		if self.root is None:
 			self.root = node
 			self.ls.append(node)
 		else:
-			cur_root_node = self.ls[0]
-			if cur_root_node.left is None:
-				cur_root_node.left = node
+			# cur_node = self.ls.pop(0)	# 这里如果弹出, 就无法添加右节点, 只有在右节点添加之后才能弹出
+			cur_node = self.ls[0]
+			if cur_node.left is None:
+				cur_node.left = node
 				self.ls.append(node)
-			elif cur_root_node.right is None:
-				cur_root_node.right = node
+			elif cur_node.right is None:
+				cur_node.right = node
 				self.ls.append(node)
 				self.ls.pop(0)
-
+	
 	def pre_traverse(self, node):
 		if node is None:
 			return 
 		print(node.val)
 		self.pre_traverse(node.left)
 		self.pre_traverse(node.right)
-		
+
+	def inorder_traverse(self, node):
+		if node is None:
+			return 
+		self.inorder_traverse(node.left)
+		print(node.val)
+		self.inorder_traverse(node.right)
+
+	def postorder_traverse(self, node):
+		if node is None:
+			return 
+		self.inorder_traverse(node.left)
+		self.inorder_traverse(node.right)
+		print(node.val)
+
+	def bfs(self, node):
+		queue = []
+		queue.append(node)
+
+		while len(queue) != 0:
+			cur_node = queue.pop(0)
+			print(cur_node.val)
+			if cur_node.left:
+				queue.append(cur_node.left)
+			if cur_node.right:
+				queue.append(cur_node.right)
+
+	def max_depth(self, node):
+		if node is None:
+			return 0
+		left_depth = self.max_depth(node.left)
+		right_depth = self.max_depth(node.right)
+		print(left_depth, right_depth)
+
+		# 当前节点的最大深度等于，左右子节点的最大深度 + 1
+		return max(left_depth, right_depth) + 1
 
 
 
@@ -137,7 +178,7 @@ if __name__ == "__main__":
 	tree = BinTree()
 	for i in range(1, 11):
 		tree.add(i)
-	tree.preOrederTraversal(tree.root)
+	# tree.preOrederTraversal(tree.root)
 	# tree.preOrderStack2(tree.root)
 	# tree.inOrderStack1(tree.root)
 	# tree.inOrderStack(tree.root)
@@ -147,4 +188,10 @@ if __name__ == "__main__":
 	tree1 = BinTree1()
 	for i in range(1, 11):
 		tree1.add_val(i)
-	tree1.pre_traverse(tree1.root)
+	# tree1.pre_traverse(tree1.root)
+	# tree1.inorder_traverse(tree1.root)
+	print('---')
+	# tree1.postorder_traverse(tree1.root)
+	# tree1.bfs(tree1.root)
+	tree_depth = tree1.max_depth(tree1.root)
+	print(tree_depth)

@@ -61,8 +61,6 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, a
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
 
-        images, annotations = pre_fetcher.next()
-
         cls_losses.append(cls_loss.item())
         reg_losses.append(reg_loss.item())
         losses.append(loss.item())
@@ -123,9 +121,7 @@ def main(logger):
     # flops, params = clever_format([flops, params], '%.3f')
     # logger.info(f"model: resnet50_backbone, flops: {flops}, params: {params}")
 
-    criterion = RetinaLoss(image_w=Config.input_image_size,
-                           image_h=Config.input_image_size,
-                           ).cuda()
+    criterion = RetinaLoss().cuda()
     decoder = RetinaNetDecoder(image_w=Config.input_image_size,
                                image_h=Config.input_image_size).cuda()
     model = model.cuda()

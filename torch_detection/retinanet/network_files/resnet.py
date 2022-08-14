@@ -160,7 +160,6 @@ class Bottleneck(nn.Module):
 
 
 class ResNetBackbone(nn.Module):
-
     def __init__(self, block, layer_nums, inplanes=64):
         super(ResNetBackbone, self).__init__()
         self.block = block

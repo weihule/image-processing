@@ -14,7 +14,7 @@ base_dir = os.path.dirname(
 sys.path.append(base_dir)
 from torch_detection.retinanet.retina_decode import RetinaNetDecoder
 from network_files.retinanet_model import resnet50_retinanet
-from study.torch_detection.retinanet.config import Config
+from torch_detection.retinanet.config import Config
 
 
 class InferResizer:
@@ -42,8 +42,7 @@ class InferResizer:
 
 def main():
     img_root = '/workshop/weihule/data/detection_data/test_images/*.jpg'
-    # model_path = '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50_retinanet-metric79.783.pth'
-    model_path = '/workshop/weihule/data/detection_data/retinanet/checkpoints/latest.pth'
+    model_path = '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50_retinanet-metric80.558.pth'
     save_root = 'infer_shows'
 
     with open('../utils/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
@@ -66,17 +65,17 @@ def main():
 
         checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
         # rep = [['p3', 'P3'], ['p4', 'P4'], ['p5', 'P5'], ['p6', 'P6'], ['p7', 'P7']]
-        rep = []
-        model_load = {}
-        for k, v in checkpoint['model_state_dict'].items():
-            for p in rep:
-                if p[0] in k:
-                    k = k.replace(p[0], p[1])
-            model_load[k] = v
+        # rep = []
+        # model_load = {}
+        # for k, v in checkpoint['model_state_dict'].items():
+        #     for p in rep:
+        #         if p[0] in k:
+        #             k = k.replace(p[0], p[1])
+        #     model_load[k] = v
 
         # model_load = torch.load(model_path, map_location=torch.device('cpu'))
 
-        model.load_state_dict(model_load)
+        model.load_state_dict(checkpoint)
         model.eval()
         decoder = RetinaNetDecoder(image_w=Config.input_image_size,
                                    image_h=Config.input_image_size)
@@ -97,7 +96,8 @@ def main():
             images_tensor = images_tensor / 255.
             images_tensor = (images_tensor - mean) / std
             images_tensor = images_tensor.permute(0, 3, 1, 2).contiguous()
-            cls_heads, reg_heads, batch_anchors = model(images_tensor)
+            heads = model(images_tensor)
+            cls_heads, reg_heads, batch_anchors =
             batch_scores, batch_classes, batch_pred_bboxes = decoder(cls_heads, reg_heads, batch_anchors)
             batch_scores, batch_classes, batch_pred_bboxes = \
                 batch_scores.cpu().numpy(), batch_classes.cpu().numpy(), batch_pred_bboxes.cpu().numpy()
