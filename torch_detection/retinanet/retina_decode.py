@@ -8,7 +8,7 @@ base_dir = os.path.dirname(
     os.path.dirname(
         os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(base_dir)
-from torch_detection.utils.iou_method import IoUMethod, IoUMethodNumpy
+from torch_detection.utils.iou_method import IoUMethod, IoUMethodNumpy, IoUMethodMultiple
 
 
 class RetinaNetDecoder(nn.Module):

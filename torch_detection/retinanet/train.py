@@ -27,7 +27,7 @@ from torch_detection.utils.util import get_logger
 warnings.filterwarnings('ignore')
 
 
-def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, args):
+def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger):
     cls_losses, reg_losses, losses = list(), list(), list()
     model.train()
     iters = len(train_loader.dataset) // Config.batch_size

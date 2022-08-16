@@ -1,6 +1,6 @@
 import os
 
-# os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '7'
 import sys
 import time
 import argparse
@@ -44,7 +44,6 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, C
             scaler = amp.GradScaler()
             auto_cast = amp.autocast
 
-            # 前向过程(model + loss)开启 autocast
             with auto_cast():
                 obj_reg_cls_heads = model(images)
                 # for i, p, j in zip(cls_heads, reg_heads, batch_anchors):
