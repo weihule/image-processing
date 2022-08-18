@@ -438,7 +438,7 @@ class OSNet(nn.Module):
             raise KeyError("Unsupported loss: {}".format(self.loss))
 
 
-def init_pretrained_weights(model, key=''):
+def init_pretrained_weights(model, default_path, key=''):
     """Initializes model with pretrained weights.
     
     Layers that don't match with pretrained layers in name or size are kept unchanged.
@@ -452,9 +452,8 @@ def init_pretrained_weights(model, key=''):
         ENV_TORCH_HOME = 'TORCH_HOME'
         ENV_XDG_CACHE_HOME = 'XDG_CACHE_HOME'
         # DEFAULT_CACHE_DIR = '~/.cache'
-        DEFAULT_CACHE_DIR = 'D:\\workspace\\data\\weights\\reid\\'
-        if not os.path.exists(DEFAULT_CACHE_DIR):
-            DEFAULT_CACHE_DIR = '/workshop/weihule/data/weights/osnet'
+        DEFAULT_CACHE_DIR = default_path
+
         torch_home = os.path.expanduser(
             os.getenv(
                 ENV_TORCH_HOME,
@@ -523,7 +522,7 @@ def init_pretrained_weights(model, key=''):
 ##########
 # Instantiation
 ##########
-def osnet_x1_0(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
+def osnet_x1_0(num_classes=1000, pretrained=True, loss='softmax', default_path='', **kwargs):
     # standard size (width x1.0)
     model = OSNet(
         num_classes,
@@ -534,11 +533,11 @@ def osnet_x1_0(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
         **kwargs
     )
     if pretrained:
-        init_pretrained_weights(model, key='osnet_x1_0')
+        init_pretrained_weights(model, key='osnet_x1_0', default_path=default_path)
     return model
 
 
-def osnet_x0_75(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
+def osnet_x0_75(num_classes=1000, pretrained=True, loss='softmax', default_path='', **kwargs):
     # medium size (width x0.75)
     model = OSNet(
         num_classes,
@@ -549,7 +548,7 @@ def osnet_x0_75(num_classes=1000, pretrained=True, loss='softmax', **kwargs):
         **kwargs
     )
     if pretrained:
-        init_pretrained_weights(model, key='osnet_x0_75')
+        init_pretrained_weights(model, key='osnet_x0_75', default_path=default_path)
     return model
 
 

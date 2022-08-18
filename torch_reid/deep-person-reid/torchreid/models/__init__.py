@@ -89,7 +89,7 @@ def show_avai_models():
 
 
 def build_model(
-    name, num_classes, loss='softmax', pretrained=True, use_gpu=True
+    name, num_classes, default_path, loss='softmax', pretrained=True, use_gpu=True
 ):
     """A function wrapper for building a model.
 
@@ -106,8 +106,8 @@ def build_model(
         nn.Module
 
     Examples::
-        >>> from torchreid import models
-        >>> model = models.build_model('resnet50', 751, loss='softmax')
+        # from torchreid import models
+        # model = models.build_model('resnet50', 751, loss='softmax')
     """
     avai_models = list(__model_factory.keys())
     if name not in avai_models:
@@ -118,5 +118,6 @@ def build_model(
         num_classes=num_classes,
         loss=loss,
         pretrained=pretrained,
-        use_gpu=use_gpu
+        use_gpu=use_gpu,
+        default_path=default_path
     )

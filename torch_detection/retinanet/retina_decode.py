@@ -8,7 +8,60 @@ base_dir = os.path.dirname(
     os.path.dirname(
         os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(base_dir)
+from torch_detection.retinanet.network_files import RetinaAnchors
 from torch_detection.utils.iou_method import IoUMethod, IoUMethodNumpy, IoUMethodMultiple
+from torch_detection.utils.decode_util import DecodeMethod
+
+
+class RetinaDecoder:
+
+    def __init__(self,
+                 areas=None,
+                 ratios=None,
+                 scales=None,
+                 strides=None,
+                 max_object_num=100,
+                 min_score_threshold=0.05,
+                 topn=1000,
+                 nms_type='python_nms',
+                 nms_threshold=0.5):
+        assert nms_type in ['torch_nms', 'python_nms',
+                            'diou_python_nms'], 'wrong nms type!'
+        if areas is None:
+            self.areas = [[32, 32], [64, 64], [128, 128], [256, 256], [512, 512]]
+        else:
+            self.areas = areas
+
+        if ratios is None:
+            self.ratios = [0.5, 1, 2]
+        else:
+            self.ratios = ratios
+
+        if scales is None:
+            self.scales = [2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]
+        else:
+            self.scales = scales
+
+        if strides is None:
+            self.strides = [8, 16, 32, 64, 128]
+        else:
+            self.strides = strides
+        self.anchors = RetinaAnchors(areas=self.areas,
+                                     ratios=self.ratios,
+                                     scales=self.scales,
+                                     strides=self.strides)
+        self.decode_func = DecodeMethod(max_object_num=max_object_num,
+                                        min_score_threshold=min_score_threshold,
+                                        topn=topn,
+                                        nms_type='python_nms',
+                                        nms_threshold=nms_threshold)
+
+    def __call__(self, preds):
+        cls_preds, reg_preds = preds
+
+        # [[w, h], ...]
+        feature_size = [[p.shape[2], p.shape[1]] for p in cls_preds]
+        one_image_anchors = self.anchors(feature_size)
 
 
 class RetinaNetDecoder(nn.Module):
@@ -192,11 +245,11 @@ class RetinaNetDecoder(nn.Module):
         """
         pred_bbox_wh = pred_bbox[:, 2:] - pred_bbox[:, :2]
         pred_bbox_ctr = pred_bbox[:, :2] + 0.5 * pred_bbox_wh
-        pred_bbox_areas = pred_bbox_wh[:, 0] * pred_bbox_wh[:, 1]   # [N]
+        pred_bbox_areas = pred_bbox_wh[:, 0] * pred_bbox_wh[:, 1]  # [N]
 
         annots_wh = annots[:, 2:] - annots[:, :2]
         annots_ctr = annots[:, :2] + 0.5 * annots_wh
-        annots_areas = annots_wh[:, 0] * annots_wh[:, 1]   # [M]
+        annots_areas = annots_wh[:, 0] * annots_wh[:, 1]  # [M]
 
         res_dious = []
         for index, annot in enumerate(annots):
@@ -207,7 +260,7 @@ class RetinaNetDecoder(nn.Module):
             overlaps = torch.clamp(overlap_x2 - overlap_x1, 0) * \
                        torch.clamp(overlap_y2 - overlap_y1, 0)
             unions = pred_bbox_areas + annots_areas - overlaps
-            ious = overlaps / unions     # [N]
+            ious = overlaps / unions  # [N]
 
             # 计算对角线差距
             enclose_area_top_left = torch.min(annot[:2], pred_bbox[:, :2])  # [N, 2]
@@ -227,33 +280,4 @@ class RetinaNetDecoder(nn.Module):
 
 
 if __name__ == "__main__":
-    # arr = torch.tensor([1, 9, 0, 2, 1, 5, 8, 3, 8, 6])
-    # res = torch.unique(arr, sorted=True)
-    # print(res)
-
-    # classes = torch.randint(low=1, high=20, size=(23, ))
-    # in_use_indices = res = torch.unique(classes, sorted=True)
-    # print(classes, classes.shape)
-    #
-    #
-    # for index in in_use_indices:
-    #     print(index)
-    #     mask = torch.eq(classes, index)
-    #     print(mask)
-    #     break
-
-    # all_list = list()
-    # all_list.append(torch.tensor(0))
-    # all_list.append(torch.tensor(1))
-    # all_list.append(torch.tensor(2))
-    # all_list.append(torch.tensor(3))
-    # all_list.append(torch.tensor(4))
-    #
-    # res = torch.tensor(all_list)
-    # print(res, res.shape)
-
-    arr1 = torch.rand(1, 4)
-    arr2 = torch.rand(1, 4)
-    arr_list = [arr1, arr2]
-    arr = torch.cat(arr_list, dim=0)
-    print(arr, arr.shape)
+    pass

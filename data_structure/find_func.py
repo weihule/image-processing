@@ -21,16 +21,23 @@ def binary_func(nums, find_num, simple_loc=True):
                 end = mid - 1 
             else:
                 start = mid + 1
+        
+        # 如果没有查找到, 返回 -1
+        return -1
     else:
         while start <= end:
             mid = start + (end - start) // 2
             if find_num == nums[mid]:
                 locs = [mid]
                 mid_origin = mid
+
+                # 往右走
                 mid = mid_origin + 1
                 while 0<=mid<=len(nums)-1 and nums[mid] == find_num:
                     locs.append(mid)
                     mid += 1
+                
+                # 往左走
                 mid = mid_origin - 1
                 while 0<=mid<=len(nums)-1 and nums[mid] == find_num:
                     locs.append(mid)
@@ -40,6 +47,8 @@ def binary_func(nums, find_num, simple_loc=True):
                 end = mid -1 
             else:
                 start = mid + 1
+        # 如果没有查找到, 返回 -1
+        return -1
 
 
 def bubble_sort(arr, reverse=False):

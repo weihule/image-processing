@@ -263,7 +263,9 @@ if __name__ == "__main__":
          1.,  1.,  1.,  2.,  2.,  1.,  1.,  4., 14., 68.,  1.,  1., 17.,  1.,
          3.,  3., 18., 18., 75.,  1.,  3.,  8., 48., 50., 50., 40.,  3., 46.,
         48., 40., 61., 46., 57., 57., 27.,  1., 46.])
-    print(arr.shape)
-    cls_preds = torch.rand((625, 80))
-    mask = F.one_hot(arr.long(), num_classes=90)
-    print(mask.shape)
+    # print(arr.shape)
+    # cls_preds = torch.rand((625, 80))
+    # mask = F.one_hot(arr.long(), num_classes=90)
+    # print(mask.shape)
+    print(torch.cuda.is_available())
+    print(torch.__version__)
