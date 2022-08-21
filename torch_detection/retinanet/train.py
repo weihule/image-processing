@@ -1,7 +1,9 @@
 import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '4'
 import sys
 import random
 import time
+import math
 import warnings
 import numpy as np
 from tqdm import tqdm
@@ -11,8 +13,9 @@ from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
 
 from losses import RetinaLoss
-from retina_decode import RetinaNetDecoder
+from retina_decode import RetinaDecoder
 from network_files.retinanet_model import resnet50_retinanet
+from config import Config
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(
@@ -20,8 +23,6 @@ BASE_DIR = os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 sys.path.append(BASE_DIR)
 
-from torch_detection.retinanet.config import Config
-from torch_detection.utils.custom_dataset import collater
 from torch_detection.utils.util import get_logger
 
 warnings.filterwarnings('ignore')
@@ -33,10 +34,8 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger):
     iters = len(train_loader.dataset) // Config.batch_size
 
     iter_index = 1
-    train_bar = tqdm(train_loader)
-    for datas in train_bar:
+    for datas in tqdm(train_loader):
         images, annotations = datas['img'], datas['annot']
-        # print(images.shape, annotations.shape)
         images, annotations = images.cuda().float(), annotations.cuda()
         optimizer.zero_grad()
 
@@ -45,15 +44,16 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger):
             auto_cast = amp.autocast
             with auto_cast():
                 reg_cls_heads = model(images)
-                cls_loss, reg_loss = criterion(reg_cls_heads, annotations)
+                loss_dict = criterion(reg_cls_heads, annotations)
+                cls_loss, reg_loss = loss_dict['cls_loss'], loss_dict['reg_loss']
                 loss = cls_loss + reg_loss
             scaler.scale(loss).backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             scaler.step(optimizer)
             scaler.update()
         else:
-            cls_heads, reg_heads, batch_anchors = model(images)
-            cls_loss, reg_loss = criterion(cls_heads, reg_heads, batch_anchors, annotations)
+            reg_cls_heads = model(images)
+            cls_loss, reg_loss = criterion(reg_cls_heads, annotations)
             loss = cls_loss + reg_loss
             if cls_losses == 0.0 or reg_loss == 0.0:
                 continue
@@ -100,6 +100,8 @@ def main(logger):
     cudnn.enabled = True
     start_time = time.time()
 
+    collater = Config.collater
+
     # dataset and dataloader
     logger.info('start loading data')
     train_loader = DataLoader(Config.train_dataset,
@@ -107,14 +109,13 @@ def main(logger):
                               shuffle=True,
                               num_workers=Config.num_workers,
                               pin_memory=True,
-                              collate_fn=collater)
+                              collate_fn=collater,
+                              prefetch_factor=4)
     logger.info('finish loading data')
 
-    pre_train = '/workshop/weihule/data/weights/resnet/resnet50-acc76.322.pth'
-    if not os.path.exists(pre_train):
-        pre_train = '/nfs/home57/weihule/data/weights/resnet/resnet50-acc76.322.pth'
-
-    model = resnet50_retinanet(num_classes=20, pre_train=pre_train)
+    pre_train_path1 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50-acc76.322.pth'
+    pre_train_paths = [pre_train_path1]
+    model = resnet50_retinanet(num_classes=20, pre_train=pre_train_paths[0])
 
     # flops_input = torch.rand(1, 3, Config.input_image_size, Config.input_image_size)
     # flops, params = profile(model, inputs=(flops_input,))
@@ -122,21 +123,17 @@ def main(logger):
     # logger.info(f"model: resnet50_backbone, flops: {flops}, params: {params}")
 
     criterion = RetinaLoss().cuda()
-    decoder = RetinaNetDecoder(image_w=Config.input_image_size,
-                               image_h=Config.input_image_size).cuda()
     model = model.cuda()
-    # optimizer = torch.optim.Adam(model.parameters(), lr=Config.lr)
-    #
-    # lf = lambda x: ((1 + math.cos(x * math.pi / Config.epochs)) / 2) * (1 - Config.lrf) + Config.lrf  # cosine
-    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=Config.lr)
+
+    lf = lambda x: ((1 + math.cos(x * math.pi / Config.epochs)) / 2) * (1 - Config.lrf) + Config.lrf  # cosine
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=Config.lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                            patience=3,
                                                            verbose=True)
-
-    # if Config.apex:
-    #     model, optimizer = amp.
 
     best_map = 0.0
     start_epoch = 1
@@ -170,13 +167,12 @@ def main(logger):
                                                optimizer=optimizer,
                                                scheduler=scheduler,
                                                epoch=epoch,
-                                               logger=logger,
-                                               args=args)
+                                               logger=logger)
         logger.info(
             f"train: epoch {epoch:3d}, cls_loss: {cls_losses:.2f}, reg_loss: {reg_losses:.2f}, loss: {losses:.2f}"
         )
-        # break
-
+    #     # break
+    #
         if epoch % 5 == 0 or epoch == Config.epochs:
     #         all_eval_result = evaluate_voc(Config.val_dataset, model, decoder)
     #         logger.info(f'eval done.')
@@ -221,7 +217,7 @@ def main(logger):
 
 
 if __name__ == "__main__":
-    logger_writer = get_logger(__name__, Config.log)
+    logger_writer = get_logger('debug', Config.log)
     main(logger=logger_writer)
 
     # range_loader = tqdm(range(10000))

@@ -2,7 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import numpy as np
-from torchvision.ops import nms
+from torchvision.ops import nms, batched_nms
 
 
 class DetNMSMethod:
@@ -13,7 +13,7 @@ class DetNMSMethod:
         self.nms_type = nms_type
         self.nms_threshold = nms_threshold
 
-    def __call__(self, sorted_bboxes, sorted_scores):
+    def __call__(self, sorted_bboxes, sorted_scores, sorted_classes):
         """
 
         Args:
@@ -23,9 +23,11 @@ class DetNMSMethod:
         Returns:
         """
         if self.nms_type == 'torch_nms':
-            sorted_bboxes = sorted_bboxes.cpu().detach()
-            sorted_scores = sorted_scores.cpu().detach()
-            keep = nms(sorted_bboxes, sorted_scores, self.nms_threshold)
+            sorted_bboxes = torch.tensor(sorted_bboxes, requires_grad=False)
+            sorted_scores = torch.tensor(sorted_scores, requires_grad=False)
+            sorted_classes = torch.tensor(sorted_classes, requires_grad=False)
+            # keep = nms(sorted_bboxes, sorted_scores, self.nms_threshold)
+            keep = batched_nms(sorted_bboxes, sorted_scores, sorted_classes, self.nms_threshold)
             keep = keep.cpu().detach().numpy()
         else:
             sorted_bboxes_wh = sorted_bboxes[:, 2:4] - sorted_bboxes[:, 0:2]  # [anchor_num, 2]
@@ -91,6 +93,16 @@ class DecodeMethod:
                                          nms_threshold=self.nms_threshold)
 
     def __call__(self, cls_scores, cls_classes, pred_bboxes):
+        """
+
+        Args:
+            cls_scores: [B, N]
+            cls_classes: [B, N]
+            pred_bboxes: [B, N, 4]
+
+        Returns:
+
+        """
         batch_size = cls_scores.shape[0]
         batch_scores = np.ones((batch_size, self.max_object_num), dtype=np.float32) * (-1)
         batch_classes = np.ones((batch_size, self.max_object_num), dtype=np.float32) * (-1)
@@ -111,12 +123,12 @@ class DecodeMethod:
                 sorted_bboxes = bboxes[sorted_indexes]
 
                 if self.topn < sorted_scores.shape[0]:
-                    sorted_scores = sorted_scores[:self.topn]
-                    sorted_score_classes = sorted_scores[:self.topn]
-                    sorted_bboxes = sorted_scores[:self.topn]
+                    sorted_scores = sorted_scores[0:self.topn]
+                    sorted_score_classes = sorted_score_classes[0:self.topn]
+                    sorted_bboxes = sorted_bboxes[0:self.topn]
 
                 # nms
-                keep = self.nms_function(sorted_bboxes, sorted_scores)
+                keep = self.nms_function(sorted_bboxes, sorted_scores, sorted_score_classes)
                 keep_scores = sorted_scores[keep]
                 keep_classes = sorted_score_classes[keep]
                 keep_bboxes = sorted_bboxes[keep]
@@ -131,7 +143,6 @@ class DecodeMethod:
         # batch_scores shape: [B, max_obj_num]
         # batch_scores shape: [B, max_obj_num, 4]
         return [batch_scores, batch_classes, batch_bboxes]
-
 
 
 if __name__ == "__main__":

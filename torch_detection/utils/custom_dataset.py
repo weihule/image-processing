@@ -424,16 +424,6 @@ class Normalize:
         self.mean = torch.tensor([[[[0.471, 0.448, 0.408]]]], dtype=torch.float32)
         self.std = torch.tensor([[[[0.234, 0.239, 0.242]]]], dtype=torch.float32)
 
-    # def __call__(self, sample):
-    #     # image shape: [h, w, 3], 这里三分量的顺序已经调整成 RGB 了
-    #     image, annots, scale = sample['img'], sample['annot'], sample['scale']
-    #     image = (image - self.mean) / self.std
-    #     return {
-    #         'img': image,
-    #         'annot': annots,
-    #         'scale': scale,
-    #     }
-
     def __call__(self, image):
         # image shape: [h, w, 3], 这里三分量的顺序已经调整成 RGB 了
         image = (image - self.mean) / self.std
@@ -648,7 +638,8 @@ class MultiScaleCollater():
                  resize=416,
                  multi_scale_range=None,
                  stride=32,
-                 use_multi_scale=False):
+                 use_multi_scale=False,
+                 normalize=False):
         self.mean = torch.tensor(mean, dtype=torch.float32).tile(1, 1, 1, 1)
         self.std = torch.tensor(std, dtype=torch.float32).tile(1, 1, 1, 1)
         self.resize = resize
@@ -658,6 +649,7 @@ class MultiScaleCollater():
             self.multi_scale_range = multi_scale_range
         self.stride = stride
         self.use_multi_scale = use_multi_scale
+        self.normalize = normalize
 
     def __call__(self, samples):
         if self.use_multi_scale:
@@ -681,18 +673,18 @@ class MultiScaleCollater():
 
         for index, img in enumerate(imgs):
             height, width, _ = img.shape
-            max_image_size = max(height, width)
-            resize_factor = final_resize / max_image_size
+            resize_factor = final_resize / max(height, width)
             resize_h, resize_w = int(resize_factor * height), int(resize_factor * width)
             img = cv2.resize(img, (resize_w, resize_h))
-            padded_img[index, :resize_h, :resize_w] = torch.from_numpy(img)
+            padded_img[index, :resize_h, :resize_w, :] = torch.from_numpy(img)
 
             annots[index][:, :4] *= resize_factor
             scales[index] *= resize_factor
 
         # padded_img [B, H, W, 3] -> [B, 3, H, W]
         padded_img = padded_img / 255.
-        padded_img = (padded_img - self.mean) / self.std
+        if self.normalize:
+            padded_img = (padded_img - self.mean) / self.std
         padded_img = padded_img.permute(0, 3, 1, 2).contiguous()
 
         max_num_annots = max(annot.shape[0] for annot in annots)

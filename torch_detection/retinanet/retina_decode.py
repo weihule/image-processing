@@ -1,14 +1,17 @@
 import os
 import sys
+
+import numpy as np
 import torch
 import torch.nn as nn
 from torchvision.ops import batched_nms
 
-base_dir = os.path.dirname(
+BASE_DIR = os.path.dirname(
     os.path.dirname(
         os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(base_dir)
-from torch_detection.retinanet.network_files import RetinaAnchors
+sys.path.append(BASE_DIR)
+
+from network_files.anchors import RetinaAnchors
 from torch_detection.utils.iou_method import IoUMethod, IoUMethodNumpy, IoUMethodMultiple
 from torch_detection.utils.decode_util import DecodeMethod
 
@@ -53,15 +56,79 @@ class RetinaDecoder:
         self.decode_func = DecodeMethod(max_object_num=max_object_num,
                                         min_score_threshold=min_score_threshold,
                                         topn=topn,
-                                        nms_type='python_nms',
+                                        nms_type=nms_type,
                                         nms_threshold=nms_threshold)
 
     def __call__(self, preds):
+        # if input size:[B,3,640,640]
+        # cls_heads shape:[[B, 80, 80, 9, 80],[B, 40, 40, 9, 80],[B, 20, 20, 9, 80],[B, 10, 10, 9, 80],[B, 5, 5, 9, 80]]
+        # reg_heads shape:[[B, 80, 80, 9, 4],[B, 40, 40, 9, 4],[B, 20, 20, 9, 4],[B, 10, 10, 9, 4],[B, 5, 5, 9, 4]]
         cls_preds, reg_preds = preds
 
         # [[w, h], ...]
         feature_size = [[p.shape[2], p.shape[1]] for p in cls_preds]
+
+        # if input size: [640, 640]
+        # [h, w, 9, 4]
+        # one_image_anchors shape: [[80, 80, 9, 4], [40, 40, 9, 4], ...]
         one_image_anchors = self.anchors(feature_size)
+
+        # [B, h1*w1*9+..., 80]
+        cls_preds = np.concatenate([
+            p.cpu().detach().numpy().reshape(p.shape[0], -1, p.shape[-1])
+            for p in cls_preds], axis=1)
+
+        # [B, h1*w1*9+..., 4]
+        reg_preds = np.concatenate([
+            p.cpu().detach().numpy().reshape(p.shape[0], -1, p.shape[-1])
+            for p in reg_preds], axis=1)
+
+        # [h1*w1*9+..., 4]
+        one_image_anchors = np.concatenate([
+            p.reshape(-1, p.shape[-1]) for p in one_image_anchors])
+
+        # [B, h1*w1*9+..., 4]
+        batch_anchors = np.tile(one_image_anchors, (cls_preds.shape[0], 1, 1))
+
+        # [B, h1*w1*9+...]
+        cls_classes = np.argmax(cls_preds, axis=2)
+
+        # TODO 这里是找出每一行最大值的索引，并将该位置的元素取出来, 在torch中直接 torch.max() 即可
+        # per_image_preds [h1*w1*9+..., 80]
+        # per_image_cls_classes中的数值范围是 [0, 80), 共有 h1*w1*9+... 个
+        # cls_socres [B, h1*w1*9+...]
+        cls_socres = np.concatenate([
+            np.expand_dims(per_image_preds[np.arange(per_image_preds.shape[0]), per_image_cls_classes], axis=0)
+            for per_image_preds, per_image_cls_classes in zip(cls_preds, cls_classes)
+        ])
+
+        # pred_bboxes [B, h1*w1*9+..., 4]
+        pred_bboxes = self.sanp_txtytwth_to_x1y1x2y2(reg_preds, batch_anchors)
+        [batch_scores, batch_classes, batch_bboxes] = self.decode_func(cls_scores=cls_socres,
+                                                                       cls_classes=cls_classes,
+                                                                       pred_bboxes=pred_bboxes)
+        return [batch_scores, batch_classes, batch_bboxes]
+
+    def sanp_txtytwth_to_x1y1x2y2(self, reg_preds, batch_anchors):
+        """
+        snap reg heads to pred heads
+        Args:
+            reg_preds: [B, anchor_num, 4]  4: [tx, ty, tw, th]
+            batch_anchors: [B, anchor_num, 4]  4: [x1, y1, x2, y2]
+        Returns:
+        """
+        anchors_wh = batch_anchors[..., 2:] - batch_anchors[..., :2]
+        anchors_ctr = batch_anchors[..., :2] + anchors_wh * 0.5
+
+        pred_bboxes_wh = np.exp(reg_preds[..., 2:4]) * anchors_wh
+        pred_bboxes_ctr = reg_preds[..., 0:2] * anchors_ctr + anchors_ctr
+        pred_bboxes_x_min_y_min = pred_bboxes_ctr - 0.5 * pred_bboxes_wh
+        pred_bboxes_x_max_y_max = pred_bboxes_ctr + 0.5 * pred_bboxes_wh
+        pred_bboxes = np.concatenate([
+            pred_bboxes_x_min_y_min, pred_bboxes_x_max_y_max], axis=-1)
+        pred_bboxes = pred_bboxes.astype(np.int32)
+
+        return pred_bboxes
 
 
 class RetinaNetDecoder(nn.Module):
@@ -280,4 +347,18 @@ class RetinaNetDecoder(nn.Module):
 
 
 if __name__ == "__main__":
-    pass
+    per_image_preds = np.arange(200).reshape((10, 20))
+    # per_image_cls_classes = np.array([0, 2, 4, 6, 8, 10, 12, 14, 16, 18])
+    #
+    # sub1 = per_image_preds[:, per_image_cls_classes]
+    # sub2 = per_image_preds[np.arange(10), per_image_cls_classes]
+    # print(sub1, sub1.shape)
+    # print(sub2, sub2.shape)
+    # arr = np.array([[1, 2], [3, 4], [5, 6]])
+    # print(arr.shape)
+    # print(np.argmax(arr, axis=1))
+
+    # arr1 = np.repeat(np.expand_dims(arr, 0), 2, axis=0)
+    # arr2 = np.tile(arr, (2, 1, 1))
+    # print(arr1, arr1.shape)
+    # print(arr2, arr2.shape)

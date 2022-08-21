@@ -254,6 +254,7 @@ if __name__ == "__main__":
                              [8, 6, 13, 14], [10, 8, 23, 16], [10, 9, 24, 16]], dtype=torch.float32)
     bb2s = torch.tensor([[6., 5., 17., 11.], [9., 8., 19., 15.]])
 
+    print(bb1s.unsqueeze(1).shape, bb2s.unsqueeze(0).shape)
     iou_method1 = IoUMethodMultiple()
     ious1 = iou_method1(bb1s.unsqueeze(1), bb2s.unsqueeze(0))
 
@@ -263,4 +264,4 @@ if __name__ == "__main__":
 
     print(ious1, ious1.shape)
     print(ious2, ious2.shape)
-    print(ious1 == ious2)
+    # print(ious1 == ious2)

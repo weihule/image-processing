@@ -37,6 +37,7 @@ def load_state_dict(saved_model_path, model, excluded_layer_name=()):
         return
     saved_state_dict = torch.load(saved_model_path,
                                   map_location=torch.device('cpu'))
+
     filtered_state_dict = {
         name: weight
         for name, weight in saved_state_dict.items()
@@ -47,9 +48,11 @@ def load_state_dict(saved_model_path, model, excluded_layer_name=()):
     if len(filtered_state_dict) == 0:
         print('No pretrained parameters to load!')
     else:
+        print(f'loading {len(filtered_state_dict)} layers parameters')
         model.load_state_dict(filtered_state_dict, strict=False)
 
     return
+
 
 def custom_cross_entropy(input_data, target, num_class, use_custom=True):
     """
