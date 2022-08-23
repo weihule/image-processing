@@ -397,9 +397,9 @@ class RetinaLoss(nn.Module):
             batch_anchors, annotations
         )
 
-        cls_preds = [per_cls_pred.view(per_cls_pred[0], -1, per_cls_pred[-1])
+        cls_preds = [per_cls_pred.view(per_cls_pred.shape[0], -1, per_cls_pred.shape[-1])
                      for per_cls_pred in cls_preds]
-        reg_preds = [per_reg_pred.view(per_reg_pred[0], -1, per_reg_pred[-1])
+        reg_preds = [per_reg_pred.view(per_reg_pred.shape[0], -1, per_reg_pred.shape[-1])
                      for per_reg_pred in reg_preds]
         cls_preds = torch.cat(cls_preds, dim=1)  # [B, h1*w1*9+..., 80]
         reg_preds = torch.cat(reg_preds, dim=1)  # [B, h1*w1*9+..., 4]
@@ -408,7 +408,7 @@ class RetinaLoss(nn.Module):
 
         cls_preds = cls_preds.view(-1, cls_preds.shape[-1])  # [B*h1*w1*9+..., 80]
         reg_preds = reg_preds.view(-1, reg_preds.shape[-1])  # [B*h1*w1*9+..., 4]
-        batch_anchors = batch_anchors.view(-1, batch_anchors[-1])  # [B*h1*w1*9+..., 4]
+        batch_anchors = batch_anchors.view(-1, batch_anchors.shape[-1])  # [B*h1*w1*9+..., 4]
 
         batch_anchors_annotations = batch_anchors_annotations.view(-1, batch_anchors_annotations.shape[-1])
 
@@ -584,7 +584,9 @@ class RetinaLoss(nn.Module):
 
                 # snap per gt bboxes to the best iou anchor
                 overlap, indices = one_image_ious.max(dim=1)  # [h1*w1*9+h2*w2*9+..., ]
-                per_image_anchor_gt_class = (torch.ones_like(overlap) * (-1)).to(device)
+                per_image_anchor_gt_class = torch.ones(overlap.shape[0],
+                                                       dtype=torch.float32,
+                                                       device=device)*(-1)
 
                 # if iou < 0.4, assign anchors gt class as 0:background
                 per_image_anchor_gt_class[overlap < 0.4] = 0

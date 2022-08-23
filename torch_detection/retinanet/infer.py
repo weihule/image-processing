@@ -36,20 +36,28 @@ class InferResizer:
         return {'img': padded_img, 'scale': scale}
 
 
-def main():
+def main(mode):
+
     img_root1 = '/workshop/weihule/data/detection_data/test_images/*.jpg'
     img_root2 = 'D:\\workspace\\data\\dl\\test_images\\*.jpg'
 
     model_path1 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50_retinanet-metric80.558.pth'
-    model_path2 = 'D:\\workspace\\data\\detection_data\\retinanet\\checkpoints\\resnet50_retinanet-metric80.558.pth'
+    model_path2 = 'D:\\workspace\\data\\detection_data\\retinanet\\checkpoints\\latest.pth'
     model_path3 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/latest.pth'
 
     save_root1 = 'D:\\Desktop\\shows'
     save_root2 = '/workshop/weihule/code/study/torch_detection/retinanet/infer_shows'
 
-    img_root = img_root1
-    model_path = model_path3
-    save_root = save_root2
+    if mode == 'local':
+        img_root = img_root2
+        model_path = model_path2
+        save_root = save_root1
+    elif mode == 'company':
+        img_root = img_root1
+        model_path = model_path3
+        save_root = save_root2
+    else:
+        raise 'wrong value'
 
     with open('../utils/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
         infos = json.load(fr)
@@ -59,8 +67,10 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     infer_resizer = InferResizer()
-    mean = torch.tensor([[[[0.471, 0.448, 0.408]]]], dtype=torch.float32).to(device)
-    std = torch.tensor([[[[0.234, 0.239, 0.242]]]], dtype=torch.float32).to(device)
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+    mean = torch.tensor(mean, dtype=torch.float32, device=device).tile(1, 1, 1, 1)
+    std = torch.tensor(std, dtype=torch.float32, device=device).tile(1, 1, 1, 1)
 
     infer_batch = 2
     cudnn.benchmark = True
@@ -74,8 +84,9 @@ def main():
 
         model.load_state_dict(checkpoint)
         model.eval()
-        decoder = RetinaDecoder(nms_type='python_nms',
-                                nms_threshold=0.3)
+        decoder = RetinaDecoder(min_score_threshold=0.1,
+                                nms_type='diou_python_nms',
+                                nms_threshold=0.15)
 
         img_lists = glob.glob(img_root)
         img_spilt_lists = [img_lists[start: start + infer_batch] for start in range(0, len(img_lists), infer_batch)]
@@ -91,10 +102,9 @@ def main():
                 images.append(infos['img'])
                 scales.append(infos['scale'])
             images_tensor = torch.stack(images, dim=0).to(device)
-            # images_tensor = images_tensor / 255.
+            images_tensor = images_tensor / 255.
             images_tensor = (images_tensor - mean) / std
             images_tensor = images_tensor.permute(0, 3, 1, 2).contiguous()
-            print(images_tensor.shape)
             preds = model(images_tensor)
 
             [batch_scores, batch_classes, batch_pred_bboxes] = decoder(preds)
@@ -128,5 +138,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    mode_type = 'local'  # company    autodl
+    main(mode=mode_type)
 

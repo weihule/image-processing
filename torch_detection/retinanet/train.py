@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '4'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '4'
 import sys
 import random
 import time
@@ -72,8 +72,6 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger):
             )
         iter_index += 1
         print(f"epoch: {epoch}, iter_index: {iter_index}/{iters}")
-
-        # break
 
     # scheduler.step()
     scheduler.step(np.mean(losses))

@@ -17,7 +17,25 @@ __all__ = [
 ]
 
 
+class ActivationBlock(nn.Module):
+    def __init__(self, act_type='leakyrelu', inplace=True):
+        super(ActivationBlock, self).__init__()
+        assert act_type in ['silu', 'relu', 'leakyrelu'], 'Unsupport activation function!'
+        if act_type == 'silu':
+            self.act = nn.SiLU(inplace=inplace)
+        elif act_type == 'relu':
+            self.act = nn.ReLU(inplace=inplace)
+        elif act_type == 'leakyrelu':
+            self.act = nn.LeakyReLU(0.1, inplace=inplace)
+
+    def forward(self, x):
+        x = self.act(x)
+
+        return x
+
+
 class ConvBnActBlock(nn.Module):
+
     def __init__(self,
                  inplanes,
                  planes,
@@ -30,17 +48,21 @@ class ConvBnActBlock(nn.Module):
                  act_type='leakyrelu'):
         super(ConvBnActBlock, self).__init__()
         bias = False if has_bn else True
+
         self.layer = nn.Sequential(
-            nn.Conv2d(inplanes, planes,
-                      kernel_size=kernel_size,
+            nn.Conv2d(inplanes,
+                      planes,
+                      kernel_size,
                       stride=stride,
                       padding=padding,
+                      groups=groups,
                       bias=bias),
             nn.BatchNorm2d(planes) if has_bn else nn.Sequential(),
-            nn.LeakyReLU(inplace=True) if has_act else nn.Sequential()
+            ActivationBlock(act_type=act_type, inplace=True)
+            if has_act else nn.Sequential(),
         )
 
-    def forward(self, x: Tensor):
+    def forward(self, x):
         x = self.layer(x)
 
         return x

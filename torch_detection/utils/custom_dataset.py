@@ -91,12 +91,12 @@ class CocoDetection(Dataset):
                 # top left
                 if i == 0:
                     # combined image coordinates
-                    x1a, y1a = max(x_ctr - resize_w, 0), max(y_ctr - resize_h, 0)
+                    x1a, y1a = max(x_ctr - origin_w, 0), max(y_ctr - origin_h, 0)
                     x2a, y2a = x_ctr, y_ctr
 
                     # single img choose area
-                    x1b, y1b = max(resize_w - x_ctr, 0), max(resize_h - y_ctr, 0)
-                    x2b, y2b = resize_w, resize_h
+                    x1b, y1b = max(origin_w - x_ctr, 0), max(origin_h - y_ctr, 0)
+                    x2b, y2b = origin_w, origin_h
                 # top right
                 elif i == 1:
                     x1a, y1a = x_ctr, max(y_ctr - resize_h, 0)
@@ -222,21 +222,29 @@ class VocDetection(Dataset):
     def __init__(self,
                  root_dir,
                  image_sets=None,
+                 resize=416,
+                 use_mosaic=False,
                  transform=None,
                  keep_difficult=False):
         super(Dataset, self).__init__()
         if image_sets is None:
-            image_sets = [('2007', 'trainval'), ('2012', 'trainval')]
+            self.image_sets = [('2007', 'trainval'), ('2012', 'trainval')]
+        else:
+            self.image_sets = image_sets
+
+        self.resize = resize
+        self.use_mosaic = use_mosaic
         self.root_dir = root_dir
-        self.image_set = image_sets
         self.transform = transform
         self.categories = None
 
         # 这里的category_id指的就是二十个类别的名字
         self.category_name_to_voc_lable = dict()
-        file_path = '/nfs/home57/weihule/code/study/torch_detection/utils/pascal_voc_classes.json'
-        if not os.path.exists(file_path):
-            file_path = '/workshop/weihule/code/study/torch_detection/utils/pascal_voc_classes.json'
+
+        file_path1 = '/workshop/weihule/code/study/torch_detection/utils/pascal_voc_classes.json'
+        file_path2 = 'D:\\workspace\\code\\study\\torch_detection\\utils\\pascal_voc_classes.json'
+
+        file_path = file_path1
         with open(file_path, 'r', encoding='utf-8') as fr:
             self.category_name_to_voc_lable = json.load(fr)['classes']
 
@@ -245,7 +253,7 @@ class VocDetection(Dataset):
         self.keep_difficult = keep_difficult
 
         self.ids = list()  # 存储的是2007和2012中 trainval.txt 中的图片名, 有16551个
-        for (year, name) in image_sets:
+        for (year, name) in self.image_sets:
             rootpath = os.path.join(self.root_dir, 'VOC' + year)
             txt_file = os.path.join(rootpath, 'ImageSets', 'Main', name + '.txt')
             with open(txt_file, 'r', encoding='utf-8') as fr:
@@ -254,9 +262,70 @@ class VocDetection(Dataset):
                 self.ids.append((rootpath, line.strip('\n')))
 
     def __getitem__(self, idx):
-        img_id = self.ids[idx]
-        img = self.load_image(img_id)
-        annot = self.load_annotations(img_id)
+        if self.use_mosaic and idx % 2 == 0:
+            x_ctr, y_ctr = [int(random.uniform(self.resize*0.8,
+                                               self.resize*1.2))
+                            for _ in range(2)]
+            # all 4 image indices
+            img_indices = [idx] + [random.randint(0, len(self.ids)-1) for _ in range(3)]
+            img_indices = [self.ids[p] for p in img_indices]
+
+            annot = []
+
+            # combine image by 4 images
+            img = np.full((self.resize*2, self.resize*2, 3), 111, dtype=np.uint8)
+
+            for i, img_idx in enumerate(img_indices):
+                sub_img = self.load_image(img_idx)
+                sub_annot = self.load_annotations(img_idx)
+                origin_h, origin_w, _ = sub_img.shape
+
+                # 这里四张子图不resize到416
+                # top left
+                if i == 0:
+                    x1a, y1a = max(x_ctr - origin_w, 0), max(y_ctr - origin_h, 0)
+                    x2a, y2a = x_ctr, y_ctr
+
+                    x1b, y1b = max(origin_w - x_ctr, 0), max(origin_h - y_ctr, 0)
+                    x2b, y2b = origin_w, origin_h
+
+                # top right
+                elif i == 1:
+                    x1a, y1a = x_ctr, max(y_ctr - origin_h, 0)
+                    x2a, y2a = min(self.resize * 2, x_ctr + origin_w), y_ctr
+
+                    x1b, y1b = 0, max(origin_h - y_ctr, 0)
+                    x2b, y2b = min(origin_w, self.resize * 2 - x_ctr), origin_h
+                # bottom left img
+                elif i == 2:
+                    x1a, y1a = max(x_ctr - origin_w, 0), y_ctr
+                    x2a, y2a = x_ctr, min(self.resize * 2, y_ctr + origin_h)
+
+                    x1b, y1b = max(origin_w - x_ctr, 0), 0
+                    x2b, y2b = origin_w, min(origin_h, self.resize * 2 - y_ctr)
+                # bottom right img
+                else:
+                    x1a, y1a = x_ctr, y_ctr
+                    x2a, y2a = min(self.resize * 2, x_ctr + origin_w), min(self.resize * 2, y_ctr + origin_h)
+
+                    x1b, y1b = 0, 0
+                    x2b, y2b = min(origin_w, self.resize * 2 - x_ctr), min(origin_h, self.resize * 2 - y_ctr)
+
+                img[y1a:y2a, x1a:x2a] = sub_img[y1b:y2b, x1b:x2b]
+                pad_w, pad_h = x1a - x1b, y1a - y1b
+                if sub_annot.shape[0] > 0:
+                    sub_annot[:, [0, 2]] += pad_w
+                    sub_annot[:, [1, 3]] += pad_h
+                annot.append(sub_annot)
+            annot = np.concatenate(annot, axis=0)
+            annot[:, :4] = np.clip(annot[:, :4], a_min=0, a_max=self.resize*2)
+
+            annot = annot[annot[:, 2] - annot[:, 0] > 1]
+            annot = annot[annot[:, 3] - annot[:, 1] > 1]
+        else:
+            img_id = self.ids[idx]
+            img = self.load_image(img_id)
+            annot = self.load_annotations(img_id)
 
         sample = {'img': img, 'annot': annot, 'scale': 1.}
 
@@ -316,16 +385,16 @@ class Resizer:
         h, w, c = image.shape
         if h >= w:
             scale = self.resize / h
-            resize_w = int(round(scale * w))
-            resize_h = self.resize
+            origin_w = int(round(scale * w))
+            origin_h = self.resize
         else:
             scale = self.resize / w
-            resize_w = self.resize
-            resize_h = int(round(scale * h))
+            origin_w = self.resize
+            origin_h = int(round(scale * h))
 
-        resize_img = cv2.resize(image, (resize_w, resize_h))
+        resize_img = cv2.resize(image, (origin_w, origin_h))
         padded_img = np.zeros((self.resize, self.resize, 3), dtype=np.float32)
-        padded_img[:resize_h, :resize_w, :] = resize_img
+        padded_img[:origin_h, :origin_w, :] = resize_img
         annots[:, :4] *= scale
 
         return {'img': padded_img, 'annot': annots, 'scale': scale}
@@ -490,7 +559,8 @@ def collater(datas):
     img_h_list = [p.shape[0] for p in imgs]
     img_w_list = [p.shape[1] for p in imgs]
     max_h, max_w = max(img_h_list), max(img_w_list)
-    padded_img = torch.zeros((batch_size, max_h, max_w, 3), dtype=torch.float32)
+    # padded_img = torch.zeros((batch_size, max_h, max_w, 3), dtype=torch.float32)
+    padded_img = torch.full((batch_size, max_h, max_w, 3), 111, dtype=torch.float32)
     for i in range(batch_size):
         img = imgs[i]
         padded_img[i, :img.shape[0], :img.shape[1], :] = torch.from_numpy(img)
@@ -551,15 +621,15 @@ class YoloStyleResize:
 
         factor = final_resize / max(h, w)
 
-        resize_h, resize_w = int(round(h * factor)), int(round(w * factor))
-        image = cv2.resize(image, (resize_w, resize_h))
+        origin_h, origin_w = int(round(h * factor)), int(round(w * factor))
+        image = cv2.resize(image, (origin_w, origin_h))
 
-        pad_w = 0 if resize_w % self.divisor == 0 else self.divisor - resize_w % self.divisor
-        pad_h = 0 if resize_h % self.divisor == 0 else self.divisor - resize_h % self.divisor
+        pad_w = 0 if origin_w % self.divisor == 0 else self.divisor - origin_w % self.divisor
+        pad_h = 0 if origin_h % self.divisor == 0 else self.divisor - origin_h % self.divisor
 
-        padded_image = np.zeros((resize_h + pad_h, resize_w + pad_w, 3),
+        padded_image = np.zeros((origin_h + pad_h, origin_w + pad_w, 3),
                                 dtype=np.float32)
-        padded_image[:resize_h, :resize_w, :] = image
+        padded_image[:origin_h, :origin_w, :] = image
 
         factor = np.float32(factor)
         annots[:, :4] *= factor
@@ -669,14 +739,14 @@ class MultiScaleCollater():
 
         batch_size = len(imgs)
 
-        padded_img = torch.zeros((batch_size, final_resize, final_resize, 3))
+        padded_img = torch.full((batch_size, final_resize, final_resize, 3), 111)
 
         for index, img in enumerate(imgs):
             height, width, _ = img.shape
             resize_factor = final_resize / max(height, width)
-            resize_h, resize_w = int(resize_factor * height), int(resize_factor * width)
-            img = cv2.resize(img, (resize_w, resize_h))
-            padded_img[index, :resize_h, :resize_w, :] = torch.from_numpy(img)
+            origin_h, origin_w = int(resize_factor * height), int(resize_factor * width)
+            img = cv2.resize(img, (origin_w, origin_h))
+            padded_img[index, :origin_h, :origin_w, :] = torch.from_numpy(img)
 
             annots[index][:, :4] *= resize_factor
             scales[index] *= resize_factor

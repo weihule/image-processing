@@ -7,9 +7,34 @@ import math
 import torch.nn.functional as F
 
 BASE_DIR = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.append(BASE_DIR)
+
 from torch_detection.yolo.network_files.darknet import ConvBnActBlock
+
+
+class SPP(nn.Module):
+    """
+    Spatial pyramid pooling layer used in Yolov3-SPP
+    """
+
+    def __init__(self, kernels=None):
+        super(SPP, self).__init__()
+        if kernels is None:
+            self.kernels = [5, 9, 13]
+        else:
+            self.kernels = kernels
+
+        self.maxpool_layers = nn.ModuleList([
+            nn.MaxPool2d(kernel_size=kernel, stride=1, padding=kernel // 2)
+            for kernel in self.kernels
+        ])
+
+    def forward(self, x):
+        out = torch.cat([x] + [layer(x) for layer in self.maxpool_layers], dim=1)
+
+        return out
 
 
 class YoloV3FPNHead(nn.Module):
@@ -30,13 +55,13 @@ class YoloV3FPNHead(nn.Module):
             # i = (0, 2, 4)
             if i % 2 == 0:
                 p5_1_layers.append(ConvBnActBlock(inplanes[2],
-                                                  inplanes[2]//2,
+                                                  inplanes[2] // 2,
                                                   kernel_size=1,
                                                   stride=1,
                                                   padding=0))
             # i = (1, 3)
             else:
-                p5_1_layers.append(ConvBnActBlock(inplanes[2]//2,
+                p5_1_layers.append(ConvBnActBlock(inplanes[2] // 2,
                                                   inplanes[2],
                                                   kernel_size=3,
                                                   stride=1,
@@ -45,19 +70,19 @@ class YoloV3FPNHead(nn.Module):
         self.p5_1 = nn.Sequential(*p5_1_layers)
 
         # self.p5_2 和 self.p5_pred_conv获得yolo_head最后的输出特征
-        self.p5_2 = ConvBnActBlock(inplanes[2]//2,
+        self.p5_2 = ConvBnActBlock(inplanes[2] // 2,
                                    inplanes[2],
                                    kernel_size=3,
                                    stride=1,
                                    padding=1)
         self.p5_pred_conv = nn.Conv2d(inplanes[2],
-                                      per_level_num_anchors*(1+4+num_classes),
+                                      per_level_num_anchors * (1 + 4 + num_classes),
                                       kernel_size=1,
                                       stride=1,
                                       padding=0,
                                       bias=False)
-        self.p5_up_conv = ConvBnActBlock(inplanes[2]//2,
-                                         inplanes[1]//2,
+        self.p5_up_conv = ConvBnActBlock(inplanes[2] // 2,
+                                         inplanes[1] // 2,
                                          kernel_size=1,
                                          stride=1,
                                          padding=0)
@@ -72,12 +97,12 @@ class YoloV3FPNHead(nn.Module):
         for i in range(1, 5):
             if i % 2 == 0:
                 self.p4_1_layers.append(ConvBnActBlock(inplanes[1],
-                                                       inplanes[1]//2,
+                                                       inplanes[1] // 2,
                                                        kernel_size=1,
                                                        stride=1,
                                                        padding=0))
             else:
-                self.p4_1_layers.append(ConvBnActBlock(inplanes[1]//2,
+                self.p4_1_layers.append(ConvBnActBlock(inplanes[1] // 2,
                                                        inplanes[1],
                                                        kernel_size=3,
                                                        stride=1,
@@ -87,20 +112,20 @@ class YoloV3FPNHead(nn.Module):
         self.p4_1 = nn.Sequential(*self.p4_1_layers)
 
         # self.p4_2 和 self.p4_pred_conv获得yolo_head最后的输出特征
-        self.p4_2 = ConvBnActBlock(inplanes[1]//2,
+        self.p4_2 = ConvBnActBlock(inplanes[1] // 2,
                                    inplanes[1],
                                    kernel_size=3,
                                    stride=1,
                                    padding=1)
         self.p4_pred_conv = nn.Conv2d(inplanes[1],
-                                      per_level_num_anchors*(1+4+num_classes),
+                                      per_level_num_anchors * (1 + 4 + num_classes),
                                       kernel_size=1,
                                       stride=1,
                                       padding=0,
                                       bias=False)
 
-        self.p4_up_conv = ConvBnActBlock(inplanes[1]//2,
-                                         inplanes[0]//2,
+        self.p4_up_conv = ConvBnActBlock(inplanes[1] // 2,
+                                         inplanes[0] // 2,
                                          kernel_size=1,
                                          stride=1,
                                          padding=0)
@@ -129,13 +154,13 @@ class YoloV3FPNHead(nn.Module):
         self.p3_1 = nn.Sequential(*self.p3_1_layers)
 
         # self.p3_2 和 self.p3_pred_conv获得yolo_head最后的输出特征
-        self.p3_2 = ConvBnActBlock(inplanes[0]//2,
+        self.p3_2 = ConvBnActBlock(inplanes[0] // 2,
                                    inplanes[0],
                                    kernel_size=3,
                                    stride=1,
                                    padding=1)
         self.p3_pred_conv = nn.Conv2d(inplanes[0],
-                                      per_level_num_anchors*(1+4+num_classes),
+                                      per_level_num_anchors * (1 + 4 + num_classes),
                                       kernel_size=1,
                                       stride=1,
                                       padding=0,
@@ -199,26 +224,229 @@ class YoloV3FPNHead(nn.Module):
         return [p3, p4, p5]
 
 
+# yolov4 url = 'https://zhuanlan.zhihu.com/p/342570549'
+class Yolov4FPNHead(nn.Module):
+    def __init__(self,
+                 inplanes,
+                 per_level_num_anchors=3,
+                 num_classes=80,
+                 act_type='leakyrelu'):
+        super(Yolov4FPNHead, self).__init__()
+
+        # inplanes: [C3_inplanes, C4_inplanes, C5_inplanes]
+        # [256, 512, 1024]
+        self.per_level_num_anchors = per_level_num_anchors
+
+        # 通过 p5_block1 之后, W和H并未变化, 通道变为原来的一半
+        p5_block1 = nn.Sequential(*[
+            ConvBnActBlock(inplanes=inplanes[2],
+                           planes=inplanes[2] // 2,
+                           kernel_size=1,
+                           stride=1,
+                           padding=0,
+                           groups=1,
+                           has_bn=True,
+                           has_act=True,
+                           act_type=act_type) if idx % 2 == 0
+            else ConvBnActBlock(inplanes=inplanes[2] // 2,
+                                planes=inplanes[2],
+                                kernel_size=3,
+                                stride=1,
+                                padding=1,
+                                groups=1,
+                                has_bn=True,
+                                has_act=True,
+                                act_type=act_type)
+            for idx in range(3)
+        ])
+        p5_spp_block = SPP(kernels=[5, 9, 13])
+        p5_block2 = nn.Sequential(
+            ConvBnActBlock(inplanes=inplanes[2] * 2,
+                           planes=inplanes[2] // 2,
+                           kernel_size=1,
+                           stride=1,
+                           padding=0,
+                           groups=1,
+                           has_bn=True,
+                           has_act=True,
+                           act_type=act_type),
+            ConvBnActBlock(inplanes=inplanes[2] // 2,
+                           planes=inplanes[2],
+                           kernel_size=3,
+                           stride=1,
+                           padding=1,
+                           groups=1,
+                           has_bn=True,
+                           has_act=True,
+                           act_type=act_type),
+            ConvBnActBlock(inplanes=inplanes[2],
+                           planes=inplanes[2] // 2,
+                           kernel_size=1,
+                           stride=1,
+                           padding=0,
+                           groups=1,
+                           has_bn=True,
+                           has_act=True,
+                           act_type=act_type))
+        self.P5_1 = nn.Sequential(p5_block1, p5_spp_block, p5_block2)
+        self.P5_up_conv = ConvBnActBlock(inplanes=inplanes[2] // 2,
+                                         planes=inplanes[1] // 2,
+                                         kernel_size=1,
+                                         stride=1,
+                                         padding=0,
+                                         groups=1,
+                                         has_bn=True,
+                                         has_act=True,
+                                         act_type=act_type)
+        self.P4_cat_conv = ConvBnActBlock(inplanes=inplanes[1],
+                                          planes=inplanes[1] // 2,
+                                          kernel_size=1,
+                                          stride=1,
+                                          padding=0,
+                                          groups=1,
+                                          has_bn=True,
+                                          has_act=True,
+                                          act_type=act_type)
+        self.P4_1 = nn.Sequential(*[
+            ConvBnActBlock(inplanes=inplanes[1],
+                           planes=inplanes[1] // 2,
+                           kernel_size=1,
+                           stride=1,
+                           padding=0,
+                           groups=1,
+                           has_bn=True,
+                           has_act=True,
+                           act_type=act_type) if idx % 2 == 0
+            else ConvBnActBlock(inplanes=inplanes[1] // 2,
+                                planes=inplanes[1],
+                                kernel_size=3,
+                                stride=1,
+                                padding=1,
+                                groups=1,
+                                has_bn=True,
+                                has_act=True,
+                                act_type=act_type)
+            for idx in range(5)])
+        self.P4_up_conv = ConvBnActBlock(inplanes=inplanes[1] // 2,
+                                         planes=inplanes[0] // 2,
+                                         kernel_size=1,
+                                         stride=1,
+                                         padding=0,
+                                         groups=1,
+                                         has_bn=True,
+                                         has_act=True,
+                                         act_type=act_type)
+        self.P3_cat_conv = ConvBnActBlock(inplanes=inplanes[0],
+                                          planes=inplanes[0] // 2,
+                                          kernel_size=1,
+                                          stride=1,
+                                          padding=0,
+                                          groups=1,
+                                          has_bn=True,
+                                          has_act=True,
+                                          act_type=act_type)
+        self.P3_1 = nn.Sequential(*[
+            ConvBnActBlock(inplanes=inplanes[0],
+                           planes=inplanes[0] // 2,
+                           kernel_size=1,
+                           stride=1,
+                           padding=0,
+                           groups=1,
+                           has_bn=True,
+                           has_act=True,
+                           act_type=act_type) if idx % 2 == 0
+            else ConvBnActBlock(inplanes=inplanes[0] // 2,
+                                planes=inplanes[0],
+                                kernel_size=3,
+                                stride=1,
+                                padding=1,
+                                groups=1,
+                                has_bn=True,
+                                has_act=True,
+                                act_type=act_type)
+            for idx in range(5)
+        ])
+        self.P3_out_conv = ConvBnActBlock(inplanes=inplanes[0] // 2,
+                                          planes=inplanes[0],
+                                          kernel_size=3,
+                                          stride=1,
+                                          padding=1,
+                                          groups=1,
+                                          has_bn=True,
+                                          has_act=True,
+                                          act_type=act_type)
+        self.P3_down_conv = ConvBnActBlock(inplanes=inplanes[0] // 2,
+                                           planes=inplanes[1] // 2,
+                                           kernel_size=3,
+                                           stride=2,
+                                           padding=1,
+                                           groups=1,
+                                           has_bn=True,
+                                           has_act=True,
+                                           act_type=act_type)
+
+    def forward(self, inputs):
+        # if inputs is [608, 608, 3]
+        # strides is [8, 16, 32]
+        # inputs is [[B, 256, 76, 76], [B, 512, 38, 38], [B, 1024, 19, 19]]
+        [C3, C4, C5] = inputs
+
+        # 经过 self.Px_1 之后, 通道数都变为原来的 1/2
+
+        # [B, 512, 19, 19]
+        P5 = self.P5_1(C5)
+        del C5
+
+        # self.P5_up_conv(P5) shape is [B, 256, 19, 19]
+        # P5_upsample shape is [B, 256, 38, 38]
+        P5_upsample = F.interpolate(self.P5_up_conv(P5),
+                                    size=(C4.shape[2], C4.shape[3]),
+                                    mode='bilinear',
+                                    align_corners=True)
+
+        # self.P4_cat_conv(C4) shape is [B, 256, 38, 38]
+        # C4 shape is [B, 512, 38, 38], 仍保持原来的shape
+        C4 = torch.cat([self.P4_cat_conv(C4), P5_upsample], dim=1)
+        del P5_upsample
+
+        # P4 shape is [B, 256, 38, 38]
+        P4 = self.P4_1(C4)
+        del C4
+
+        # P4 shape is [B, 128, 76, 76]
+        P4_upsample = F.interpolate(self.P4_up_conv(P4),
+                                    size=(C3.shape[2], C3.shape[3]),
+                                    mode='bilinear',
+                                    align_corners=True)
+
+        # self.P3_cat_conv(C3) shape is [B, 128, 76, 76]
+        # C3 shape is [B, 256, 76, 76], 仍保持原来的shape
+        C3 = torch.cat([self.P3_cat_conv(C3), P4_upsample], dim=1)
+        del P4_upsample
+
+        # P3 shape is [B, 128, 76, 76]
+        P3 = self.P3_1(C3)
+        del C3
+
+        # P3_out shape is [B, 256, 76, 76]
+        P3_out = self.P3_out_conv(P3)
+        print(P3_out.shape)
+
+
 if __name__ == "__main__":
-    from darknet import darknet53backbone
-    pre_weight = '/workshop/weihule/data/weights/yolo/darknet53-acc76.836.pth'
-    darknet = darknet53backbone(pretrained_path=pre_weight)
-    inputs = torch.rand(4, 3, 416, 416)
-    fpn_inputs = darknet(inputs)
-    for i in fpn_inputs:
-        print(i.shape)
+    # from darknet import darknet53backbone
+    # pre_weight = '/workshop/weihule/data/weights/yolo/darknet53-acc76.836.pth'
+    # darknet = darknet53backbone(pretrained_path=pre_weight)
+    # inputs = torch.rand(4, 3, 416, 416)
+    # fpn_inputs = darknet(inputs)
+    #
+    # yolo_fpn = YoloV3FPNHead(inplanes=[256, 512, 1024])
+    #
+    # fpn_outputs = yolo_fpn(fpn_inputs)
+    #
+    # for i in fpn_outputs:
+    #     print(i.shape)
 
-    yolo_fpn = YoloV3FPNHead(inplanes=[256, 512, 1024])
-
-    fpn_outputs = yolo_fpn(fpn_inputs)
-
-    for i in fpn_outputs:
-        print(i.shape)
-
-
-
-
-
-
-
-
+    v4_fpn = Yolov4FPNHead(inplanes=[256, 512, 1024])
+    inputs = [torch.randn((4, 256, 76, 76)), torch.randn((4, 512, 38, 38)), torch.randn((4, 1024, 19, 19))]
+    v4_fpn(inputs)

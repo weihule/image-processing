@@ -5,7 +5,6 @@ from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 import json
 from tqdm import tqdm
-import time
 
 import torch
 from torch.utils.data import DataLoader
@@ -21,10 +20,9 @@ from custom_dataset import YoloStyleResize, DetectionCollater
 
 
 def test_make_grid():
-    start_time = time.time()
     data_transform = {
         'train': transforms.Compose([
-            RandomFlip(flip_prob=0.3),
+            RandomFlip(flip_prob=0.5),
             # RandomCrop(crop_prob=0.2),
             # RandomTranslate(translate_prob=0.2),
             # Resizer(resize=400),
@@ -38,11 +36,19 @@ def test_make_grid():
     }
 
     # -----------------------------------
-    voc_root_dir = '/data/weihule/data/dl/VOCdataset'
-    if not os.path.exists(voc_root_dir):
-        voc_root_dir = '/ssd/weihule/data/dl/VOCdataset'
+    voc_root_dir1 = '/data/weihule/data/dl/VOCdataset'
+    voc_root_dir2 = 'D:\\workspace\\data\\dl\\VOCdataset'
+
+    voc_root_dir = voc_root_dir2
     dataset = VocDetection(root_dir=voc_root_dir,
-                           transform=data_transform['train'])
+                           transform=data_transform['train'],
+                           resize=400,
+                           use_mosaic=True)
+
+    save_root1 = 'images_show'
+    save_root2 = 'D:\\Desktop\\infer_shows'
+
+    save_root = save_root2
     # -----------------------------------
 
     # -----------------------------------
@@ -70,9 +76,10 @@ def test_make_grid():
 
     detec_collater = MultiScaleCollater(mean=mean,
                                         std=std,
-                                        resize=400,
+                                        resize=640,
                                         stride=32,
-                                        use_multi_scale=False)
+                                        use_multi_scale=False,
+                                        normalize=True)
     data_loader = DataLoader(dataset,
                              batch_size=16,
                              shuffle=True,
@@ -91,8 +98,7 @@ def test_make_grid():
 
     # -----------------------------------
     file_path = 'pascal_voc_classes.json'
-    # if not os.path.exists(file_path):
-    #     file_path = '/workshop/weihule/code/study/torch_detection/utils/pascal_voc_classes.json'
+
     with open(file_path, 'r', encoding='utf-8') as fr:
         infos = json.load(fr)
         category_name_to_voc_lable = infos['classes']
@@ -117,7 +123,7 @@ def test_make_grid():
         batch_images, batch_annots = datas['img'], datas['annot']
         batch_images = batch_images.permute(0, 2, 3, 1).contiguous()
         batch_images = (batch_images * b_std + b_mean) * 255.
-        save_root = 'images_show'
+
         c = 0
         for img, annot in zip(batch_images, batch_annots):
             c += 1
