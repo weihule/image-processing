@@ -10,6 +10,9 @@ from pycocotools.coco import COCO
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
+import warnings
+
+warnings.filterwarnings('ignore')
 
 
 # COCO标注中提供了类别index
@@ -76,7 +79,7 @@ class CocoDetection(Dataset):
 
             annot = []
             # combined image by 4 images
-            img = np.full((self.resize * 2, self.resize * 2, 3), 0, dtype=np.uint8)
+            img = np.full((self.resize * 2, self.resize * 2, 3), 111, dtype=np.uint8)
 
             for i, img_idx in enumerate(imgs_indices):
                 sub_img = self.load_image(img_idx)
@@ -91,12 +94,12 @@ class CocoDetection(Dataset):
                 # top left
                 if i == 0:
                     # combined image coordinates
-                    x1a, y1a = max(x_ctr - origin_w, 0), max(y_ctr - origin_h, 0)
+                    x1a, y1a = max(x_ctr - resize_w, 0), max(y_ctr - resize_h, 0)
                     x2a, y2a = x_ctr, y_ctr
 
                     # single img choose area
-                    x1b, y1b = max(origin_w - x_ctr, 0), max(origin_h - y_ctr, 0)
-                    x2b, y2b = origin_w, origin_h
+                    x1b, y1b = max(resize_w - x_ctr, 0), max(resize_h - y_ctr, 0)
+                    x2b, y2b = resize_w, resize_h
                 # top right
                 elif i == 1:
                     x1a, y1a = x_ctr, max(y_ctr - resize_h, 0)
@@ -244,7 +247,10 @@ class VocDetection(Dataset):
         file_path1 = '/workshop/weihule/code/study/torch_detection/utils/pascal_voc_classes.json'
         file_path2 = 'D:\\workspace\\code\\study\\torch_detection\\utils\\pascal_voc_classes.json'
 
-        file_path = file_path1
+        file_path = 'pascal_voc_classes.json'
+        if not os.path.exists(file_path):
+            file_path = os.path.join(os.path.abspath('..'), 'utils', 'pascal_voc_classes.json')
+
         with open(file_path, 'r', encoding='utf-8') as fr:
             self.category_name_to_voc_lable = json.load(fr)['classes']
 

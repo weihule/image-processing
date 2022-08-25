@@ -384,6 +384,96 @@ class Yolov4FPNHead(nn.Module):
                                            has_bn=True,
                                            has_act=True,
                                            act_type=act_type)
+        self.P4_2 = nn.Sequential(*[
+            ConvBnActBlock(inplanes=inplanes[1],
+                           planes=inplanes[1] // 2,
+                           kernel_size=1,
+                           stride=1,
+                           padding=0,
+                           groups=1,
+                           has_bn=True,
+                           has_act=True,
+                           act_type=act_type) if idx % 2 == 0
+            else ConvBnActBlock(inplanes=inplanes[1] // 2,
+                                planes=inplanes[1],
+                                kernel_size=3,
+                                stride=1,
+                                padding=1,
+                                groups=1,
+                                has_bn=True,
+                                has_act=True,
+                                act_type=act_type)
+            for idx in range(5)
+        ])
+        self.P4_out_conv = ConvBnActBlock(inplanes=inplanes[1] // 2,
+                                          planes=inplanes[1],
+                                          kernel_size=3,
+                                          stride=1,
+                                          padding=1,
+                                          groups=1,
+                                          has_bn=True,
+                                          has_act=True,
+                                          act_type=act_type)
+        self.P4_down_conv = ConvBnActBlock(inplanes=inplanes[1] // 2,
+                                           planes=inplanes[2] // 2,
+                                           kernel_size=3,
+                                           stride=2,
+                                           padding=1,
+                                           groups=1,
+                                           has_bn=True,
+                                           has_act=True,
+                                           act_type=act_type)
+        self.P5_2 = nn.Sequential(*[
+            ConvBnActBlock(inplanes=inplanes[2],
+                           planes=inplanes[2] // 2,
+                           kernel_size=1,
+                           stride=1,
+                           padding=0,
+                           groups=1,
+                           has_bn=True,
+                           has_act=True,
+                           act_type=act_type) if idx % 2 == 0
+            else ConvBnActBlock(inplanes=inplanes[2] // 2,
+                                planes=inplanes[2],
+                                kernel_size=3,
+                                stride=1,
+                                padding=1,
+                                groups=1,
+                                has_bn=True,
+                                has_act=True,
+                                act_type=act_type)
+            for idx in range(5)
+        ])
+        self.P5_out_conv = ConvBnActBlock(inplanes=inplanes[2] // 2,
+                                          planes=inplanes[2],
+                                          kernel_size=3,
+                                          stride=1,
+                                          padding=1,
+                                          groups=1,
+                                          has_bn=True,
+                                          has_act=True,
+                                          act_type=act_type)
+        self.P5_pred_conv = nn.Conv2d(in_channels=inplanes[2],
+                                      out_channels=per_level_num_anchors*(1+4+num_classes),
+                                      kernel_size=1,
+                                      padding=0,
+                                      stride=1,
+                                      bias=True)
+
+        self.P4_pred_conv = nn.Conv2d(in_channels=inplanes[1],
+                                      out_channels=per_level_num_anchors*(1+4+num_classes),
+                                      kernel_size=1,
+                                      padding=0,
+                                      stride=1,
+                                      bias=True)
+
+        self.P3_pred_conv = nn.Conv2d(in_channels=inplanes[0],
+                                      out_channels=per_level_num_anchors*(1+4+num_classes),
+                                      kernel_size=1,
+                                      padding=0,
+                                      stride=1,
+                                      bias=True)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, inputs):
         # if inputs is [608, 608, 3]
@@ -430,7 +520,60 @@ class Yolov4FPNHead(nn.Module):
 
         # P3_out shape is [B, 256, 76, 76]
         P3_out = self.P3_out_conv(P3)
-        print(P3_out.shape)
+
+        # P3_out shape is [B, 3*(1+4+num_classes), 76, 76]
+        P3_out = self.P3_pred_conv(P3_out)
+
+        # P4 shape is [B, 512, 38, 38]
+        P4 = torch.cat([P4, self.P3_down_conv(P3)], dim=1)
+        del P3
+
+        # P4 shape is [B, 256, 38, 38]
+        P4 = self.P4_2(P4)
+
+        # P4_out shape is [B, 512, 38, 38]
+        P4_out = self.P4_out_conv(P4)
+
+        # P4_out shape is [B, 255, 38, 38]
+        P4_out = self.P4_pred_conv(P4_out)
+
+        P5 = torch.cat([P5, self.P4_down_conv(P4)], dim=1)
+        del P4
+
+        # P5 shape is [B, 512, 19, 19]
+        P5 = self.P5_2(P5)
+
+        # P5_out shape is [B, 1024, 19, 19]
+        P5_out = self.P5_out_conv(P5)
+
+        # P5_out shape is [B, 255, 19, 19]
+        P5_out = self.P5_pred_conv(P5_out)
+        del P5
+
+        # P3_out shape: [B, 255, H, W] -> [B, H, W, 255] -> [B, H, W, 3, 85]
+        P3_out = P3_out.permute(0, 2, 3, 1).contiguous()
+        P3_out = P3_out.view(P3_out.shape[0], P3_out.shape[1], P3_out.shape[2],
+                             self.per_level_num_anchors, -1)
+
+        # P4_out shape: [B, 255, H, W] -> [B, H, W, 255] -> [B, H, W, 3, 85]
+        P4_out = P4_out.permute(0, 2, 3, 1).contiguous()
+        P4_out = P4_out.view(P4_out.shape[0], P4_out.shape[1], P4_out.shape[2],
+                             self.per_level_num_anchors, -1)
+
+        # P5_out shape: [B, 255, H, W] -> [B, H, W, 255] -> [B, H, W, 3, 85]
+        P5_out = P5_out.permute(0, 2, 3, 1).contiguous()
+        P5_out = P5_out.view(P5_out.shape[0], P5_out.shape[1], P5_out.shape[2],
+                             self.per_level_num_anchors, -1)
+
+        P3_out[:, :, :, :, 0:3] = torch.sigmoid(P3_out[:, :, :, :, 0:3])
+        P3_out[:, :, :, :, 5:] = torch.sigmoid(P3_out[..., 5:])
+        P4_out[:, :, :, :, 0:3] = torch.sigmoid(P4_out[:, :, :, :, 0:3])
+        P4_out[:, :, :, :, 5:] = torch.sigmoid(P4_out[..., 5:])
+        P5_out[:, :, :, :, 0:3] = torch.sigmoid(P5_out[:, :, :, :, 0:3])
+        P5_out[:, :, :, :, 5:] = torch.sigmoid(P5_out[..., 5:])
+
+        # [[B, h1, w1, 3, (1+4+NUM_classes)], ...]
+        return [P3_out, P4_out, P5_out]
 
 
 if __name__ == "__main__":
@@ -447,6 +590,10 @@ if __name__ == "__main__":
     # for i in fpn_outputs:
     #     print(i.shape)
 
-    v4_fpn = Yolov4FPNHead(inplanes=[256, 512, 1024])
+    v4_fpn = Yolov4FPNHead(inplanes=[256, 512, 1024],
+                           per_level_num_anchors=3,
+                           num_classes=20)
     inputs = [torch.randn((4, 256, 76, 76)), torch.randn((4, 512, 38, 38)), torch.randn((4, 1024, 19, 19))]
-    v4_fpn(inputs)
+    res = v4_fpn(inputs)
+    for p in res:
+        print(p.shape)

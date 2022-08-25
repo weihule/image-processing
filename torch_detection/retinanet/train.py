@@ -1,5 +1,4 @@
 import os
-# os.environ['CUDA_VISIBLE_DEVICES'] = '4'
 import sys
 import random
 import time

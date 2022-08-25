@@ -36,7 +36,7 @@ class InferResizer:
         return {'img': padded_img, 'scale': scale}
 
 
-def main(mode):
+def infer_folder(mode):
 
     img_root1 = '/workshop/weihule/data/detection_data/test_images/*.jpg'
     img_root2 = 'D:\\workspace\\data\\dl\\test_images\\*.jpg'
@@ -84,8 +84,8 @@ def main(mode):
 
         model.load_state_dict(checkpoint)
         model.eval()
-        decoder = RetinaDecoder(min_score_threshold=0.1,
-                                nms_type='diou_python_nms',
+        decoder = RetinaDecoder(min_score_threshold=0.2,
+                                nms_type='python_nms',
                                 nms_threshold=0.15)
 
         img_lists = glob.glob(img_root)
@@ -137,7 +137,33 @@ def main(mode):
             # break
 
 
+def main_video():
+    cap = cv2.VideoCapture(0)
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    print('fps = ', fps)
+
+    # 总帧数
+    totalFrameNumber = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    print('total fps = ', totalFrameNumber)
+
+    while(True):
+        # cap.read()函数返回的第1个参数ret是一个布尔值, 表示当前这一帧是否获取正确
+        ret, frame = cap.read()
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        cv2.imshow('frame', frame)
+        c = cv2.waitKey(1)
+        if c == ord('q'):
+            break
+    
+    cap.release()
+    cv2.destroyAllWindows()
+
+
 if __name__ == "__main__":
     mode_type = 'local'  # company    autodl
-    main(mode=mode_type)
+    # infer_folder(mode=mode_type)
+
+    main_video()
 

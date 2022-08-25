@@ -13,10 +13,8 @@ from torchvision.utils import make_grid
 from pycocotools.coco import COCO
 
 from custom_dataset import VocDetection, CocoDetection
-# from custom_dataset import DataPrefetcher, collater
 from custom_dataset import MultiScaleCollater
 from custom_dataset import Normalize, Resizer, RandomFlip, RandomCrop, RandomTranslate
-from custom_dataset import YoloStyleResize, DetectionCollater
 
 
 def test_make_grid():
@@ -24,14 +22,10 @@ def test_make_grid():
         'train': transforms.Compose([
             RandomFlip(flip_prob=0.5),
             # RandomCrop(crop_prob=0.2),
-            # RandomTranslate(translate_prob=0.2),
-            # Resizer(resize=400),
-            # YoloStyleResize(resize=416, multi_scale=True)
-            # Normalize()
+            # RandomTranslate(translate_prob=0.2)
         ]),
         'val': transforms.Compose([
-            Resizer(resize=400),
-            # Normalize()
+            RandomFlip(flip_prob=0.5),
         ])
     }
 
@@ -39,11 +33,11 @@ def test_make_grid():
     voc_root_dir1 = '/data/weihule/data/dl/VOCdataset'
     voc_root_dir2 = 'D:\\workspace\\data\\dl\\VOCdataset'
 
-    voc_root_dir = voc_root_dir2
-    dataset = VocDetection(root_dir=voc_root_dir,
-                           transform=data_transform['train'],
-                           resize=400,
-                           use_mosaic=True)
+    # voc_root_dir = voc_root_dir2
+    # dataset = VocDetection(root_dir=voc_root_dir,
+    #                        transform=data_transform['train'],
+    #                        resize=400,
+    #                        use_mosaic=True)
 
     save_root1 = 'images_show'
     save_root2 = 'D:\\Desktop\\infer_shows'
@@ -52,23 +46,22 @@ def test_make_grid():
     # -----------------------------------
 
     # -----------------------------------
-    # data_set_root1 = '/nfs/home57/weihule/data/dl/COCO2017'
-    # data_set_root2 = '/workshop/weihule/data/dl/COCO2017'
-    # data_set_root3 = 'D:\\workspace\\data\\dl\\COCO2017'
-    # data_set_roots = [data_set_root1, data_set_root2, data_set_root3]
-    # data_set_root = ''
-    # for p in data_set_roots:
-    #     if os.path.exists(p):
-    #         data_set_root = p
-    #         break
-    #
-    # dataset_path = os.path.join(data_set_root, 'images', 'train2017')
-    # dataset_annot_path = os.path.join(data_set_root, 'annotations')
-    # dataset = CocoDetection(image_root_dir=dataset_path,
-    #                         annotation_root_dir=dataset_annot_path,
-    #                         set_name='train2017',
-    #                         use_mosaic=True,
-    #                         transform=data_transform['train'])
+    data_set_root1 = '/workshop/weihule/data/dl/COCO2017'
+    data_set_root2 = 'D:\\workspace\\data\\dl\\COCO2017'
+    data_set_roots = [data_set_root1, data_set_root2]
+    data_set_root = ''
+    for p in data_set_roots:
+        if os.path.exists(p):
+            data_set_root = p
+            break
+    
+    dataset_path = os.path.join(data_set_root, 'images', 'train2017')
+    dataset_annot_path = os.path.join(data_set_root, 'annotations')
+    dataset = CocoDetection(image_root_dir=dataset_path,
+                            annotation_root_dir=dataset_annot_path,
+                            set_name='train2017',
+                            use_mosaic=True,
+                            transform=data_transform['train'])
     # -----------------------------------
     # VOC
     mean = [0.485, 0.456, 0.406]
@@ -91,35 +84,24 @@ def test_make_grid():
     # mean = torch.tensor([[[[0.471, 0.448, 0.408]]]], dtype=torch.float32)
     # std = torch.tensor([[[[0.234, 0.239, 0.242]]]], dtype=torch.float32)
 
-    # datas是一个dict, key就是定义的三个key, 对应的value已经打了batch
-    # datas = next(iter(val_loader))
-    # batch_annots = datas['annot']
-    # batch_images = datas['img']
-
     # -----------------------------------
-    file_path = 'pascal_voc_classes.json'
+    # file_path = 'pascal_voc_classes.json'
+    file_path = 'coco_classes.json'
 
     with open(file_path, 'r', encoding='utf-8') as fr:
         infos = json.load(fr)
-        category_name_to_voc_lable = infos['classes']
-        voc_colors = infos['colors']
-    lable_to_category_id = {v: k for k, v in category_name_to_voc_lable.items()}
-    # -----------------------------------
-
-    # -----------------------------------
-    # file_path = 'coco_classes.json'
-    # # if not os.path.exists(file_path):
-    # #     file_path = 'coco_classes.json'
-    # with open(file_path, 'r', encoding='utf-8') as fr:
-    #     infos = json.load(fr)
-    #     category_name_to_coco_lable = infos['COCO_CLASSES']
-    #     voc_colors = infos['colors']
-    # lable_to_category_id = {v: k for k, v in category_name_to_coco_lable.items()}
+        if 'classes' in infos:
+            category_name_to_lable = infos['classes']
+        elif 'COCO_CLASSES' in infos:
+            category_name_to_lable = infos['COCO_CLASSES']
+        colors = infos['colors']
+    lable_to_category_name = {v: k for k, v in category_name_to_lable.items()}
     # -----------------------------------
 
     b_mean = torch.tensor(mean, dtype=torch.float32).tile(1, 1, 1, 1)
     b_std = torch.tensor(std, dtype=torch.float32).tile(1, 1, 1, 1)
     for index, datas in enumerate(data_loader):
+        print(index)
         batch_images, batch_annots = datas['img'], datas['annot']
         batch_images = batch_images.permute(0, 2, 3, 1).contiguous()
         batch_images = (batch_images * b_std + b_mean) * 255.
@@ -144,8 +126,8 @@ def test_make_grid():
                 # point = np.int32(point[:4])
                 # cv2.rectangle(img, [point[0], point[1]], [point[2], point[3]], (0, 255, 0), 1)
                 label = int(point[4])
-                category_name = lable_to_category_id[label]
-                category_color = tuple(voc_colors[label])
+                category_name = lable_to_category_name[label]
+                category_color = tuple(colors[label])
                 chars_w, chars_h = font.getsize(category_name)
                 draw.rectangle(point[:4], outline=category_color, width=2)  # 绘制预测框
                 draw.rectangle((point[0], point[1] - chars_h, point[0] + chars_w, point[1]),
@@ -155,7 +137,7 @@ def test_make_grid():
             save_path = os.path.join(save_root, str(index) + '_' + str(c) + '.png')
             # cv2.imwrite(save_path, img)
             image.save(save_path)
-        if index == 4:
+        if index == 10:
             break
 
     # img = make_grid(batch_images, nrow=8)
@@ -176,7 +158,6 @@ def test_coco_api():
     # category_id is an original id, coco_id is set from 0 to 79
     category_id_to_coco_label = {p['id']: index for index, p in enumerate(categories)}
     coco_label_to_category_id = {value: key for key, value in category_id_to_coco_label.items()}
-    print()
 
     image_index = 0
     # coco.loadImgs 返回一个list, 这里只有一张图片, 所以取索引为0

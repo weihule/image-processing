@@ -2,7 +2,8 @@ from utils.datasets import FlowerDataset
 from utils.util import get_paths
 from torchvision import transforms
 import torch
-from backbones import yolov4backbone
+# from backbones import yolov4backbone
+import backbones
 
 
 class Config:

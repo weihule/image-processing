@@ -1,6 +1,4 @@
 import os
-
-os.environ['CUDA_VISIBLE_DEVICES'] = '7'
 import sys
 import time
 import argparse
@@ -24,6 +22,7 @@ from torch_detection.utils.util import get_logger
 from losses import YoloV4Loss
 from config_yolo import Config
 from network_files.yolov3 import darknet53_yolov3
+from network_files.yolov4 import cspdarknet53_yolov4
 
 warnings.filterwarnings('ignore')
 
@@ -46,8 +45,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, C
 
             with auto_cast():
                 obj_reg_cls_heads = model(images)
-                # for i, p, j in zip(cls_heads, reg_heads, batch_anchors):
-                #     print(i.shape, p.shape, j.shape)
+
                 loss_dict = criterion(obj_reg_cls_heads, annotations)
                 cls_loss, reg_loss, conf_loss = loss_dict['cls_loss'], loss_dict['reg_loss'], loss_dict['conf_loss']
                 losses = cls_loss + reg_loss + conf_loss
@@ -123,18 +121,16 @@ def main(logger):
                               pin_memory=True,
                               collate_fn=Config.collater,
                               prefetch_factor=6)
-    # train_loader = DataLoader(Config.val_dataset,
-    #                           batch_size=Config.batch_size,
-    #                           shuffle=False,
-    #                           num_workers=Config.num_workers,
-    #                           pin_memory=True,
-    #                           collate_fn=Config.collater,
-    #                           prefetch_factor=4)
+
     logger.info('finish loading data')
 
-    pre_weight = '/workshop/weihule/data/weights/yolo/darknet53-acc76.836.pth'
+    pre_weight = Config.pre_weight
     # pre_weight = None
-    model = darknet53_yolov3(pre_weight)
+    # model = darknet53_yolov3(pre_weight)
+    model = cspdarknet53_yolov4(backbone_pretrained_path=pre_weight,
+                                act_type='leakyrelu',
+                                per_level_num_anchors=3,
+                                num_classes=20)
 
     criterion = YoloV4Loss().cuda()
 
