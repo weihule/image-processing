@@ -60,7 +60,7 @@ class YOLOV4(nn.Module):
         del feature
 
         # if inputs size: [B, 3, 608, 608]
-        # obj_reg_cls_heads shape is [[B, 76, 76, 3, (1+4+num_classes)], ...]
+        # obj_reg_cls_heads shape is [[[B, 76, 76, 3, (1+4+num_classes)], ...]]
         return [obj_reg_cls_heads]
 
 
@@ -84,7 +84,10 @@ if __name__ == "__main__":
                               per_level_num_anchors=3,
                               num_classes=20)
     inputs = torch.randn(size=(4, 3, 608, 608))
-    net(inputs)
+    outputs = net(inputs)
+    preds = outputs[0]
+    for p in preds:
+        print(p.shape)
 
 
 

@@ -17,10 +17,10 @@ class Config:
     data_set_root2 = '/root/autodl-tmp/COCO2017'
 
     save_root1 = '/workshop/weihule/data/detection_data/yolo'
-    save_root2 = '/root/autodl-tmp/detection_data/yolo'
+    save_root2 = '/root/autodl-nas/detection_data/yolo'
 
     pre_weight1 = '/workshop/weihule/data/detection_data/yolo/checkpoints/yolov4cspdarknet53-acc77.448.pth'
-    pre_weight2 = '/root/autodl-nas/yolov4cspdarknet53-acc77.448.pth'
+    pre_weight2 = '/root/autodl-nas/classification_data/yolov4backbone/yolov4cspdarknet53-acc77.448.pth'
 
     data_set_root = data_set_root2
     save_root = save_root2
@@ -38,7 +38,7 @@ class Config:
     dataset_annot_path = os.path.join(data_set_root, 'annotations')
 
     pre_trained = True
-    num_classes = 50
+    num_classes = 20
     seed = 0
     input_image_size = 416
 
@@ -74,8 +74,8 @@ class Config:
                                image_sets=[('2007', 'test')],
                                transform=data_transform['val'])
 
-    epochs = 100
-    batch_size = 16
+    epochs = 50
+    batch_size = 50
     lr = 0.0001
     lrf = 0.0001
     num_workers = 4
@@ -93,4 +93,5 @@ class Config:
                                   std=std,
                                   resize=input_image_size,
                                   stride=32,
-                                  use_multi_scale=True)
+                                  use_multi_scale=False,
+                                  normalize=True)

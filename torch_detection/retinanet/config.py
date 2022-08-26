@@ -17,7 +17,8 @@ class Config:
     data_set_root = data_set_root1
 
     save_root1 = '/workshop/weihule/data/detection_data/retinanet'
-    save_root = save_root1
+    save_root2 = '/root/autodl-nas/detection_data/retinanet'
+    save_root = save_root2
 
     log = os.path.join(save_root, 'log')  # path to save log
     checkpoint_path = os.path.join(save_root, 'checkpoints')  # path to store checkpoint model
@@ -50,8 +51,10 @@ class Config:
     #                             transform=data_transform['val'])
 
     voc_root_dir1 = '/ssd/weihule/data/dl/VOCdataset'
+    voc_root_dir2 = '/root/autodl-tmp/VOCdataset'
 
-    voc_root_dir = voc_root_dir1
+    voc_root_dir = voc_root_dir2
+    # 这里的 resize 参数是mosaic时使用的参数
     train_dataset = VocDetection(root_dir=voc_root_dir,
                                  transform=data_transform['train'],
                                  resize=400,
@@ -62,7 +65,7 @@ class Config:
                                transform=data_transform['val'])
 
     epochs = 250
-    batch_size = 60
+    batch_size = 40
     lr = 0.0001
     lrf = 0.001
     num_workers = 4
@@ -79,6 +82,10 @@ class Config:
                                   stride=32,
                                   use_multi_scale=False,
                                   normalize=True)
+
+    pre_train_path1 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50-acc76.322.pth'
+    pre_train_path2 = '/root/autodl-nas/detection_data/retinanet/checkpoints/resnet50-acc76.322.pth'
+    pre_train_path = pre_train_path2
 
 
 if __name__ == "__main__":

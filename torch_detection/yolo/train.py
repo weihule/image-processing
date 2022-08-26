@@ -34,8 +34,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch, logger, C
     iters = len(train_loader.dataset) // Config.batch_size
 
     iter_index = 1
-    train_bar = tqdm(train_loader)
-    for datas in train_bar:
+    for datas in tqdm(train_loader):
         images, annotations = datas['img'], datas['annot']
         images, annotations = images.cuda().float(), annotations.cuda()
 
@@ -120,13 +119,11 @@ def main(logger):
                               num_workers=Config.num_workers,
                               pin_memory=True,
                               collate_fn=Config.collater,
-                              prefetch_factor=6)
+                              prefetch_factor=8)
 
     logger.info('finish loading data')
 
     pre_weight = Config.pre_weight
-    # pre_weight = None
-    # model = darknet53_yolov3(pre_weight)
     model = cspdarknet53_yolov4(backbone_pretrained_path=pre_weight,
                                 act_type='leakyrelu',
                                 per_level_num_anchors=3,
@@ -227,6 +224,7 @@ def main(logger):
     logger.info(
         f'finish training, total training time: {training_time:.2f} hours'
     )
+
 
 
 if __name__ == "__main__":

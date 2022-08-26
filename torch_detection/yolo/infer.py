@@ -15,12 +15,12 @@ base_dir = os.path.dirname(
     os.path.dirname(
         os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(base_dir)
-from torch_detection.retinanet.retina_decode import RetinaDecoder
-from network_files.retinanet_model import resnet50_retinanet
+from torch_detection.yolo.decode import YoloV4Decoder
+from network_files.yolov4 import cspdarknet53_yolov4
 
 
 class InferResizer:
-    def __init__(self, resize=640):
+    def __init__(self, resize=400):
         self.resize = resize
 
     def __call__(self, image):
@@ -29,7 +29,7 @@ class InferResizer:
         resize_h, resize_w = int(round(scale*h)), int(round(scale*w))
 
         resize_img = cv2.resize(image, (resize_w, resize_h))
-        padded_img = np.zeros((self.resize, self.resize, 3), dtype=np.float32)
+        padded_img = np.full((self.resize, self.resize, 3), 111, dtype=np.float32)
         padded_img[:resize_h, :resize_w, :] = resize_img
         padded_img = torch.from_numpy(padded_img)
 
@@ -41,20 +41,19 @@ def infer_folder(mode):
     img_root1 = '/workshop/weihule/data/detection_data/test_images/*.jpg'
     img_root2 = 'D:\\workspace\\data\\dl\\test_images\\*.jpg'
 
-    model_path1 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50_retinanet-metric80.558.pth'
-    model_path2 = 'D:\\workspace\\data\\detection_data\\retinanet\\checkpoints\\latest.pth'
-    model_path3 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/latest.pth'
+    model_path1 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/latest.pth'
+    model_path2 = 'D:\\workspace\\data\\detection_data\\yolo\\checkpoints\\latest.pth'
 
-    save_root1 = 'D:\\Desktop\\shows'
-    save_root2 = '/workshop/weihule/code/study/torch_detection/retinanet/infer_shows'
+    save_root1 = '/workshop/weihule/code/study/torch_detection/retinanet/infer_shows'
+    save_root2 = 'D:\\Desktop\\shows'
 
     if mode == 'local':
         img_root = img_root2
         model_path = model_path2
-        save_root = save_root1
+        save_root = save_root2
     elif mode == 'company':
         img_root = img_root1
-        model_path = model_path3
+        model_path = model_path2
         save_root = save_root2
     else:
         raise 'wrong value'
@@ -75,16 +74,18 @@ def infer_folder(mode):
     infer_batch = 2
     cudnn.benchmark = True
     cudnn.deterministic = False
+    use_normalize = False
 
     with torch.no_grad():
-        model = resnet50_retinanet(num_classes=20).to(device)
+        model = cspdarknet53_yolov4(backbone_pretrained_path=None,
+                                    num_classes=20).to(device)
 
         checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
         checkpoint = checkpoint['model_state_dict']
 
         model.load_state_dict(checkpoint)
         model.eval()
-        decoder = RetinaDecoder(min_score_threshold=0.2,
+        decoder = YoloV4Decoder(min_score_threshold=0.2,
                                 nms_type='python_nms',
                                 nms_threshold=0.15)
 
@@ -103,7 +104,8 @@ def infer_folder(mode):
                 scales.append(infos['scale'])
             images_tensor = torch.stack(images, dim=0).to(device)
             images_tensor = images_tensor / 255.
-            images_tensor = (images_tensor - mean) / std
+            if use_normalize:
+                images_tensor = (images_tensor - mean) / std
             images_tensor = images_tensor.permute(0, 3, 1, 2).contiguous()
             preds = model(images_tensor)
 

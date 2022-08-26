@@ -110,9 +110,7 @@ def main(logger):
                               prefetch_factor=4)
     logger.info('finish loading data')
 
-    pre_train_path1 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50-acc76.322.pth'
-    pre_train_paths = [pre_train_path1]
-    model = resnet50_retinanet(num_classes=20, pre_train=pre_train_paths[0])
+    model = resnet50_retinanet(num_classes=20, pre_train=Config.pre_train_path)
 
     # flops_input = torch.rand(1, 3, Config.input_image_size, Config.input_image_size)
     # flops, params = profile(model, inputs=(flops_input,))
