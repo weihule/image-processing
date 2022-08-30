@@ -5,6 +5,8 @@ import requests
 import numpy as np
 import cv2
 import time
+import json
+from tqdm import tqdm
 
 # 爬取58二手房信息
 def main():
@@ -100,10 +102,95 @@ def get_resumes():
         break
 
 
+def test():
+    file_path = 'D:\\Desktop\\imagenet100\\maps.txt'
+    folder2chinese = {}
+    with open(file_path, 'r', encoding='utf-8') as fr:
+        lines = fr.readlines()
+    for idx, line in enumerate(lines):
+        if idx % 2 == 0:
+            line = line.strip('\n')
+            folder_name = line.split(' ')[1]
+            class_name = line.split(' ')[2].strip(',')
+            folder2chinese[folder_name] = class_name
+
+    with open('classes.json', 'r', encoding='utf-8') as fr_j:
+        infos = json.load(fr_j)
+    
+
+    new_infos = {}
+    for idx, (k1, v1) in enumerate(folder2chinese.items()):
+        new_infos[k1] = {'idx': idx, 'chinese_name': v1, 'name': infos[str(idx)]}
+    
+    for k, v in new_infos.items():
+        print(k, v)
+
+    json_str = json.dumps(new_infos, indent=4, ensure_ascii=False)
+    with open('all_classed.json', 'w', encoding='utf-8') as fw:
+        fw.write(json_str)
+
+
+def rename():
+    with open('all_classed.json', 'r', encoding='utf-8') as fr:
+        infos = json.load(fr)
+    root = 'D:\\Desktop\\imagenet100\\imagenet100'
+    new_root = 'D:\\Desktop\\imagenet100\\imagenet100_rename'
+
+    class_100 = {}
+    for folder_idx, folder in enumerate(os.listdir(root)):
+        new_folder = infos[folder]['name'][0].replace(' ', '-')
+        class_100[new_folder] = folder_idx
+        new_folder_path = os.path.join(new_root, new_folder)
+        if not os.path.exists(new_folder_path):
+            os.mkdir(new_folder_path)
+        for img_idx, fn in enumerate(os.listdir(os.path.join(root, folder))):
+            print(folder_idx, img_idx, fn)
+            fn_path = os.path.join(root, folder, fn)
+            img = cv2.imread(fn_path)
+            new_name = new_folder + '_' + str(img_idx).rjust(4, '0') + '.jpg'
+            save_path = os.path.join(new_folder_path, new_name)
+            cv2.imwrite(save_path, img)
+        
+    json_str = json.dumps(class_100, indent=4, ensure_ascii=False)
+    with open(os.path.join(new_root, 'class_100.json'), 'w') as fw:
+        fw.write(json_str)
+
+
+def proce_val():
+    with open('D:\\Desktop\\imagenet100\\all_classes.json', 'r', encoding='utf-8') as fr1:
+        infos = json.load(fr1)
+    new_infos = {}
+    for _, v in infos.items():
+        new_infos[str(v['idx'])] = v['name'][0].replace(' ', '-')
+
+    root = 'D:\\Desktop\\imagenet100\\ILSVRC2012_img_val'
+    with open('D:\\Desktop\\imagenet100\\val.txt', 'r', encoding='utf-8') as fr:
+        lines = fr.readlines()
+    for line in tqdm(lines):
+        line = line.strip('\n')
+        fn_name = line.split(' ')[0]
+        fn_class = line.split(' ')[1]
+        save_folder = new_infos[fn_class]
+        if save_folder not in os.listdir('D:\\Desktop\\imagenet100\\imagenet100_train'):
+            continue
+        save_folder_path = os.path.join('D:\\Desktop\\imagenet100\\imagenet100_val', save_folder)
+        if not os.path.exists(save_folder_path):
+            os.mkdir(save_folder_path)
+        fn_path = os.path.join(root, fn_name)
+        new_fn_name = fn_name[:-4] + 'jpg'
+        img = cv2.imread(fn_path)
+        save_path = os.path.join(save_folder_path, new_fn_name)
+        cv2.imwrite(save_path, img)
+        
+
+
 if __name__ == "__main__":
     # main()
     # beautiful()
 
     # countries()
 
-    get_resumes()
+    # get_resumes()
+
+#    rename()
+   proce_val()

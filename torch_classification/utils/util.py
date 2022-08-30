@@ -1,5 +1,8 @@
 import os
 import json
+import logging
+from logging import handlers
+import torch
 
 
 def get_paths(root, mode, classes_json_file):
@@ -16,4 +19,39 @@ def get_paths(root, mode, classes_json_file):
             labels_path.append(label)
 
     return imgs_path, labels_path
+
+
+def get_logger(name, log_dir):
+    logger = logging.getLogger(name=name)
+    logger.setLevel(logging.INFO)
+
+    info_name = os.path.join(log_dir, '{}.log'.format(name))
+
+    # 按 D(天) 为单位来分割日志
+    info_handler = handlers.TimedRotatingFileHandler(filename=info_name,
+                                                     when='D',
+                                                     encoding='utf-8')
+    info_handler.setLevel(logging.INFO)
+
+    formatter = logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    info_handler.setFormatter(formatter)
+
+    logger.addHandler(info_handler)
+
+    return logger
+
+
+def load_state_dict(saved_model_path, model, excluded_layer_name):
+    if saved_model_path is None:
+        print('No pretrained model file !')
+        return
+    save_state_dict = torch.load(saved_model_path, map_location='cpu')
+    filtered_state_dict = {name: weight for name, weight in save_state_dict.items()
+                           if name in model.state_dict() and weight.shape == model.state_dict()[name].shape
+                           and not (name in excluded_layer_name)}
+    if len(filtered_state_dict) == 0:
+        print('No pretrained parameters to load !')
+    else:
+        print(f'loading {len(filtered_state_dict)} layers parameters !')
+        model.load_state_dict(filtered_state_dict, strict=False)
 

@@ -1,22 +1,25 @@
 import os
 import math
+import random
+import time
+from tqdm import tqdm
+
 import torch
-from collections import OrderedDict
-import torch.nn as nn
 from torch.cuda import amp
 import torch.nn.functional as F
-from tqdm import tqdm
-from torchvision import transforms, datasets
+from torch.backends import cudnn
 from torch.optim import Adam, SGD, lr_scheduler
 from torch.utils.data import DataLoader
-from utils.datasets import collater
+
 from config import Config
 from losses import CELoss
+from utils.util import get_logger, load_state_dict
 
 
-def train(model, train_loader, criterion, optimizer, scheduler, epoch, device):
+def train(logger, model, train_loader, criterion, optimizer, scheduler, epoch, device):
     model.train()
     mean_loss = 0.
+    iter_idx = 1
     for datas in tqdm(train_loader):
         images, labels = datas
         images, labels = images.to(device), labels.to(device)
@@ -39,6 +42,9 @@ def train(model, train_loader, criterion, optimizer, scheduler, epoch, device):
             loss.backward()
 
             optimizer.step()
+        if iter_idx % Config.print_interval == 0 or iter_idx == len(train_loader):
+            logger.info(f"train epoch {epoch:3d}, iter [{iter_idx:5d}, {len(train_loader)}], loss: {loss.item():.3f}")
+        iter_idx += 1
 
     mean_loss = mean_loss / len(train_loader)
     print('epoch: {}  mean_loss: {:.3f}'.format(epoch, mean_loss))
@@ -47,29 +53,63 @@ def train(model, train_loader, criterion, optimizer, scheduler, epoch, device):
     return mean_loss
 
 
-def main():
+def evaluate_acc(model, val_loader, device):
+    model.eval()
+    model = model.to(device)
+    correct = 0
+    with torch.no_grad():
+        for datas in tqdm(val_loader):
+            images, labels = datas
+            images, labels = images.to(device), labels.to(device)
+            preds = model(images)   # [batch_size, num_classes]
+            preds = F.softmax(preds, dim=1)
+            _, max_indices = torch.max(preds, dim=1)    # [batch_size]
+            correct += torch.eq(max_indices, labels).sum().item()
+    val_acc = round(correct / len(Config.val_dataset), 3)
+
+    return val_acc
+
+
+def main(logger):
+    torch.cuda.empty_cache()
+
+    if Config.seed:
+        random.seed(Config.seed)
+        torch.manual_seed(Config.seed)
+        torch.cuda.manual_seed(Config.seed)
+        torch.cuda.manual_seed_all(Config.seed)
+        cudnn.deterministic = True
+
+    gpus = torch.cuda.device_count()
+    logger.info(f'use {gpus} gpus')
+
+    cudnn.benchmark = True
+    cudnn.enabled = True
+    start_time = time.time()
+
     device = Config.device
-    train_set = Config.train_dataset
-    val_set = Config.val_dataset
-    train_loader = DataLoader(train_set,
+
+    logger.info('start loading data')
+    train_loader = DataLoader(Config.train_dataset,
                               batch_size=Config.batch_size,
                               shuffle=True,
                               num_workers=Config.num_workers,
-                              collate_fn=collater)
-    val_loader = DataLoader(val_set,
+                              pin_memory=True,
+                              collate_fn=Config.cls_collater,
+                              prefetch_factor=4)
+    logger.info('finish loading data')
+    val_loader = DataLoader(Config.val_dataset,
                             batch_size=Config.batch_size,
                             shuffle=False,
                             num_workers=Config.num_workers,
-                            collate_fn=collater)
+                            pin_memory=True,
+                            collate_fn=Config.cls_collater,
+                            prefetch_factor=4)
 
     model = Config.model
     model = model.to(device)
-
-    # 加载预训练权重
     if Config.pre_weight_path:
-        weights_dict = torch.load(Config.pre_weight_path, map_location=device)
-        load_dict = OrderedDict({k: v for k, v in weights_dict.items() if 'fc' not in k})
-        model.load_state_dict(load_dict, strict=False)
+        load_state_dict(Config.pre_weight_path, model, [])
 
     # 冻结特征提取层的参数
     if Config.freeze_layer:
@@ -85,33 +125,61 @@ def main():
     criterion = CELoss(use_custom=False)
 
     best_acc = 0
-    for epoch in range(Config.epochs):
-        mean_loss = train(model=model,
+    start_epoch = 1
+
+    # resume training
+    if os.path.exists(Config.resume):
+        logger.info(f'start resume model from {Config.resume}')
+        checkpoint = torch.load(Config.resume, map_location=torch.device('cpu'))
+        start_epoch += checkpoint['epoch']
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        logger.info(f'finish resume model from {Config.resume}')
+        logger.info(f"epoch {checkpoint['epoch']}, best_acc: {checkpoint['best_acc']}, loss: {checkpoint['loss']}")
+        logger.info(f'finish resume model from {Config.resume}')
+
+    logger.info('start training')
+    for epoch in range(start_epoch, Config.epochs+1):
+        print(epoch)
+        mean_loss = train(logger=logger,
+                          model=model,
                           train_loader=train_loader,
                           criterion=criterion,
                           optimizer=optimizer,
                           scheduler=scheduler,
                           epoch=epoch,
                           device=device)
-
+        logger.info(f"train: epoch: {epoch}, loss: {mean_loss:.3f}")
         if epoch % 2 == 0 or epoch == Config.epochs:
-            model.eval()
-            correct = 0
-            with torch.no_grad():
-                for images, labels in tqdm(val_loader):
-                    images, labels = images.to(device), labels.to(device)
-                    pred = model(images)
-                    probs = F.softmax(pred, dim=1)
-                    pred_y = torch.argmax(probs, dim=1)
-                    correct += torch.eq(pred_y, labels).sum().item()
-            val_acc = round(correct / len(val_set), 3)
+            val_acc = evaluate_acc(model, val_loader, device)
+            logger.info(f"epoch {epoch}, val_acc {val_acc}")
             print('epoch: {} acc: {:.3f}'.format(epoch+1, val_acc))
 
             if val_acc > best_acc:
                 best_acc = val_acc
-                torch.save(model.state_dict(), Config.save_path + '_' + str(val_acc).replace('0.', '') + '.pth')
+                torch.save(model.state_dict(), os.path.join(Config.save_root, 'best.pth'))
+
+            torch.save({
+                'epoch': epoch,
+                'best_acc': best_acc,
+                'loss': mean_loss,
+                'model_load_state': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict()
+            }, os.path.join(Config.checkpoints, 'latest.path'))
+    train_time = (time.time() - start_time) / 60
+    logger.info(f'finish training, total training timr: {train_time:.2f} mins')
 
 
 if __name__ == "__main__":
-    main()
+    if not os.path.exists(Config.save_root):
+        os.mkdir(Config.save_root)
+    if not os.path.exists(Config.log):
+        os.mkdir(Config.log)
+    if not os.path.exists(Config.checkpoints):
+        os.mkdir(Config.checkpoints)
+
+    logger_writer = get_logger('yolov4', Config.log)
+    main(logger_writer)
 

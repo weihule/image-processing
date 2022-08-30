@@ -19,7 +19,7 @@ BASE_DIR = os.path.dirname(
 sys.path.append(BASE_DIR)
 
 from torch_detection.utils.util import get_logger
-from losses import YoloV4Loss
+from losses import YoloV4Loss, YoloV4Loss_custom
 from config_yolo import Config
 from network_files.yolov3 import darknet53_yolov3
 from network_files.yolov4 import cspdarknet53_yolov4
@@ -129,7 +129,8 @@ def main(logger):
                                 per_level_num_anchors=3,
                                 num_classes=20)
 
-    criterion = YoloV4Loss().cuda()
+    # criterion = YoloV4Loss().cuda()
+    criterion = YoloV4Loss_custom().cuda()
 
     model = model.cuda()
     # optimizer = torch.optim.Adam(model.parameters(), lr=Config.lr)
@@ -226,7 +227,6 @@ def main(logger):
     )
 
 
-
 if __name__ == "__main__":
-    logger = get_logger('yolo', Config.log)
+    logger = get_logger('custom', Config.log)
     main(logger=logger)

@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import json
 import torch.nn.functional as F
-from backbones.yolov4backbone import yolov4_csp_darknet53, yolov4_csp_darknet_tiny
+import backbones
 
 
 def main(cfgs):
@@ -58,10 +58,10 @@ def main(cfgs):
 
 
 if __name__ == "__main__":
-    mode = 'company'
+    mode = 'local'
     if mode == 'local':
-        imgs = ''
-        model_path = ''
+        imgs = 'D:\\workspace\\data\\dl\\flower\\test'
+        model_path = 'D:\\workspace\\data\\classification_data\\yolov4backbone\\best.pth'
     elif mode == 'company':
         imgs = '/workshop/weihule/data/dl/flower/test'
         model_path = '/workshop/weihule/data/weights/yolov4backbone/darknet53_857.pth'
@@ -69,11 +69,16 @@ if __name__ == "__main__":
         imgs = '/workshop/weihule/data/dl/flower/test'
         model_path = ''
 
-    net = yolov4_csp_darknet53(num_classes=5)
+    backbone_type = 'yolov4_csp_darknet53'
+    model = backbones.__dict__[backbone_type](
+        **{'num_classes': 5,
+           'act_type': 'leakyrelu'}
+    )
+
     cfg_dict = {
         'img_root': imgs,
         'model_path': model_path,
-        'net': net,
+        'net': model,
         'batch_infer': 8,
         'device': torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
         'size': 256,
