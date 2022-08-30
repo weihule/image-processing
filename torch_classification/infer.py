@@ -21,6 +21,7 @@ def main(cfgs):
     device = cfgs['device']
     mean = cfgs['mean']
     std = cfgs['std']
+    single_folder = cfgs['single_folder']
 
     mean = np.expand_dims(np.expand_dims(mean, 0), 0)
     std = np.expand_dims(np.expand_dims(std, 0), 0)
@@ -28,9 +29,14 @@ def main(cfgs):
     model = model.to(device)
     model.load_state_dict(torch.load(model_path))
     imgs_path = []
-    for folder in os.listdir(img_root):
-        for fn in os.listdir(os.path.join(img_root, folder)):
-            fn_path = os.path.join(img_root, folder, fn)
+    if single_folder is False:
+        for folder in os.listdir(img_root):
+            for fn in os.listdir(os.path.join(img_root, folder)):
+                fn_path = os.path.join(img_root, folder, fn)
+                imgs_path.append(fn_path)
+    if single_folder:
+        for fn in os.listdir(img_root):
+            fn_path = os.path.join(img_root, fn)
             imgs_path.append(fn_path)
     split_imgs = [imgs_path[p:p+batch_size] for p in range(0, len(imgs_path), batch_size)]
 
@@ -60,7 +66,7 @@ def main(cfgs):
 if __name__ == "__main__":
     mode = 'local'
     if mode == 'local':
-        imgs = 'D:\\workspace\\data\\dl\\flower\\test'
+        imgs = 'D:\\workspace\\data\\dl\\flower\\val\\roses'
         model_path = 'D:\\workspace\\data\\classification_data\\yolov4backbone\\best.pth'
     elif mode == 'company':
         imgs = '/workshop/weihule/data/dl/flower/test'
@@ -83,7 +89,8 @@ if __name__ == "__main__":
         'device': torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
         'size': 256,
         'mean': [0.485, 0.456, 0.406],
-        'std': [0.229, 0.224, 0.225]
+        'std': [0.229, 0.224, 0.225],
+        'single_folder': True
     }
 
     main(cfg_dict)

@@ -21,7 +21,8 @@ def train(logger, model, train_loader, criterion, optimizer, scheduler, epoch, d
     mean_loss = 0.
     iter_idx = 1
     for datas in tqdm(train_loader):
-        images, labels = datas
+        images = datas['image']
+        labels = datas['label']
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
 
@@ -59,7 +60,8 @@ def evaluate_acc(model, val_loader, device):
     correct = 0
     with torch.no_grad():
         for datas in tqdm(val_loader):
-            images, labels = datas
+            images = datas['image']
+            labels = datas['label']
             images, labels = images.to(device), labels.to(device)
             preds = model(images)   # [batch_size, num_classes]
             preds = F.softmax(preds, dim=1)
@@ -151,14 +153,14 @@ def main(logger):
                           epoch=epoch,
                           device=device)
         logger.info(f"train: epoch: {epoch}, loss: {mean_loss:.3f}")
-        if epoch % 2 == 0 or epoch == Config.epochs:
+        if epoch % 1 == 0 or epoch == Config.epochs:
             val_acc = evaluate_acc(model, val_loader, device)
             logger.info(f"epoch {epoch}, val_acc {val_acc}")
             print('epoch: {} acc: {:.3f}'.format(epoch+1, val_acc))
 
             if val_acc > best_acc:
                 best_acc = val_acc
-                torch.save(model.state_dict(), os.path.join(Config.save_root, 'best.pth'))
+                torch.save(model.state_dict(), os.path.join(Config.save_root, 'pths', 'best.pth'))
 
             torch.save({
                 'epoch': epoch,
