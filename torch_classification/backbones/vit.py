@@ -33,8 +33,8 @@ class PatchEmbeddingBlock(nn.Module):
             nn.ReLU(inplace=True) if has_act else nn.Sequential())
 
     def forward(self, x):
-        # if inputs shape is [224, 224, 3]
-        # -> [14, 14, planes(768)]
+        # if inputs shape is [224, 224, 3]  patch is 16
+        # -> [14, 14, 768]
         x = self.layer(x)
 
         # [B, 768, 14, 14] -> [B, 14*14, 768]
@@ -63,9 +63,21 @@ class MultiHeadAttention(nn.Module):
 
 
 class LayerNorm(nn.Module):
-    def __init__(self, inplanes, eps=1e-4):
+    def __init__(self, inplanes, eps=1e-5):
         super(LayerNorm, self).__init__()
-        self.a_2 =
+        self.a_2 = nn.Parameter(torch.ones(inplanes))
+        self.b_2 = nn.Parameter(torch.zeros(inplanes))
+        self.eps = eps
+
+    def forward(self, x):
+        device = x.device
+        mean = x.mean(-1, keepdim=True)
+        std = x.std(-1, keepdim=True)
+        x = self.a_2.to(device) * (x - mean) / (std +
+                                                self.eps) + self.b_2.to(device)
+
+        return x
+
 
 class TransformerEncoderLayer(nn.Module):
     def __init__(self, inplanes, head_nums, feedforward_ratio=4):
@@ -162,5 +174,11 @@ def vit_base_patch16_224(**kwargs):
 
 
 if __name__ == "__main__":
-    inplanes = 10
+    inputs = torch.randn((2, 2, 2, 2))
+    var_mean = torch.var_mean(inputs, dim=-1, unbiased=False)
+    print(inputs)
+
+    mean_inputs = inputs.mean(-1, keepdim=True)
+    print(mean_inputs)
+
 

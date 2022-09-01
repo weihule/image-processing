@@ -43,7 +43,7 @@ class Config:
         resume = os.path.join(checkpoints, 'latest.pth')
 
     epochs = 50
-    batch_size = 32
+    batch_size = 24
     lr = 0.001
     lrf = 0.001
     num_workers = 4
