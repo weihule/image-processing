@@ -1,4 +1,5 @@
 import math
+from multiprocessing.dummy import active_children
 import numpy as np
 import sys
 import torch
@@ -102,6 +103,7 @@ class IoUMethodNumpy:
 
         bboxes1_shape0 = bboxes1.shape[0]
         for index, bb2 in enumerate(bboxes2):
+            # bb2 shape is [4]
             overlap_xmin = np.maximum(bboxes1[:, 0], np.tile(bb2[0], bboxes1_shape0))
             overlap_ymin = np.maximum(bboxes1[:, 1], np.tile(bb2[1], bboxes1_shape0))
             overlap_xmax = np.minimum(bboxes1[:, 2], np.tile(bb2[2], bboxes1_shape0))
@@ -110,7 +112,7 @@ class IoUMethodNumpy:
             overlap_size_h = np.clip(overlap_ymax - overlap_ymin, a_min=0, a_max=sys.maxsize)
             overlap_areas = overlap_size_w * overlap_size_h
 
-            unions = bboxes1_areas + np.tile(bboxes2_areas[index], (len(overlap_areas),)) - overlap_areas
+            unions = bboxes1_areas + np.tile(bboxes2_areas[index], bboxes1_areas.shape) - overlap_areas
             ious = overlap_areas / unions
             res[index, :] = ious
         ious_src = res.copy()  # keep origin ious
@@ -258,10 +260,17 @@ if __name__ == "__main__":
     iou_method1 = IoUMethodMultiple()
     ious1 = iou_method1(bb1s.unsqueeze(1), bb2s.unsqueeze(0))
 
-    iou_method2 = IoUMethod()
+    iou_method2 = IoUMethodNumpy()
     ious2 = iou_method2(bb1s, bb2s)
     ious2 = ious2.transpose(1, 0)
 
-    print(ious1, ious1.shape)
+    # print(ious1, ious1.shape)
     print(ious2, ious2.shape)
     # print(ious1 == ious2)
+    arr = [[0, 1, 2, 3], [4, 6, 7, 8]]
+    arr += [[2, 3, 4, 5]]
+    arr = np.stack(arr, axis=0)
+    count_num = np.max(arr, axis=0)
+    print(count_num)
+
+

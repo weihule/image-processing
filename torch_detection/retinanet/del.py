@@ -297,18 +297,142 @@ def is_all_alpha(strings):
             return False
     return True
 
-# ABCDF
-# EFGHI
+def calculate_ious(anchor, gt):
+    """
+    anchor: [x_min, y_min, x_max, y_max]
+    gt: [x_min, y_min, x_max, y_max]
+    """
+    anchor_area = max(0, anchor[2]-anchor[0]) * max(0, anchor[3]-anchor[1])
+    gt_area = max(0, gt[2]-anchor[0]) * max(0, gt[3]-gt[1])
+
+    overlap_x_min, overlap_y_min = max(anchor[0], gt[0]), max(anchor[1], gt[1])
+    overlap_x_max, overlap_y_max = min(anchor[2], gt[2]), min(anchor[3], gt[3])
+    overlaps_w = max(0, overlap_x_max-overlap_x_min)
+    overlaps_h = max(0, overlap_y_max-overlap_y_min)
+    overlaps = overlaps_w * overlaps_h
+    
+    unions = max(anchor_area + gt_area - overlaps, 1e-4)
+    iou = overlaps / unions
+    
+    return iou
+
+
+def gen_anchors(anchor_w, anchor_h, s, t, width, height):
+    anchors = []
+    x = 0
+    # 按列进行
+    while x + anchor_w <= width:
+        # 每次循环, y初始化为0
+        y = 0
+        while y + anchor_h <= height:
+            x_min, y_min = x, y
+            x_max, y_max = x+anchor_w, y+anchor_h
+            anchors.append([x_min, y_min, x_max, y_max])
+
+            y = y + t
+
+        x = x + s
+    
+    return anchors
+
+def count_num():
+    """
+    统计先验框与目标框相交的数目
+    """
+    anchor_w, anchor_h, s, t, gt_num, width, height = [1, 1, 1, 1, 1, 13, 10]
+    anchors = gen_anchors(anchor_w, anchor_h, s, t, width, height)
+    gt_x_min, gt_y_min, gt_w, gt_h = [9, 4, 1, 1]
+
+    gts = [[gt_x_min, gt_y_min, gt_x_min+gt_w, gt_y_min+gt_h]]
+    gt_num = 1
+
+    count_num = 0
+    # 遍历每一个先验框, 分别和三个gt做iou
+    for anchor in anchors:
+        for i in range(gt_num):
+            iou = calculate_ious(anchor, gts[i])
+            if iou > 0:
+                count_num += 1
+                break
+    print('count_num = ', count_num)
+
+
+def P_box(w, h, s, t, P, Q):
+    P_boxs = {}
+    x = 0
+    y = 0
+    while x + w <= P:
+        y_t = 0
+        while y_t + h <= Q:
+            P_boxs[y] = [x, y_t, x + w, y_t + h]
+            y += 1
+            y_t += t
+        x += s
+    return P_boxs
+
+
+def decode_arr(stack):
+    if len(stack) >= 2:
+        v1 = stack.pop()
+        v2 = stack.pop()
+        print(v1, v2)
+        v = chr(int(v1+v2, 16))
+        if v == '%':
+            stack = decode_arr(stack)
+        else:
+            stack.append(v)
+    return stack
+
+def decode(stack):
+    val1 = stack.pop()
+    val2 = stack.pop()
+    ch = chr(int(val1+val2,16))
+    if ch == '%':
+        stack = decode(stack)
+    else:
+        stack.append(ch)
+    return stack
+
 
 if __name__ == "__main__":
-    # mean = torch.tensor([[[[0.485, 0.456, 0.406]]]], dtype=torch.float32)
-    # mean1 = [0.485, 0.456, 0.406]
-    # mean1 = torch.tensor(mean1).tile(1, 1, 1, 1)
-    # print(mean.shape, mean1.shape)
+    anchor_w, anchor_h, s, t, gt_num, width, height = [1, 1, 1, 1, 1, 13, 10]
 
-    ss = 'zhongguo中'
-    res = is_all_alpha(ss)
-    print(res)
+    gts = np.zeros((gt_num, 4))
+    for i in range(gt_num):
+        gt_x_min, gt_y_min, gt_w, gt_h = [9, 4, 1, 1]
+        gts[i, :] = [gt_x_min, gt_y_min, gt_x_min+gt_w, gt_y_min+gt_h]
+
+    anchors = [[0, 0, 0+anchor_w, 0+anchor_h]]
+    for i in range(1, 1000):
+        if (i+1)*anchor_w+i*s <= width and (i+1)*anchor_h+i*t <= height:
+            anchors += [[(i)*anchor_w+i*s, (i)*anchor_h+i*t, (i)*anchor_w+i*s+anchor_w, (i)*anchor_h+i*t+anchor_h]]
+        else:
+            break
+    anchors = np.stack(anchors, axis=0)
+    print('anchors.shape = ', anchors.shape)
+
+    anchors_new = P_box(anchor_w, anchor_h, s, t, width, height)
+    print(anchors_new)
+
+    anchors_mine = gen_anchors(anchor_w, anchor_h, s, t, width, height)
+    print(anchors_mine)
+
+    # reses = calculate_ious(anchors, gts)
+    # print('--', reses)
+
+    # ar1 = "c%%%3%3325%325%3%32d%31%2%25%3%%%3333%35%32E%3%2%3533%2%%36%36%2B%%%332%%325%36%31%6%%332%3%3%2532a"
+    # ar2 = "%2"
+    # stack = []
+    # for i in ar1[::-1]:
+    #     if i != '%':
+    #         stack.append(i)
+    #     else:
+    #         stack = decode_arr(stack)
+    # print(stack)
+
+    count_num()
+
+
 
 
 
