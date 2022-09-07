@@ -18,3 +18,4 @@ torch_reID/deep-person-reid/reid-data/*/*/
 */*.log
 */*/*.log
 */*/*/*.log
+py_other/py/*.txt
