@@ -1,6 +1,3 @@
-from re import sub
-from turtle import left
-
 
 class TreeNode():
 	'''定义树节点'''

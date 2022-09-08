@@ -8,6 +8,7 @@ import os.path as osp
 
 import torch
 
+
 def mkdir_if_missing(directory):
     if not osp.exists(directory):
         try:
@@ -15,6 +16,7 @@ def mkdir_if_missing(directory):
         except OSError as e:
             if e.errno != errno.EEXIST:
                 raise
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value.
@@ -35,6 +37,7 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
 
 def save_checkpoint(state, is_best, fpath='checkpoint.pth.tar'):
     mkdir_if_missing(osp.dirname(fpath))

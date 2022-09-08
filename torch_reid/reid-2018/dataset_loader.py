@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+
 def read_image(img_path):
     """Keep reading image until succeed.
     This can avoid IOError incurred by heavy IO process."""
@@ -20,6 +21,7 @@ def read_image(img_path):
             print("IOError incurred when reading '{}'. Will redo. Don't worry. Just chill.".format(img_path))
             pass
     return img
+
 
 class ImageDataset(Dataset):
     """Image Person ReID Dataset"""
@@ -36,6 +38,7 @@ class ImageDataset(Dataset):
         if self.transform is not None:
             img = self.transform(img)
         return img, pid, camid
+
 
 class VideoDataset(Dataset):
     """Video Person ReID Dataset.
