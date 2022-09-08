@@ -6,7 +6,6 @@ import sys
 import urllib
 import tarfile
 import zipfile
-import os.path as osp
 from scipy.io import loadmat
 import numpy as np
 import h5py
@@ -32,10 +31,10 @@ class Market1501(object):
     dataset_dir = 'market1501'
 
     def __init__(self, root='data', **kwargs):
-        self.dataset_dir = osp.join(root, self.dataset_dir)
-        self.train_dir = osp.join(self.dataset_dir, 'bounding_box_train')
-        self.query_dir = osp.join(self.dataset_dir, 'query')
-        self.gallery_dir = osp.join(self.dataset_dir, 'bounding_box_test')
+        self.dataset_dir = os.path.join(root, self.dataset_dir)
+        self.train_dir = os.path.join(self.dataset_dir, 'bounding_box_train')
+        self.query_dir = os.path.join(self.dataset_dir, 'query')
+        self.gallery_dir = os.path.join(self.dataset_dir, 'bounding_box_test')
 
         self._check_before_run()
 
@@ -67,17 +66,17 @@ class Market1501(object):
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
-        if not osp.exists(self.dataset_dir):
+        if not os.path.exists(self.dataset_dir):
             raise RuntimeError("'{}' is not available".format(self.dataset_dir))
-        if not osp.exists(self.train_dir):
+        if not os.path.exists(self.train_dir):
             raise RuntimeError("'{}' is not available".format(self.train_dir))
-        if not osp.exists(self.query_dir):
+        if not os.path.exists(self.query_dir):
             raise RuntimeError("'{}' is not available".format(self.query_dir))
-        if not osp.exists(self.gallery_dir):
+        if not os.path.exists(self.gallery_dir):
             raise RuntimeError("'{}' is not available".format(self.gallery_dir))
 
     def _process_dir(self, dir_path, relabel=False):
-        img_paths = glob.glob(osp.join(dir_path, '*.jpg'))
+        img_paths = glob.glob(os.path.join(dir_path, '*.jpg'))
         pattern = re.compile(r'([-\d]+)_c(\d)')
 
         pid_container = set()
@@ -123,21 +122,21 @@ class CUHK03(object):
     dataset_dir = 'cuhk03'
 
     def __init__(self, root='data', split_id=0, cuhk03_labeled=False, cuhk03_classic_split=False, **kwargs):
-        self.dataset_dir = osp.join(root, self.dataset_dir)
-        self.data_dir = osp.join(self.dataset_dir, 'cuhk03_release')
-        self.raw_mat_path = osp.join(self.data_dir, 'cuhk-03.mat')
+        self.dataset_dir = os.path.join(root, self.dataset_dir)
+        self.data_dir = os.path.join(self.dataset_dir, 'cuhk03_release')
+        self.raw_mat_path = os.path.join(self.data_dir, 'cuhk-03.mat')
         
-        self.imgs_detected_dir = osp.join(self.dataset_dir, 'images_detected')
-        self.imgs_labeled_dir = osp.join(self.dataset_dir, 'images_labeled')
+        self.imgs_detected_dir = os.path.join(self.dataset_dir, 'images_detected')
+        self.imgs_labeled_dir = os.path.join(self.dataset_dir, 'images_labeled')
         
-        self.split_classic_det_json_path = osp.join(self.dataset_dir, 'splits_classic_detected.json')
-        self.split_classic_lab_json_path = osp.join(self.dataset_dir, 'splits_classic_labeled.json')
+        self.split_classic_det_json_path = os.path.join(self.dataset_dir, 'splits_classic_detected.json')
+        self.split_classic_lab_json_path = os.path.join(self.dataset_dir, 'splits_classic_labeled.json')
         
-        self.split_new_det_json_path = osp.join(self.dataset_dir, 'splits_new_detected.json')
-        self.split_new_lab_json_path = osp.join(self.dataset_dir, 'splits_new_labeled.json')
+        self.split_new_det_json_path = os.path.join(self.dataset_dir, 'splits_new_detected.json')
+        self.split_new_lab_json_path = os.path.join(self.dataset_dir, 'splits_new_labeled.json')
         
-        self.split_new_det_mat_path = osp.join(self.dataset_dir, 'cuhk03_new_protocol_config_detected.mat')
-        self.split_new_lab_mat_path = osp.join(self.dataset_dir, 'cuhk03_new_protocol_config_labeled.mat')
+        self.split_new_det_mat_path = os.path.join(self.dataset_dir, 'cuhk03_new_protocol_config_detected.mat')
+        self.split_new_lab_mat_path = os.path.join(self.dataset_dir, 'cuhk03_new_protocol_config_labeled.mat')
 
         self._check_before_run()
         self._preprocess()
@@ -190,15 +189,15 @@ class CUHK03(object):
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
-        if not osp.exists(self.dataset_dir):
+        if not os.path.exists(self.dataset_dir):
             raise RuntimeError("'{}' is not available".format(self.dataset_dir))
-        if not osp.exists(self.data_dir):
+        if not os.path.exists(self.data_dir):
             raise RuntimeError("'{}' is not available".format(self.data_dir))
-        if not osp.exists(self.raw_mat_path):
+        if not os.path.exists(self.raw_mat_path):
             raise RuntimeError("'{}' is not available".format(self.raw_mat_path))
-        if not osp.exists(self.split_new_det_mat_path):
+        if not os.path.exists(self.split_new_det_mat_path):
             raise RuntimeError("'{}' is not available".format(self.split_new_det_mat_path))
-        if not osp.exists(self.split_new_lab_mat_path):
+        if not os.path.exists(self.split_new_lab_mat_path):
             raise RuntimeError("'{}' is not available".format(self.split_new_lab_mat_path))
 
     def _preprocess(self):
@@ -209,12 +208,12 @@ class CUHK03(object):
         3. Create new split. (Zhong et al. CVPR'17)
         """
         print("Note: if root path is changed, the previously generated json files need to be re-generated (delete them first)")
-        if osp.exists(self.imgs_labeled_dir) and \
-           osp.exists(self.imgs_detected_dir) and \
-           osp.exists(self.split_classic_det_json_path) and \
-           osp.exists(self.split_classic_lab_json_path) and \
-           osp.exists(self.split_new_det_json_path) and \
-           osp.exists(self.split_new_lab_json_path):
+        if os.path.exists(self.imgs_labeled_dir) and \
+           os.path.exists(self.imgs_detected_dir) and \
+           os.path.exists(self.split_classic_det_json_path) and \
+           os.path.exists(self.split_classic_lab_json_path) and \
+           os.path.exists(self.split_new_det_json_path) and \
+           os.path.exists(self.split_new_lab_json_path):
             return
 
         mkdir_if_missing(self.imgs_detected_dir)
@@ -239,7 +238,7 @@ class CUHK03(object):
                 # imgid: index of image, (1-10)
                 viewid = 1 if imgid < 5 else 2
                 img_name = '{:01d}_{:03d}_{:01d}_{:02d}.png'.format(campid+1, pid+1, viewid, imgid+1)
-                img_path = osp.join(save_dir, img_name)
+                img_path = os.path.join(save_dir, img_name)
                 imsave(img_path, img)
                 img_paths.append(img_path)
             return img_paths
@@ -269,13 +268,13 @@ class CUHK03(object):
                 
                 if [campid, pid] in test_split:
                     for img_path in img_paths:
-                        camid = int(osp.basename(img_path).split('_')[2])
+                        camid = int(os.path.basename(img_path).split('_')[2])
                         test.append((img_path, num_test_pids, camid))
                     num_test_pids += 1
                     num_test_imgs += len(img_paths)
                 else:
                     for img_path in img_paths:
-                        camid = int(osp.basename(img_path).split('_')[2])
+                        camid = int(os.path.basename(img_path).split('_')[2])
                         train.append((img_path, num_train_pids, camid))
                     num_train_pids += 1
                     num_train_imgs += len(img_paths)
@@ -317,7 +316,7 @@ class CUHK03(object):
                 camid = int(img_name.split('_')[2])
                 pid = pids[idx]
                 if relabel: pid = pid2label[pid]
-                img_path = osp.join(img_dir, img_name)
+                img_path = os.path.join(img_dir, img_name)
                 tmp_set.append((img_path, int(pid), camid))
                 unique_pids.add(pid)
             return tmp_set, len(unique_pids), len(idxs)
@@ -379,10 +378,10 @@ class DukeMTMCreID(object):
     dataset_dir = 'dukemtmc-reid'
 
     def __init__(self, root='data', **kwargs):
-        self.dataset_dir = osp.join(root, self.dataset_dir)
-        self.train_dir = osp.join(self.dataset_dir, 'DukeMTMC-reID/bounding_box_train')
-        self.query_dir = osp.join(self.dataset_dir, 'DukeMTMC-reID/query')
-        self.gallery_dir = osp.join(self.dataset_dir, 'DukeMTMC-reID/bounding_box_test')
+        self.dataset_dir = os.path.join(root, self.dataset_dir)
+        self.train_dir = os.path.join(self.dataset_dir, 'DukeMTMC-reID/bounding_box_train')
+        self.query_dir = os.path.join(self.dataset_dir, 'DukeMTMC-reID/query')
+        self.gallery_dir = os.path.join(self.dataset_dir, 'DukeMTMC-reID/bounding_box_test')
 
         self._check_before_run()
 
@@ -414,17 +413,17 @@ class DukeMTMCreID(object):
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
-        if not osp.exists(self.dataset_dir):
+        if not os.path.exists(self.dataset_dir):
             raise RuntimeError("'{}' is not available".format(self.dataset_dir))
-        if not osp.exists(self.train_dir):
+        if not os.path.exists(self.train_dir):
             raise RuntimeError("'{}' is not available".format(self.train_dir))
-        if not osp.exists(self.query_dir):
+        if not os.path.exists(self.query_dir):
             raise RuntimeError("'{}' is not available".format(self.query_dir))
-        if not osp.exists(self.gallery_dir):
+        if not os.path.exists(self.gallery_dir):
             raise RuntimeError("'{}' is not available".format(self.gallery_dir))
 
     def _process_dir(self, dir_path, relabel=False):
-        img_paths = glob.glob(osp.join(dir_path, '*.jpg'))
+        img_paths = glob.glob(os.path.join(dir_path, '*.jpg'))
         pattern = re.compile(r'([-\d]+)_c(\d)')
 
         pid_container = set()
@@ -462,13 +461,13 @@ class MSMT17(object):
     dataset_dir = 'msmt17'
 
     def __init__(self, root='data', **kwargs):
-        self.dataset_dir = osp.join(root, self.dataset_dir)
-        self.train_dir = osp.join(self.dataset_dir, 'MSMT17_V1/train')
-        self.test_dir = osp.join(self.dataset_dir, 'MSMT17_V1/test')
-        self.list_train_path = osp.join(self.dataset_dir, 'MSMT17_V1/list_train.txt')
-        self.list_val_path = osp.join(self.dataset_dir, 'MSMT17_V1/list_val.txt')
-        self.list_query_path = osp.join(self.dataset_dir, 'MSMT17_V1/list_query.txt')
-        self.list_gallery_path = osp.join(self.dataset_dir, 'MSMT17_V1/list_gallery.txt')
+        self.dataset_dir = os.path.join(root, self.dataset_dir)
+        self.train_dir = os.path.join(self.dataset_dir, 'MSMT17_V1/train')
+        self.test_dir = os.path.join(self.dataset_dir, 'MSMT17_V1/test')
+        self.list_train_path = os.path.join(self.dataset_dir, 'MSMT17_V1/list_train.txt')
+        self.list_val_path = os.path.join(self.dataset_dir, 'MSMT17_V1/list_val.txt')
+        self.list_query_path = os.path.join(self.dataset_dir, 'MSMT17_V1/list_query.txt')
+        self.list_gallery_path = os.path.join(self.dataset_dir, 'MSMT17_V1/list_gallery.txt')
 
         self._check_before_run()
         train, num_train_pids, num_train_imgs = self._process_dir(self.train_dir, self.list_train_path)
@@ -504,11 +503,11 @@ class MSMT17(object):
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
-        if not osp.exists(self.dataset_dir):
+        if not os.path.exists(self.dataset_dir):
             raise RuntimeError("'{}' is not available".format(self.dataset_dir))
-        if not osp.exists(self.train_dir):
+        if not os.path.exists(self.train_dir):
             raise RuntimeError("'{}' is not available".format(self.train_dir))
-        if not osp.exists(self.test_dir):
+        if not os.path.exists(self.test_dir):
             raise RuntimeError("'{}' is not available".format(self.test_dir))
 
     def _process_dir(self, dir_path, list_path):
@@ -520,7 +519,7 @@ class MSMT17(object):
             img_path, pid = img_info.split(' ')
             pid = int(pid) # no need to relabel
             camid = int(img_path.split('_')[2])
-            img_path = osp.join(dir_path, img_path)
+            img_path = os.path.join(dir_path, img_path)
             dataset.append((img_path, pid, camid))
             pid_container.add(pid)
         num_imgs = len(dataset)
@@ -549,12 +548,12 @@ class Mars(object):
     dataset_dir = 'mars'
 
     def __init__(self, root='data', min_seq_len=0, **kwargs):
-        self.dataset_dir = osp.join(root, self.dataset_dir)
-        self.train_name_path = osp.join(self.dataset_dir, 'info/train_name.txt')
-        self.test_name_path = osp.join(self.dataset_dir, 'info/test_name.txt')
-        self.track_train_info_path = osp.join(self.dataset_dir, 'info/tracks_train_info.mat')
-        self.track_test_info_path = osp.join(self.dataset_dir, 'info/tracks_test_info.mat')
-        self.query_IDX_path = osp.join(self.dataset_dir, 'info/query_IDX.mat')
+        self.dataset_dir = os.path.join(root, self.dataset_dir)
+        self.train_name_path = os.path.join(self.dataset_dir, 'info/train_name.txt')
+        self.test_name_path = os.path.join(self.dataset_dir, 'info/test_name.txt')
+        self.track_train_info_path = os.path.join(self.dataset_dir, 'info/tracks_train_info.mat')
+        self.track_test_info_path = os.path.join(self.dataset_dir, 'info/tracks_test_info.mat')
+        self.query_IDX_path = os.path.join(self.dataset_dir, 'info/query_IDX.mat')
 
         self._check_before_run()
 
@@ -609,17 +608,17 @@ class Mars(object):
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
-        if not osp.exists(self.dataset_dir):
+        if not os.path.exists(self.dataset_dir):
             raise RuntimeError("'{}' is not available".format(self.dataset_dir))
-        if not osp.exists(self.train_name_path):
+        if not os.path.exists(self.train_name_path):
             raise RuntimeError("'{}' is not available".format(self.train_name_path))
-        if not osp.exists(self.test_name_path):
+        if not os.path.exists(self.test_name_path):
             raise RuntimeError("'{}' is not available".format(self.test_name_path))
-        if not osp.exists(self.track_train_info_path):
+        if not os.path.exists(self.track_train_info_path):
             raise RuntimeError("'{}' is not available".format(self.track_train_info_path))
-        if not osp.exists(self.track_test_info_path):
+        if not os.path.exists(self.track_test_info_path):
             raise RuntimeError("'{}' is not available".format(self.track_test_info_path))
-        if not osp.exists(self.query_IDX_path):
+        if not os.path.exists(self.query_IDX_path):
             raise RuntimeError("'{}' is not available".format(self.query_IDX_path))
 
     def _get_names(self, fpath):
@@ -658,7 +657,7 @@ class Mars(object):
             assert len(set(camnames)) == 1, "Error: images are captured under different cameras!"
 
             # append image names with directory information
-            img_paths = [osp.join(self.dataset_dir, home_dir, img_name[:4], img_name) for img_name in img_names]
+            img_paths = [os.path.join(self.dataset_dir, home_dir, img_name[:4], img_name) for img_name in img_names]
             if len(img_paths) >= min_seq_len:
                 img_paths = tuple(img_paths)
                 tracklets.append((img_paths, pid, camid))
@@ -685,14 +684,14 @@ class iLIDSVID(object):
     dataset_dir = 'ilids-vid'
 
     def __init__(self, root='data', split_id=0, **kwargs):
-        self.dataset_dir = osp.join(root, self.dataset_dir)
+        self.dataset_dir = os.path.join(root, self.dataset_dir)
         self.dataset_url = 'http://www.eecs.qmul.ac.uk/~xiatian/iLIDS-VID/iLIDS-VID.tar'
-        self.data_dir = osp.join(self.dataset_dir, 'i-LIDS-VID')
-        self.split_dir = osp.join(self.dataset_dir, 'train-test people splits')
-        self.split_mat_path = osp.join(self.split_dir, 'train_test_splits_ilidsvid.mat')
-        self.split_path = osp.join(self.dataset_dir, 'splits.json')
-        self.cam_1_path = osp.join(self.dataset_dir, 'i-LIDS-VID/sequences/cam1')
-        self.cam_2_path = osp.join(self.dataset_dir, 'i-LIDS-VID/sequences/cam2')
+        self.data_dir = os.path.join(self.dataset_dir, 'i-LIDS-VID')
+        self.split_dir = os.path.join(self.dataset_dir, 'train-test people splits')
+        self.split_mat_path = os.path.join(self.split_dir, 'train_test_splits_ilidsvid.mat')
+        self.split_path = os.path.join(self.dataset_dir, 'splits.json')
+        self.cam_1_path = os.path.join(self.dataset_dir, 'i-LIDS-VID/sequences/cam1')
+        self.cam_2_path = os.path.join(self.dataset_dir, 'i-LIDS-VID/sequences/cam2')
 
         self._download_data()
         self._check_before_run()
@@ -742,12 +741,12 @@ class iLIDSVID(object):
         self.num_gallery_pids = num_gallery_pids
 
     def _download_data(self):
-        if osp.exists(self.dataset_dir):
+        if os.path.exists(self.dataset_dir):
             print("This dataset has been downloaded.")
             return
 
         mkdir_if_missing(self.dataset_dir)
-        fpath = osp.join(self.dataset_dir, osp.basename(self.dataset_url))
+        fpath = os.path.join(self.dataset_dir, os.path.basename(self.dataset_url))
 
         print("Downloading iLIDS-VID dataset")
         url_opener = urllib.URLopener()
@@ -760,15 +759,15 @@ class iLIDSVID(object):
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
-        if not osp.exists(self.dataset_dir):
+        if not os.path.exists(self.dataset_dir):
             raise RuntimeError("'{}' is not available".format(self.dataset_dir))
-        if not osp.exists(self.data_dir):
+        if not os.path.exists(self.data_dir):
             raise RuntimeError("'{}' is not available".format(self.data_dir))
-        if not osp.exists(self.split_dir):
+        if not os.path.exists(self.split_dir):
             raise RuntimeError("'{}' is not available".format(self.split_dir))
 
     def _prepare_split(self):
-        if not osp.exists(self.split_path):
+        if not os.path.exists(self.split_path):
             print("Creating splits")
             mat_split_data = loadmat(self.split_mat_path)['ls_set']
             
@@ -815,8 +814,8 @@ class iLIDSVID(object):
         
         for dirname in dirnames:
             if cam1:
-                person_dir = osp.join(self.cam_1_path, dirname)
-                img_names = glob.glob(osp.join(person_dir, '*.png'))
+                person_dir = os.path.join(self.cam_1_path, dirname)
+                img_names = glob.glob(os.path.join(person_dir, '*.png'))
                 assert len(img_names) > 0
                 img_names = tuple(img_names)
                 pid = dirname2pid[dirname]
@@ -824,8 +823,8 @@ class iLIDSVID(object):
                 num_imgs_per_tracklet.append(len(img_names))
 
             if cam2:
-                person_dir = osp.join(self.cam_2_path, dirname)
-                img_names = glob.glob(osp.join(person_dir, '*.png'))
+                person_dir = os.path.join(self.cam_2_path, dirname)
+                img_names = glob.glob(os.path.join(person_dir, '*.png'))
                 assert len(img_names) > 0
                 img_names = tuple(img_names)
                 pid = dirname2pid[dirname]
@@ -854,11 +853,11 @@ class PRID(object):
     dataset_dir = 'prid2011'
 
     def __init__(self, root='data', split_id=0, min_seq_len=0, **kwargs):
-        self.dataset_dir = osp.join(root, self.dataset_dir)
+        self.dataset_dir = os.path.join(root, self.dataset_dir)
         self.dataset_url = 'https://files.icg.tugraz.at/f/6ab7e8ce8f/?raw=1'
-        self.split_path = osp.join(self.dataset_dir, 'splits_prid2011.json')
-        self.cam_a_path = osp.join(self.dataset_dir, 'prid_2011', 'multi_shot', 'cam_a')
-        self.cam_b_path = osp.join(self.dataset_dir, 'prid_2011', 'multi_shot', 'cam_b')
+        self.split_path = os.path.join(self.dataset_dir, 'splits_prid2011.json')
+        self.cam_a_path = os.path.join(self.dataset_dir, 'prid_2011', 'multi_shot', 'cam_a')
+        self.cam_b_path = os.path.join(self.dataset_dir, 'prid_2011', 'multi_shot', 'cam_b')
 
         self._check_before_run()
         splits = read_json(self.split_path)
@@ -906,7 +905,7 @@ class PRID(object):
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
-        if not osp.exists(self.dataset_dir):
+        if not os.path.exists(self.dataset_dir):
             raise RuntimeError("'{}' is not available".format(self.dataset_dir))
 
     def _process_data(self, dirnames, cam1=True, cam2=True):
@@ -916,8 +915,8 @@ class PRID(object):
         
         for dirname in dirnames:
             if cam1:
-                person_dir = osp.join(self.cam_a_path, dirname)
-                img_names = glob.glob(osp.join(person_dir, '*.png'))
+                person_dir = os.path.join(self.cam_a_path, dirname)
+                img_names = glob.glob(os.path.join(person_dir, '*.png'))
                 assert len(img_names) > 0
                 img_names = tuple(img_names)
                 pid = dirname2pid[dirname]
@@ -925,8 +924,8 @@ class PRID(object):
                 num_imgs_per_tracklet.append(len(img_names))
 
             if cam2:
-                person_dir = osp.join(self.cam_b_path, dirname)
-                img_names = glob.glob(osp.join(person_dir, '*.png'))
+                person_dir = os.path.join(self.cam_b_path, dirname)
+                img_names = glob.glob(os.path.join(person_dir, '*.png'))
                 assert len(img_names) > 0
                 img_names = tuple(img_names)
                 pid = dirname2pid[dirname]
@@ -955,13 +954,13 @@ class DukeMTMCVidReID(object):
     dataset_dir = 'dukemtmc-vidreid'
 
     def __init__(self, root='data', min_seq_len=0, **kwargs):
-        self.dataset_dir = osp.join(root, self.dataset_dir)
-        self.train_dir = osp.join(self.dataset_dir, 'dukemtmc_videoReID/train_split')
-        self.query_dir = osp.join(self.dataset_dir, 'dukemtmc_videoReID/query_split')
-        self.gallery_dir = osp.join(self.dataset_dir, 'dukemtmc_videoReID/gallery_split')
-        self.split_train_json_path = osp.join(self.dataset_dir, 'split_train.json')
-        self.split_query_json_path = osp.join(self.dataset_dir, 'split_query.json')
-        self.split_gallery_json_path = osp.join(self.dataset_dir, 'split_gallery.json')
+        self.dataset_dir = os.path.join(root, self.dataset_dir)
+        self.train_dir = os.path.join(self.dataset_dir, 'dukemtmc_videoReID/train_split')
+        self.query_dir = os.path.join(self.dataset_dir, 'dukemtmc_videoReID/query_split')
+        self.gallery_dir = os.path.join(self.dataset_dir, 'dukemtmc_videoReID/gallery_split')
+        self.split_train_json_path = os.path.join(self.dataset_dir, 'split_train.json')
+        self.split_query_json_path = os.path.join(self.dataset_dir, 'split_query.json')
+        self.split_gallery_json_path = os.path.join(self.dataset_dir, 'split_gallery.json')
 
         self.min_seq_len = min_seq_len
         self._check_before_run()
@@ -1005,39 +1004,39 @@ class DukeMTMCVidReID(object):
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
-        if not osp.exists(self.dataset_dir):
+        if not os.path.exists(self.dataset_dir):
             raise RuntimeError("'{}' is not available".format(self.dataset_dir))
-        if not osp.exists(self.train_dir):
+        if not os.path.exists(self.train_dir):
             raise RuntimeError("'{}' is not available".format(self.train_dir))
-        if not osp.exists(self.query_dir):
+        if not os.path.exists(self.query_dir):
             raise RuntimeError("'{}' is not available".format(self.query_dir))
-        if not osp.exists(self.gallery_dir):
+        if not os.path.exists(self.gallery_dir):
             raise RuntimeError("'{}' is not available".format(self.gallery_dir))
 
     def _process_dir(self, dir_path, json_path, relabel):
-        if osp.exists(json_path):
+        if os.path.exists(json_path):
             print("=> {} generated before, awesome!".format(json_path))
             split = read_json(json_path)
             return split['tracklets'], split['num_tracklets'], split['num_pids'], split['num_imgs_per_tracklet']
 
         print("=> Automatically generating split (might take a while for the first time, have a coffe)")
-        pdirs = glob.glob(osp.join(dir_path, '*')) # avoid .DS_Store
+        pdirs = glob.glob(os.path.join(dir_path, '*')) # avoid .DS_Store
         print("Processing {} with {} person identities".format(dir_path, len(pdirs)))
 
         pid_container = set()
         for pdir in pdirs:
-            pid = int(osp.basename(pdir))
+            pid = int(os.path.basename(pdir))
             pid_container.add(pid)
         pid2label = {pid:label for label, pid in enumerate(pid_container)}
 
         tracklets = []
         num_imgs_per_tracklet = []
         for pdir in pdirs:
-            pid = int(osp.basename(pdir))
+            pid = int(os.path.basename(pdir))
             if relabel: pid = pid2label[pid]
-            tdirs = glob.glob(osp.join(pdir, '*'))
+            tdirs = glob.glob(os.path.join(pdir, '*'))
             for tdir in tdirs:
-                raw_img_paths = glob.glob(osp.join(tdir, '*.jpg'))
+                raw_img_paths = glob.glob(os.path.join(tdir, '*.jpg'))
                 num_imgs = len(raw_img_paths)
 
                 if num_imgs < self.min_seq_len:
@@ -1048,12 +1047,12 @@ class DukeMTMCVidReID(object):
                 for img_idx in range(num_imgs):
                     # some tracklet starts from 0002 instead of 0001
                     img_idx_name = 'F' + str(img_idx+1).zfill(4)
-                    res = glob.glob(osp.join(tdir, '*' + img_idx_name + '*.jpg'))
+                    res = glob.glob(os.path.join(tdir, '*' + img_idx_name + '*.jpg'))
                     if len(res) == 0:
                         print("Warn: index name {} in {} is missing, jump to next".format(img_idx_name, tdir))
                         continue
                     img_paths.append(res[0])
-                img_name = osp.basename(img_paths[0])
+                img_name = os.path.basename(img_paths[0])
                 camid = int(img_name[5]) - 1 # index-0
                 img_paths = tuple(img_paths)
                 tracklets.append((img_paths, pid, camid))
