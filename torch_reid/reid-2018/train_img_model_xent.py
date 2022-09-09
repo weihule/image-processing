@@ -15,7 +15,8 @@ from torch.optim import lr_scheduler
 
 import data_manager
 from dataset_loader import ImageDataset
-import transforms as T
+from torchvision import transforms
+import img_transforms
 import models
 from losses import CrossEntropyLabelSmooth, DeepSupervision
 from utils import AverageMeter, Logger, save_checkpoint
@@ -74,6 +75,7 @@ parser.add_argument('--gpu-devices', default='0', type=str, help='gpu device ids
 
 args = parser.parse_args()
 
+
 def main():
     torch.manual_seed(args.seed)
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_devices
@@ -99,17 +101,17 @@ def main():
         cuhk03_labeled=args.cuhk03_labeled, cuhk03_classic_split=args.cuhk03_classic_split,
     )
 
-    transform_train = T.Compose([
-        T.Random2DTranslation(args.height, args.width),
-        T.RandomHorizontalFlip(),
-        T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    transform_train = transforms.Compose([
+        img_transforms.Random2DTranslation(args.height, args.width),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
-    transform_test = T.Compose([
-        T.Resize((args.height, args.width)),
-        T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    transform_test = transforms.Compose([
+        transforms.Resize((args.height, args.width)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
     pin_memory = True if use_gpu else False

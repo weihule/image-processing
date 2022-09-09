@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data.sampler import Sampler
 
+
 class RandomIdentitySampler(Sampler):
     """
     Randomly sample N identities, then for each identity,

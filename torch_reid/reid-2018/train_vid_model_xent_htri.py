@@ -15,7 +15,7 @@ from torch.optim import lr_scheduler
 
 import data_manager
 from dataset_loader import ImageDataset, VideoDataset
-import transforms as T
+import img_transforms as T
 import models
 from losses import CrossEntropyLabelSmooth, TripletLoss
 from utils import AverageMeter, Logger, save_checkpoint

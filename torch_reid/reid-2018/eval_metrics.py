@@ -4,6 +4,7 @@ import copy
 from collections import defaultdict
 import sys
 
+
 def eval_cuhk03(distmat, q_pids, g_pids, q_camids, g_camids, max_rank, N=100):
     """Evaluation with cuhk03 metric
     Key: one image for each gallery identity is randomly sampled for each query identity.
@@ -72,6 +73,7 @@ def eval_cuhk03(distmat, q_pids, g_pids, q_camids, g_camids, max_rank, N=100):
 
     return all_cmc, mAP
 
+
 def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     """Evaluation with market1501 metric
     Key: for each query identity, its gallery images from the same camera view are discarded.
@@ -125,6 +127,7 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     mAP = np.mean(all_AP)
 
     return all_cmc, mAP
+
 
 def evaluate(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50, use_metric_cuhk03=False):
     if use_metric_cuhk03:

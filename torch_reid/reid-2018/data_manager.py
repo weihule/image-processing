@@ -9,7 +9,6 @@ import zipfile
 from scipy.io import loadmat
 import numpy as np
 import h5py
-from scipy.misc import imsave
 
 from utils import mkdir_if_missing, write_json, read_json
 
@@ -40,9 +39,13 @@ class Market1501(object):
 
         self._check_before_run()
 
-        train, num_train_pids, num_train_imgs = self._process_dir(self.train_dir, relabel=True)
-        query, num_query_pids, num_query_imgs = self._process_dir(self.query_dir, relabel=False)
-        gallery, num_gallery_pids, num_gallery_imgs = self._process_dir(self.gallery_dir, relabel=False)
+        # train, num_train_pids, num_train_imgs = self._process_dir(self.train_dir, relabel=True)
+        # query, num_query_pids, num_query_imgs = self._process_dir(self.query_dir, relabel=False)
+        # gallery, num_gallery_pids, num_gallery_imgs = self._process_dir(self.gallery_dir, relabel=False)
+
+        train, num_train_pids, num_train_imgs = self._process_dir2(self.train_dir, relabel=True)
+        query, num_query_pids, num_query_imgs = self._process_dir2(self.query_dir, relabel=False)
+        gallery, num_gallery_pids, num_gallery_imgs = self._process_dir2(self.gallery_dir, relabel=False)
         num_total_pids = num_train_pids + num_query_pids
         num_total_imgs = num_train_imgs + num_query_imgs + num_gallery_imgs
 
@@ -77,6 +80,34 @@ class Market1501(object):
         if not os.path.exists(self.gallery_dir):
             raise RuntimeError("'{}' is not available".format(self.gallery_dir))
 
+    @staticmethod
+    def _process_dir2(dir_path, relabel=False):
+        datasets = []
+        img_paths = glob.glob(os.path.join(dir_path, '*.jpg'))
+        pids = set()
+        for img_path in img_paths:
+            img_name = img_path.split(os.sep)[-1]
+            infos = img_name.split('_')
+            pid, camid = int(infos[0]), int(infos[1][1])
+            # ignore junk image
+            if pid == -1:
+                continue
+            assert 0 <= pid <= 1501  # pid == 0 means background
+            assert 1 <= camid <= 6
+
+            pids.add(pid)
+            camid -= 1  # camera id start from 0
+            datasets.append([img_path, pid, camid])
+
+        if relabel:
+            pid2label = {pid: label for label, pid in enumerate(pids)}
+            for p in datasets:
+                p[1] = pid2label[p[1]]
+
+        num_pids = len(pids)
+        num_imgs = len(datasets)
+        return datasets, num_pids, num_imgs
+
     def _process_dir(self, dir_path, relabel=False):
         img_paths = glob.glob(os.path.join(dir_path, '*.jpg'))
         pattern = re.compile(r'([-\d]+)_c(\d)')
@@ -92,7 +123,8 @@ class Market1501(object):
         dataset = []
         for img_path in img_paths:
             pid, camid = map(int, pattern.search(img_path).groups())
-            if pid == -1: continue  # junk images are just ignored
+            if pid == -1:
+                continue  # junk images are just ignored
             assert 0 <= pid <= 1501  # pid == 0 means background
             assert 1 <= camid <= 6
             camid -= 1  # index starts from 0
@@ -246,7 +278,7 @@ class CUHK03(object):
                 viewid = 1 if imgid < 5 else 2
                 img_name = '{:01d}_{:03d}_{:01d}_{:02d}.png'.format(campid + 1, pid + 1, viewid, imgid + 1)
                 img_path = os.path.join(save_dir, img_name)
-                imsave(img_path, img)
+                # imsave(img_path, img)
                 img_paths.append(img_path)
             return img_paths
 
@@ -1120,3 +1152,8 @@ def init_vid_dataset(name, **kwargs):
     if name not in __vid_factory.keys():
         raise KeyError("Invalid dataset, got '{}', but expected to be one of {}".format(name, __vid_factory.keys()))
     return __vid_factory[name](**kwargs)
+
+
+if __name__ == "__main__":
+    data_root = 'D:\\workspace\\data\\dl'
+    mark = Market1501(root=data_root)

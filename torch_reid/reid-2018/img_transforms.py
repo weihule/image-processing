@@ -1,9 +1,9 @@
 from __future__ import absolute_import
 
-from torchvision.transforms import *
 from PIL import Image
 import random
 import numpy as np
+
 
 class Random2DTranslation(object):
     """
@@ -28,8 +28,10 @@ class Random2DTranslation(object):
         Returns:
             PIL Image: Cropped image.
         """
+        # 满足条件, 就不做数据增广, 直接resize到需要的尺寸
         if random.random() < self.p:
             return img.resize((self.width, self.height), self.interpolation)
+        # 否则, 先resize, 再crop
         new_width, new_height = int(round(self.width * 1.125)), int(round(self.height * 1.125))
         resized_img = img.resize((new_width, new_height), self.interpolation)
         x_maxrange = new_width - self.width
@@ -38,6 +40,20 @@ class Random2DTranslation(object):
         y1 = int(round(random.uniform(0, y_maxrange)))
         croped_img = resized_img.crop((x1, y1, x1 + self.width, y1 + self.height))
         return croped_img
+
+
+class Random2DFlip:
+    def __init__(self, prob=0.5):
+        self.prob = prob
+
+    def __call__(self, img):
+        flip_flag = np.random.uniform(0, 1)
+        if flip_flag <= 0.5:
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)
+
+        return img
+
+
 
 if __name__ == '__main__':
     pass

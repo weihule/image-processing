@@ -12,10 +12,11 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
+from torchvision import transforms
+import img_transforms
 
 import data_manager
 from dataset_loader import ImageDataset
-import transforms as T
 import models
 from losses import CrossEntropyLabelSmooth, CenterLoss
 from utils import AverageMeter, Logger, save_checkpoint
@@ -23,9 +24,8 @@ from eval_metrics import evaluate
 
 parser = argparse.ArgumentParser(description='Train image model with center loss')
 # Datasets
-parser.add_argument('--root', type=str, default='data', help="root path to data directory")
-parser.add_argument('-d', '--dataset', type=str, default='market1501',
-                    choices=data_manager.get_names())
+parser.add_argument('--root', type=str, default='D:\\workspace\\data\\dl', help="root path to data directory")
+parser.add_argument('-d', '--dataset', type=str, default='market1501')
 parser.add_argument('-j', '--workers', default=4, type=int,
                     help="number of data loading workers (default: 4)")
 parser.add_argument('--height', type=int, default=256,
@@ -45,7 +45,7 @@ parser.add_argument('--max-epoch', default=60, type=int,
                     help="maximum epochs to run")
 parser.add_argument('--start-epoch', default=0, type=int,
                     help="manual epoch number (useful on restarts)")
-parser.add_argument('--train-batch', default=32, type=int,
+parser.add_argument('--train-batch', default=8, type=int,
                     help="train batch size")
 parser.add_argument('--test-batch', default=32, type=int, help="test batch size")
 parser.add_argument('--lr', '--learning-rate', default=0.0003, type=float,
@@ -69,17 +69,19 @@ parser.add_argument('--evaluate', action='store_true', help="evaluation only")
 parser.add_argument('--eval-step', type=int, default=-1,
                     help="run evaluation for every N epochs (set to -1 to test after training)")
 parser.add_argument('--start-eval', type=int, default=0, help="start to evaluate after specific epoch")
-parser.add_argument('--save-dir', type=str, default='log')
+parser.add_argument('--save-dir', type=str, default='D:\\workspace\\data\\reid_data\\demo')
 parser.add_argument('--use-cpu', action='store_true', help="use cpu")
 parser.add_argument('--gpu-devices', default='0', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
 
 args = parser.parse_args()
 
+
 def main():
     torch.manual_seed(args.seed)
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_devices
     use_gpu = torch.cuda.is_available()
-    if args.use_cpu: use_gpu = False
+    if args.use_cpu:
+        use_gpu = False
 
     if not args.evaluate:
         sys.stdout = Logger(osp.join(args.save_dir, 'log_train.txt'))
@@ -100,17 +102,17 @@ def main():
         cuhk03_labeled=args.cuhk03_labeled, cuhk03_classic_split=args.cuhk03_classic_split,
     )
 
-    transform_train = T.Compose([
-        T.Random2DTranslation(args.height, args.width),
-        T.RandomHorizontalFlip(),
-        T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    transform_train = transforms.Compose([
+        img_transforms.Random2DTranslation(args.height, args.width),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
-    transform_test = T.Compose([
-        T.Resize((args.height, args.width)),
-        T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    transform_test = transforms.Compose([
+        transforms.Resize((args.height, args.width)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
     pin_memory = True if use_gpu else False
@@ -142,7 +144,7 @@ def main():
 
     optimizer_model = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     optimizer_cent = torch.optim.SGD(criterion_cent.parameters(), lr=args.lr_cent)
-    
+
     if args.stepsize > 0:
         scheduler = lr_scheduler.StepLR(optimizer_model, step_size=args.stepsize, gamma=args.gamma)
     start_epoch = args.start_epoch
@@ -171,9 +173,10 @@ def main():
         start_train_time = time.time()
         train(epoch, model, criterion_xent, criterion_cent, optimizer_model, optimizer_cent, trainloader, use_gpu)
         train_time += round(time.time() - start_train_time)
-        
-        if args.stepsize > 0: scheduler.step()
-        
+
+        if args.stepsize > 0:
+            scheduler.step()
+
         if (epoch+1) > args.start_eval and args.eval_step > 0 and (epoch+1) % args.eval_step == 0 or (epoch+1) == args.max_epoch:
             print("==> Test")
             rank1 = test(model, queryloader, galleryloader, use_gpu)
@@ -199,6 +202,7 @@ def main():
     train_time = str(datetime.timedelta(seconds=train_time))
     print("Finished. Total elapsed time (h:m:s): {}. Training time (h:m:s): {}.".format(elapsed, train_time))
 
+
 def train(epoch, model, criterion_xent, criterion_cent, optimizer_model, optimizer_cent, trainloader, use_gpu):
     losses = AverageMeter()
     batch_time = AverageMeter()
@@ -210,7 +214,7 @@ def train(epoch, model, criterion_xent, criterion_cent, optimizer_model, optimiz
     for batch_idx, (imgs, pids, _) in enumerate(trainloader):
         if use_gpu:
             imgs, pids = imgs.cuda(), pids.cuda()
-        
+
         # measure data loading time
         data_time.update(time.time() - end)
 
@@ -241,6 +245,7 @@ def train(epoch, model, criterion_xent, criterion_cent, optimizer_model, optimiz
                    epoch+1, batch_idx+1, len(trainloader), batch_time=batch_time,
                    data_time=data_time, loss=losses))
 
+
 def test(model, queryloader, galleryloader, use_gpu, ranks=[1, 5, 10, 20]):
     batch_time = AverageMeter()
 
@@ -249,8 +254,9 @@ def test(model, queryloader, galleryloader, use_gpu, ranks=[1, 5, 10, 20]):
     with torch.no_grad():
         qf, q_pids, q_camids = [], [], []
         for batch_idx, (imgs, pids, camids) in enumerate(queryloader):
-            if use_gpu: imgs = imgs.cuda()
-            
+            if use_gpu:
+                imgs = imgs.cuda()
+
             end = time.time()
             features = model(imgs)
             batch_time.update(time.time() - end)
@@ -267,8 +273,9 @@ def test(model, queryloader, galleryloader, use_gpu, ranks=[1, 5, 10, 20]):
 
         gf, g_pids, g_camids = [], [], []
         for batch_idx, (imgs, pids, camids) in enumerate(galleryloader):
-            if use_gpu: imgs = imgs.cuda()
-            
+            if use_gpu:
+                imgs = imgs.cuda()
+
             end = time.time()
             features = model(imgs)
             batch_time.update(time.time() - end)
@@ -282,7 +289,7 @@ def test(model, queryloader, galleryloader, use_gpu, ranks=[1, 5, 10, 20]):
         g_camids = np.asarray(g_camids)
 
         print("Extracted features for gallery set, obtained {}-by-{} matrix".format(gf.size(0), gf.size(1)))
-    
+
     print("==> BatchTime(s)/BatchSize(img): {:.3f}/{}".format(batch_time.avg, args.test_batch))
 
     m, n = qf.size(0), gf.size(0)
@@ -303,5 +310,7 @@ def test(model, queryloader, galleryloader, use_gpu, ranks=[1, 5, 10, 20]):
 
     return cmc[0]
 
+
 if __name__ == '__main__':
     main()
+

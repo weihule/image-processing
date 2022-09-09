@@ -10,7 +10,12 @@ Shorthands for loss:
 - TripletLoss: htri
 - CenterLoss: cent
 """
-__all__ = ['DeepSupervision', 'CrossEntropyLabelSmooth', 'TripletLoss', 'CenterLoss', 'RingLoss']
+__all__ = ['DeepSupervision',
+           'CrossEntropyLabelSmooth',
+           'TripletLoss',
+           'CenterLoss',
+           'RingLoss']
+
 
 def DeepSupervision(criterion, xs, y):
     """
@@ -23,6 +28,7 @@ def DeepSupervision(criterion, xs, y):
     for x in xs:
         loss += criterion(x, y)
     return loss
+
 
 class CrossEntropyLabelSmooth(nn.Module):
     """Cross entropy loss with label smoothing regularizer.
@@ -50,10 +56,12 @@ class CrossEntropyLabelSmooth(nn.Module):
         """
         log_probs = self.logsoftmax(inputs)
         targets = torch.zeros(log_probs.size()).scatter_(1, targets.unsqueeze(1).data.cpu(), 1)
-        if self.use_gpu: targets = targets.cuda()
+        if self.use_gpu:
+            targets = targets.cuda()
         targets = (1 - self.epsilon) * targets + self.epsilon / self.num_classes
         loss = (- targets * log_probs).mean(0).sum()
         return loss
+
 
 class TripletLoss(nn.Module):
     """Triplet loss with hard positive/negative mining.
@@ -95,6 +103,7 @@ class TripletLoss(nn.Module):
         y = torch.ones_like(dist_an)
         loss = self.ranking_loss(dist_an, dist_ap, y)
         return loss
+
 
 class CenterLoss(nn.Module):
     """Center loss.
@@ -142,6 +151,7 @@ class CenterLoss(nn.Module):
         loss = dist.mean()
 
         return loss
+
 
 class RingLoss(nn.Module):
     """Ring loss.

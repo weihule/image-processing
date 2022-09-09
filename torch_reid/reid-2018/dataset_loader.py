@@ -23,6 +23,14 @@ def read_image(img_path):
     return img
 
 
+def read_image2(img_path):
+    if not os.path.exists(img_path):
+        raise IOError('{} not exist'.format(img_path))
+    img = Image.open(img_path).convert('RGB')
+
+    return img
+
+
 class ImageDataset(Dataset):
     """Image Person ReID Dataset"""
     def __init__(self, dataset, transform=None):

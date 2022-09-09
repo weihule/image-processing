@@ -5,7 +5,10 @@ from torch import nn
 from torch.nn import functional as F
 import torchvision
 
-__all__ = ['ResNet50', 'ResNet101', 'ResNet50M']
+__all__ = ['ResNet50',
+           'ResNet101',
+           'ResNet50M']
+
 
 class ResNet50(nn.Module):
     def __init__(self, num_classes, loss={'xent'}, **kwargs):
