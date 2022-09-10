@@ -131,7 +131,7 @@ class CenterLoss(nn.Module):
         Args:
             if batch_size = 4, feat_dim=2048, num_classes=751
             x: feature matrix with shape (batch_size, feat_dim). (4, 2048)
-            labels: ground truth labels with shape (num_classes). (751)
+            labels: ground truth labels with shape (batch_size). (4)
         """
         batch_size = x.size(0)
         # self.centers shape is [751, 2048]
@@ -142,17 +142,22 @@ class CenterLoss(nn.Module):
         # distmat = distmat + (-2)*([4, 2048] @ [2048, 751])
         distmat.addmm_(mat1=x, mat2=self.centers.t(), beta=1, alpha=-2)
 
+        # classes [751] -> [1, 751] -> [4, 751]
         classes = torch.arange(self.num_classes).long()
+        classes = classes.unsqueeze(0).expand(batch_size, self.num_classes)
         if self.use_gpu:
             classes = classes.cuda()
+
+        # labels [4] -> [4, 1] -> [4, 751]
         labels = labels.unsqueeze(1).expand(batch_size, self.num_classes)
-        mask = labels.eq(classes.expand(batch_size, self.num_classes))
-        # mask = torch.eq(labels, classes.expand(batch_size, self.num_classes))
+        # mask = labels.eq(classes.expand(batch_size, self.num_classes))
+        # mask 的每一行只有一个 True
+        mask = labels.eq(classes)
 
         dist = []
         for i in range(batch_size):
             value = distmat[i][mask[i]]
-            value = value.clamp(min=1e-12, max=1e+12) # for numerical stability
+            value = value.clamp(min=1e-12, max=1e+12)   # for numerical stability
             dist.append(value)
         dist = torch.cat(dist)
         loss = dist.mean()

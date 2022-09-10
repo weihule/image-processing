@@ -395,10 +395,12 @@ def decode(stack):
 
 
 if __name__ == "__main__":
-    labels = torch.tensor([0, 1, 2, 3, 4])
-    print(labels.shape)
+    labels = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
 
-    labels = labels.expand((4, 5))
+    labels = labels.unsqueeze(0)    # [1, 10]
+    labels = torch.tile(labels, (4, 1))
+
+    # labels = labels.expand(4, 10)
     print(labels, labels.shape)
 
 

@@ -46,7 +46,7 @@ parser.add_argument('--max-epoch', default=60, type=int,
                     help="maximum epochs to run")
 parser.add_argument('--start-epoch', default=0, type=int,
                     help="manual epoch number (useful on restarts)")
-parser.add_argument('--train-batch', default=8, type=int,
+parser.add_argument('--train-batch', default=64, type=int,
                     help="train batch size")
 parser.add_argument('--test-batch', default=32, type=int, help="test batch size")
 parser.add_argument('--lr', '--learning-rate', default=0.0003, type=float,
@@ -72,7 +72,7 @@ parser.add_argument('--eval-step', type=int, default=-1,
 parser.add_argument('--start-eval', type=int, default=0, help="start to evaluate after specific epoch")
 parser.add_argument('--save-dir', type=str, default='D:\\workspace\\data\\reid_data\\demo')
 parser.add_argument('--use-cpu', action='store_true', help="use cpu")
-parser.add_argument('--gpu-devices', default='0', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
+parser.add_argument('--gpu-devices', default='7', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
 parser.add_argument('--use_data_parallel', default=False, type=bool)
 
 args = parser.parse_args()
@@ -240,7 +240,7 @@ def train(epoch, model, criterion_xent, criterion_cent, optimizer_model, optimiz
         optimizer_cent.zero_grad()
         loss.backward()
         optimizer_model.step()
-        # remove the impact of weight_cent in learning centers
+        # TODO: remove the impact of weight_cent in learning centers
         for param in criterion_cent.parameters():
             param.grad.data *= (1. / args.weight_cent)
         optimizer_cent.step()
