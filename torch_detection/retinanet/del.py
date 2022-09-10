@@ -395,43 +395,11 @@ def decode(stack):
 
 
 if __name__ == "__main__":
-    anchor_w, anchor_h, s, t, gt_num, width, height = [1, 1, 1, 1, 1, 13, 10]
+    labels = torch.tensor([0, 1, 2, 3, 4])
+    print(labels.shape)
 
-    gts = np.zeros((gt_num, 4))
-    for i in range(gt_num):
-        gt_x_min, gt_y_min, gt_w, gt_h = [9, 4, 1, 1]
-        gts[i, :] = [gt_x_min, gt_y_min, gt_x_min+gt_w, gt_y_min+gt_h]
-
-    anchors = [[0, 0, 0+anchor_w, 0+anchor_h]]
-    for i in range(1, 1000):
-        if (i+1)*anchor_w+i*s <= width and (i+1)*anchor_h+i*t <= height:
-            anchors += [[(i)*anchor_w+i*s, (i)*anchor_h+i*t, (i)*anchor_w+i*s+anchor_w, (i)*anchor_h+i*t+anchor_h]]
-        else:
-            break
-    anchors = np.stack(anchors, axis=0)
-    print('anchors.shape = ', anchors.shape)
-
-    anchors_new = P_box(anchor_w, anchor_h, s, t, width, height)
-    print(anchors_new)
-
-    anchors_mine = gen_anchors(anchor_w, anchor_h, s, t, width, height)
-    print(anchors_mine)
-
-    # reses = calculate_ious(anchors, gts)
-    # print('--', reses)
-
-    # ar1 = "c%%%3%3325%325%3%32d%31%2%25%3%%%3333%35%32E%3%2%3533%2%%36%36%2B%%%332%%325%36%31%6%%332%3%3%2532a"
-    # ar2 = "%2"
-    # stack = []
-    # for i in ar1[::-1]:
-    #     if i != '%':
-    #         stack.append(i)
-    #     else:
-    #         stack = decode_arr(stack)
-    # print(stack)
-
-    count_num()
-
+    labels = labels.expand((4, 5))
+    print(labels, labels.shape)
 
 
 

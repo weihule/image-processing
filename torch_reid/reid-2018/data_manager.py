@@ -39,13 +39,13 @@ class Market1501(object):
 
         self._check_before_run()
 
-        # train, num_train_pids, num_train_imgs = self._process_dir(self.train_dir, relabel=True)
-        # query, num_query_pids, num_query_imgs = self._process_dir(self.query_dir, relabel=False)
-        # gallery, num_gallery_pids, num_gallery_imgs = self._process_dir(self.gallery_dir, relabel=False)
+        train, num_train_pids, num_train_imgs = self._process_dir(self.train_dir, relabel=True)
+        query, num_query_pids, num_query_imgs = self._process_dir(self.query_dir, relabel=False)
+        gallery, num_gallery_pids, num_gallery_imgs = self._process_dir(self.gallery_dir, relabel=False)
 
-        train, num_train_pids, num_train_imgs = self._process_dir2(self.train_dir, relabel=True)
-        query, num_query_pids, num_query_imgs = self._process_dir2(self.query_dir, relabel=False)
-        gallery, num_gallery_pids, num_gallery_imgs = self._process_dir2(self.gallery_dir, relabel=False)
+        # train, num_train_pids, num_train_imgs = self._process_dir2(self.train_dir, relabel=True)
+        # query, num_query_pids, num_query_imgs = self._process_dir2(self.query_dir, relabel=False)
+        # gallery, num_gallery_pids, num_gallery_imgs = self._process_dir2(self.gallery_dir, relabel=False)
         num_total_pids = num_train_pids + num_query_pids
         num_total_imgs = num_train_imgs + num_query_imgs + num_gallery_imgs
 

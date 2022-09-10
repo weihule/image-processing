@@ -7,6 +7,7 @@ import torchvision
 
 __all__ = ['MobileNetV2']
 
+
 class ConvBlock(nn.Module):
     """Basic convolutional block:
     convolution (bias discarded) + batch normalization + relu6.
@@ -28,6 +29,7 @@ class ConvBlock(nn.Module):
     def forward(self, x):
         return F.relu6(self.bn(self.conv(x)))
 
+
 class Bottleneck(nn.Module):
     def __init__(self, in_channels, out_channels, expansion_factor, stride):
         super(Bottleneck, self).__init__()
@@ -48,6 +50,7 @@ class Bottleneck(nn.Module):
             return x + m
         else:
             return m
+
 
 class MobileNetV2(nn.Module):
     """MobileNetV2

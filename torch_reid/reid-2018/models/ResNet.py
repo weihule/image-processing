@@ -11,19 +11,23 @@ __all__ = ['ResNet50',
 
 
 class ResNet50(nn.Module):
-    def __init__(self, num_classes, loss={'xent'}, **kwargs):
+    def __init__(self, num_classes, loss=None, **kwargs):
         super(ResNet50, self).__init__()
-        self.loss = loss
+        if loss is None:
+            self.loss = {'xent'}
+        else:
+            self.loss = loss
+
         resnet50 = torchvision.models.resnet50(pretrained=True)
         self.base = nn.Sequential(*list(resnet50.children())[:-2])
         self.classifier = nn.Linear(2048, num_classes)
-        self.feat_dim = 2048 # feature dimension
+        self.feat_dim = 2048     # feature dimension
 
     def forward(self, x):
         x = self.base(x)
         x = F.avg_pool2d(x, x.size()[2:])
         f = x.view(x.size(0), -1)
-        if not self.training:
+        if self.training is False:
             return f
         y = self.classifier(f)
 
@@ -37,6 +41,7 @@ class ResNet50(nn.Module):
             return y, f
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
+
 
 class ResNet101(nn.Module):
     def __init__(self, num_classes, loss={'xent'}, **kwargs):
@@ -45,7 +50,7 @@ class ResNet101(nn.Module):
         resnet101 = torchvision.models.resnet101(pretrained=True)
         self.base = nn.Sequential(*list(resnet101.children())[:-2])
         self.classifier = nn.Linear(2048, num_classes)
-        self.feat_dim = 2048 # feature dimension
+        self.feat_dim = 2048      # feature dimension
 
     def forward(self, x):
         x = self.base(x)
@@ -65,6 +70,7 @@ class ResNet101(nn.Module):
             return y, f
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
+
 
 class ResNet50M(nn.Module):
     """ResNet50 + mid-level features.
@@ -120,3 +126,12 @@ class ResNet50M(nn.Module):
             return prelogits, combofeat
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
+
+
+if __name__ == "__main__":
+    net = ResNet50(num_classes=10, loss={'cent'})
+    inputs = torch.randn((4, 3, 224, 224))
+    outputs, features = net(inputs)
+    print(outputs.shape, features.shape)
+
+

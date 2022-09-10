@@ -45,6 +45,7 @@ def save_checkpoint(state, is_best, fpath='checkpoint.pth.tar'):
     if is_best:
         shutil.copy(fpath, osp.join(osp.dirname(fpath), 'best_model.pth.tar'))
 
+
 class Logger(object):
     """
     Write console output to external text file.
@@ -82,12 +83,24 @@ class Logger(object):
         if self.file is not None:
             self.file.close()
 
+
 def read_json(fpath):
     with open(fpath, 'r') as f:
         obj = json.load(f)
     return obj
 
+
 def write_json(obj, fpath):
     mkdir_if_missing(osp.dirname(fpath))
     with open(fpath, 'w') as f:
         json.dump(obj, f, indent=4, separators=(',', ': '))
+
+
+if __name__ == "__main__":
+    losses = AverageMeter()
+    loss_list = [0.5, 0.4, 0.5, 0.6, 1, 0.4]
+    batch_size = 2
+    for los in loss_list:
+        losses.update(los, batch_size)
+        print(losses.avg)
+

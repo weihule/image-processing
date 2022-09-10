@@ -4,7 +4,6 @@ import sys
 import time
 import datetime
 import argparse
-import os.path as osp
 import numpy as np
 
 import torch
@@ -33,6 +32,7 @@ parser.add_argument('--height', type=int, default=256,
 parser.add_argument('--width', type=int, default=128,
                     help="width of an image (default: 128)")
 parser.add_argument('--split-id', type=int, default=0, help="split index")
+
 # CUHK03-specific setting
 parser.add_argument('--cuhk03-labeled', action='store_true',
                     help="whether to use labeled images, if false, detected images are used (default: False)")
@@ -40,6 +40,7 @@ parser.add_argument('--cuhk03-classic-split', action='store_true',
                     help="whether to use classic split by Li et al. CVPR'14 (default: False)")
 parser.add_argument('--use-metric-cuhk03', action='store_true',
                     help="whether to use cuhk03-metric (default: False)")
+
 # Optimization options
 parser.add_argument('--max-epoch', default=60, type=int,
                     help="maximum epochs to run")
@@ -72,6 +73,7 @@ parser.add_argument('--start-eval', type=int, default=0, help="start to evaluate
 parser.add_argument('--save-dir', type=str, default='D:\\workspace\\data\\reid_data\\demo')
 parser.add_argument('--use-cpu', action='store_true', help="use cpu")
 parser.add_argument('--gpu-devices', default='0', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
+parser.add_argument('--use_data_parallel', default=False, type=bool)
 
 args = parser.parse_args()
 
@@ -84,9 +86,9 @@ def main():
         use_gpu = False
 
     if not args.evaluate:
-        sys.stdout = Logger(osp.join(args.save_dir, 'log_train.txt'))
+        sys.stdout = Logger(os.path.join(args.save_dir, 'log_train.txt'))
     else:
-        sys.stdout = Logger(osp.join(args.save_dir, 'log_test.txt'))
+        sys.stdout = Logger(os.path.join(args.save_dir, 'log_test.txt'))
     print("==========\nArgs:{}\n==========".format(args))
 
     if use_gpu:
@@ -119,14 +121,21 @@ def main():
 
     trainloader = DataLoader(
         ImageDataset(dataset.train, transform=transform_train),
-        batch_size=args.train_batch, shuffle=True, num_workers=args.workers,
-        pin_memory=pin_memory, drop_last=True,
+        batch_size=args.train_batch,
+        shuffle=True,
+        num_workers=args.workers,
+        pin_memory=pin_memory,
+        prefetch_factor=4,
+        drop_last=True,
     )
 
     queryloader = DataLoader(
         ImageDataset(dataset.query, transform=transform_test),
-        batch_size=args.test_batch, shuffle=False, num_workers=args.workers,
-        pin_memory=pin_memory, drop_last=False,
+        batch_size=args.test_batch,
+        shuffle=False,
+        num_workers=args.workers,
+        pin_memory=pin_memory,
+        drop_last=False,
     )
 
     galleryloader = DataLoader(
@@ -155,8 +164,10 @@ def main():
         model.load_state_dict(checkpoint['state_dict'])
         start_epoch = checkpoint['epoch']
 
-    if use_gpu:
+    if use_gpu and args.use_data_parallel:
         model = nn.DataParallel(model).cuda()
+    if use_gpu and args.use_data_parallel is False:
+        model = model.cuda()
 
     if args.evaluate:
         print("Evaluate only")
@@ -193,7 +204,7 @@ def main():
                 'state_dict': state_dict,
                 'rank1': rank1,
                 'epoch': epoch,
-            }, is_best, osp.join(args.save_dir, 'checkpoint_ep' + str(epoch+1) + '.pth.tar'))
+            }, is_best, os.path.join(args.save_dir, 'checkpoint_ep' + str(epoch+1) + '.pth.tar'))
 
     print("==> Best Rank-1 {:.1%}, achieved at epoch {}".format(best_rank1, best_epoch))
 
@@ -218,6 +229,9 @@ def train(epoch, model, criterion_xent, criterion_cent, optimizer_model, optimiz
         # measure data loading time
         data_time.update(time.time() - end)
 
+        # if loss={'cent'}
+        # outputs shape is [B, num_classes]
+        # features shape is [B, 2048]
         outputs, features = model(imgs)
         xentloss = criterion_xent(outputs, pids)
         centloss = criterion_cent(features, pids) * args.weight_cent

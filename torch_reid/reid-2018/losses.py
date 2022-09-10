@@ -129,18 +129,25 @@ class CenterLoss(nn.Module):
     def forward(self, x, labels):
         """
         Args:
-            x: feature matrix with shape (batch_size, feat_dim).
-            labels: ground truth labels with shape (num_classes).
+            if batch_size = 4, feat_dim=2048, num_classes=751
+            x: feature matrix with shape (batch_size, feat_dim). (4, 2048)
+            labels: ground truth labels with shape (num_classes). (751)
         """
         batch_size = x.size(0)
+        # self.centers shape is [751, 2048]
+        # distmat shape is [4, 751]
         distmat = torch.pow(x, 2).sum(dim=1, keepdim=True).expand(batch_size, self.num_classes) + \
                   torch.pow(self.centers, 2).sum(dim=1, keepdim=True).expand(self.num_classes, batch_size).t()
-        distmat.addmm_(1, -2, x, self.centers.t())
+
+        # distmat = distmat + (-2)*([4, 2048] @ [2048, 751])
+        distmat.addmm_(mat1=x, mat2=self.centers.t(), beta=1, alpha=-2)
 
         classes = torch.arange(self.num_classes).long()
-        if self.use_gpu: classes = classes.cuda()
+        if self.use_gpu:
+            classes = classes.cuda()
         labels = labels.unsqueeze(1).expand(batch_size, self.num_classes)
         mask = labels.eq(classes.expand(batch_size, self.num_classes))
+        # mask = torch.eq(labels, classes.expand(batch_size, self.num_classes))
 
         dist = []
         for i in range(batch_size):
