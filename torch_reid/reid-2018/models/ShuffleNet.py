@@ -7,6 +7,7 @@ import torchvision
 
 __all__ = ['ShuffleNet']
 
+
 class ChannelShuffle(nn.Module):
     def __init__(self, num_groups):
         super(ChannelShuffle, self).__init__()
@@ -14,7 +15,7 @@ class ChannelShuffle(nn.Module):
 
     def forward(self, x):
         b, c, h, w = x.size()
-        n = c / self.g
+        n = c // self.g
         # reshape
         x = x.view(b, self.g, n, h, w)
         # transpose
@@ -23,13 +24,15 @@ class ChannelShuffle(nn.Module):
         x = x.view(b, c, h, w)
         return x
 
+
 class Bottleneck(nn.Module):
     def __init__(self, in_channels, out_channels, stride, num_groups):
         super(Bottleneck, self).__init__()
         assert stride in [1, 2], "Warning: stride must be either 1 or 2"
         self.stride = stride
-        mid_channels = out_channels / 4
-        if stride == 2: out_channels -= in_channels
+        mid_channels = out_channels // 4
+        if stride == 2:
+            out_channels -= in_channels
         self.conv1 = nn.Conv2d(in_channels, mid_channels, 1, groups=num_groups, bias=False)
         self.bn1 = nn.BatchNorm2d(mid_channels)
         self.shuffle1 = ChannelShuffle(num_groups)
@@ -51,6 +54,7 @@ class Bottleneck(nn.Module):
             out = F.relu(x + out)
         return out
 
+
 # configuration of (num_groups: #out_channels) based on Table 1 in the paper
 cfg = {
     1: [144, 288, 576],
@@ -59,6 +63,7 @@ cfg = {
     4: [272, 544, 1088],
     8: [384, 768, 1536],
 }
+
 
 class ShuffleNet(nn.Module):
     """ShuffleNet
@@ -122,5 +127,14 @@ class ShuffleNet(nn.Module):
             return y
         elif self.loss == {'xent', 'htri'}:
             return y, x
+        elif self.loss == {'cent'}:
+            return y, x
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
+
+
+if __name__ == "__main__":
+    inputs = torch.randn((4, 3, 256, 128))
+    net = ShuffleNet(num_classes=751, loss={'xent', 'htri'})
+    outputs, features = net(inputs)
+    print(outputs.shape, features.shape)

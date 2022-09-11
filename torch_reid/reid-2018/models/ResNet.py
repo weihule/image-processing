@@ -130,7 +130,7 @@ class ResNet50M(nn.Module):
 
 if __name__ == "__main__":
     net = ResNet50(num_classes=10, loss={'cent'})
-    inputs = torch.randn((4, 3, 224, 224))
+    inputs = torch.randn((4, 3, 256, 128))
     outputs, features = net(inputs)
     print(outputs.shape, features.shape)
 

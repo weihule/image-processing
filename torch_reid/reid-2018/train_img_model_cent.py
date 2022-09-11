@@ -79,6 +79,7 @@ args = parser.parse_args()
 
 
 def main():
+    # 设置随机数种子, 保证结果可复现
     torch.manual_seed(args.seed)
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_devices
     use_gpu = torch.cuda.is_available()
@@ -252,12 +253,16 @@ def train(epoch, model, criterion_xent, criterion_cent, optimizer_model, optimiz
         losses.update(loss.item(), pids.size(0))
 
         if (batch_idx+1) % args.print_freq == 0:
+            lr_cent = optimizer_cent.state_dict()['param_groups'][0]['lr']
+            lr_model = optimizer_model.state_dict()['param_groups'][0]['lr']
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                  'lr_cent {lr_cent}\t'
+                  'lr_model {lr_model}'.format(
                    epoch+1, batch_idx+1, len(trainloader), batch_time=batch_time,
-                   data_time=data_time, loss=losses))
+                   data_time=data_time, loss=losses, lr_cent=lr_cent, lr_model=lr_model))
 
 
 def test(model, queryloader, galleryloader, use_gpu, ranks=[1, 5, 10, 20]):
@@ -309,7 +314,8 @@ def test(model, queryloader, galleryloader, use_gpu, ranks=[1, 5, 10, 20]):
     m, n = qf.size(0), gf.size(0)
     distmat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
               torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).t()
-    distmat.addmm_(1, -2, qf, gf.t())
+    # distmat.addmm_(1, -2, qf, gf.t())
+    distmat.addmm_(mat1=qf, mat2=gf.t(), beta=1, alpha=-2)
     distmat = distmat.numpy()
 
     print("Computing CMC and mAP")
