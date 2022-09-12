@@ -1139,7 +1139,12 @@ __vid_factory = {
 
 
 def get_names():
-    return __img_factory.keys() + __vid_factory.keys()
+    names = []
+    for k in __img_factory.keys():
+        names.append(k)
+    for k in __vid_factory.keys():
+        names.append(k)
+    return names
 
 
 def init_img_dataset(name, **kwargs):

@@ -29,6 +29,7 @@ class RandomIdentitySampler(Sampler):
             self.index_dic[pid].append(index)
 
         self.pids = list(self.index_dic.keys())
+
         self.num_identities = len(self.pids)
 
     def __iter__(self):
@@ -40,8 +41,10 @@ class RandomIdentitySampler(Sampler):
             t = self.index_dic[pid]
             replace = False if len(t) >= self.num_instances else True
             # 从t中随机抽取 size 个元素, replace参数为True表示可以抽取相同元素, 为False表示不可以抽取相同元素
+            # 即每个pid随机抽取num_instances张图片
             t = np.random.choice(t, size=self.num_instances, replace=replace)
             ret.extend(t)
+
         return iter(ret)
 
     def __len__(self):
@@ -55,7 +58,6 @@ if __name__ == "__main__":
                                             name='market1501')
     train_dataset = dataset.train
 
-    a = [0, 1, 2, 3]
-    choice = np.random.choice(a, 4, replace=True)
-    print(choice)
+    random_sampler = RandomIdentitySampler(data_source=train_dataset,
+                                           num_instances=4)
 
