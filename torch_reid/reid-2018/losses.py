@@ -77,13 +77,16 @@ class TripletLoss(nn.Module):
     def __init__(self, margin=0.3):
         super(TripletLoss, self).__init__()
         self.margin = margin
+
+        # ranking_loss主要算的就是 ReLU(ap - y*an + margin)
+        # 这里y取1, 并用ReLU()激活
         self.ranking_loss = nn.MarginRankingLoss(margin=margin)
 
     def forward(self, inputs, targets):
         """
         Args:
             inputs: feature matrix with shape (batch_size, feat_dim)
-            targets: ground truth labels with shape (num_classes)
+            targets: ground truth labels with shape (batch_size)
         """
         n = inputs.size(0)
         # Compute pairwise distance, replace by the official when merged
@@ -91,8 +94,15 @@ class TripletLoss(nn.Module):
         dist = dist + dist.t()
         dist.addmm_(1, -2, inputs, inputs.t())
         dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
+
+        # beta(a^2 + b^2) + alpha(a @ b)
+        # dist = torch.addmm(dist, mat1=inputs, mat2=inputs.t(), beta=1, alpha=-2)
+        # dist = torch.sqrt(torch.clamp(dist, min=1e-12))    # for numerical stability
+
         # For each anchor, find the hardest positive and negative
+        # mask 相当于是一个对角线为1的距离矩阵
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
+
         dist_ap, dist_an = [], []
         for i in range(n):
             dist_ap.append(dist[i][mask[i]].max().unsqueeze(0))

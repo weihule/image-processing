@@ -13,3 +13,7 @@ def test():
 
 if __name__ == "__main__":
     test()
+
+    a = torch.tensor(0.999)
+    print(a)
+    print(a.item())

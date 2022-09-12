@@ -14,6 +14,7 @@ from .InceptionV4 import *
 from .NASNet import *
 from .DPN import *
 from .InceptionResNetV2 import *
+from .osnet import *
 
 __factory = {
     'resnet50': ResNet50,
@@ -35,6 +36,7 @@ __factory = {
     'inceptionresnetv2': InceptionResNetV2,
     'mudeep': MuDeep,
     'hacnn': HACNN,
+    'osnet_x1_0': osnet_x1_0
 }
 
 

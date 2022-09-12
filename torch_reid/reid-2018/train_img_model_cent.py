@@ -61,6 +61,7 @@ parser.add_argument('--gamma', default=0.1, type=float,
 parser.add_argument('--weight-decay', default=5e-04, type=float,
                     help="weight decay (default: 5e-04)")
 # Architecture
+parser.add_argument('--pre_trained', type=str)
 parser.add_argument('-a', '--arch', type=str, default='resnet50', choices=models.get_names())
 # Miscs
 parser.add_argument('--print-freq', type=int, default=10, help="print frequency")
@@ -127,8 +128,7 @@ def main():
         num_workers=args.workers,
         pin_memory=pin_memory,
         prefetch_factor=4,
-        drop_last=True,
-    )
+        drop_last=True)
 
     queryloader = DataLoader(
         ImageDataset(dataset.query, transform=transform_test),
@@ -136,17 +136,22 @@ def main():
         shuffle=False,
         num_workers=args.workers,
         pin_memory=pin_memory,
-        drop_last=False,
-    )
+        drop_last=False)
 
     galleryloader = DataLoader(
         ImageDataset(dataset.gallery, transform=transform_test),
-        batch_size=args.test_batch, shuffle=False, num_workers=args.workers,
-        pin_memory=pin_memory, drop_last=False,
-    )
+        batch_size=args.test_batch,
+        shuffle=False,
+        num_workers=args.workers,
+        pin_memory=pin_memory,
+        drop_last=False)
 
     print("Initializing model: {}".format(args.arch))
-    model = models.init_model(name=args.arch, num_classes=dataset.num_train_pids, loss={'cent'})
+    model = models.init_model(name=args.arch,
+                              num_classes=dataset.num_train_pids,
+                              loss={'cent'},
+                              num_groups=8,
+                              pre_trained=args.pre_trained)
     print("Model size: {:.5f}M".format(sum(p.numel() for p in model.parameters())/1000000.0))
 
     criterion_xent = CrossEntropyLabelSmooth(num_classes=dataset.num_train_pids, use_gpu=use_gpu)
@@ -197,10 +202,10 @@ def main():
                 best_rank1 = rank1
                 best_epoch = epoch + 1
 
-            if use_gpu:
-                state_dict = model.module.state_dict()
-            else:
-                state_dict = model.state_dict()
+            # if use_gpu:
+            #     state_dict = model.module.state_dict()
+            # else:
+            state_dict = model.state_dict()
             save_checkpoint({
                 'state_dict': state_dict,
                 'rank1': rank1,
@@ -259,10 +264,17 @@ def train(epoch, model, criterion_xent, criterion_cent, optimizer_model, optimiz
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'lr_cent {lr_cent}\t'
-                  'lr_model {lr_model}'.format(
+                  'lr_cent {lr_cent:.3f}\t'
+                  'lr_model {lr_model}\t'
+                  'xentloss {xentloss:.3f}\t'
+                  'centloss {centloss:.3f}'.format(
                    epoch+1, batch_idx+1, len(trainloader), batch_time=batch_time,
-                   data_time=data_time, loss=losses, lr_cent=lr_cent, lr_model=lr_model))
+                   data_time=data_time,
+                   loss=losses,
+                   lr_cent=lr_cent,
+                   lr_model=lr_model,
+                   xentloss=xentloss.item(),
+                   centloss=centloss.item()))
 
 
 def test(model, queryloader, galleryloader, use_gpu, ranks=[1, 5, 10, 20]):

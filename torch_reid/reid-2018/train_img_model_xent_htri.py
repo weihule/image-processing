@@ -4,7 +4,6 @@ import sys
 import time
 import datetime
 import argparse
-import os.path as osp
 import numpy as np
 
 import torch
@@ -12,10 +11,11 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
+from torchvision import transforms
 
 import data_manager
 from dataset_loader import ImageDataset
-import img_transforms as T
+import img_transforms
 import models
 from losses import CrossEntropyLabelSmooth, TripletLoss, DeepSupervision
 from utils import AverageMeter, Logger, save_checkpoint
@@ -42,6 +42,7 @@ parser.add_argument('--cuhk03-classic-split', action='store_true',
                     help="whether to use classic split by Li et al. CVPR'14 (default: False)")
 parser.add_argument('--use-metric-cuhk03', action='store_true',
                     help="whether to use cuhk03-metric (default: False)")
+
 # Optimization options
 parser.add_argument('--optim', type=str, default='adam', help="optimization algorithm (see optimizers.py)")
 parser.add_argument('--max-epoch', default=180, type=int,
@@ -53,7 +54,7 @@ parser.add_argument('--train-batch', default=32, type=int,
 parser.add_argument('--test-batch', default=32, type=int, help="test batch size")
 parser.add_argument('--lr', '--learning-rate', default=0.0003, type=float,
                     help="initial learning rate")
-parser.add_argument('--stepsize', default=60, type=int,
+parser.add_argument('--stepsize', default=20, type=int,
                     help="stepsize to decay learning rate (>0 means this is enabled)")
 parser.add_argument('--gamma', default=0.1, type=float,
                     help="learning rate decay")
@@ -66,6 +67,7 @@ parser.add_argument('--htri-only', action='store_true', default=False,
                     help="if this is True, only htri loss is used in training")
 # Architecture
 parser.add_argument('-a', '--arch', type=str, default='resnet50', choices=models.get_names())
+
 # Miscs
 parser.add_argument('--print-freq', type=int, default=10, help="print frequency")
 parser.add_argument('--seed', type=int, default=1, help="manual seed")
@@ -80,16 +82,18 @@ parser.add_argument('--gpu-devices', default='0', type=str, help='gpu device ids
 
 args = parser.parse_args()
 
+
 def main():
     torch.manual_seed(args.seed)
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_devices
     use_gpu = torch.cuda.is_available()
-    if args.use_cpu: use_gpu = False
+    if args.use_cpu:
+        use_gpu = False
 
     if not args.evaluate:
-        sys.stdout = Logger(osp.join(args.save_dir, 'log_train.txt'))
+        sys.stdout = Logger(os.path.join(args.save_dir, 'log_train.txt'))
     else:
-        sys.stdout = Logger(osp.join(args.save_dir, 'log_test.txt'))
+        sys.stdout = Logger(os.path.join(args.save_dir, 'log_test.txt'))
     print("==========\nArgs:{}\n==========".format(args))
 
     if use_gpu:
@@ -105,17 +109,17 @@ def main():
         cuhk03_labeled=args.cuhk03_labeled, cuhk03_classic_split=args.cuhk03_classic_split,
     )
 
-    transform_train = T.Compose([
-        T.Random2DTranslation(args.height, args.width),
-        T.RandomHorizontalFlip(),
-        T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    transform_train = transforms.Compose([
+        img_transforms.Random2DTranslation(args.height, args.width),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
-    transform_test = T.Compose([
-        T.Resize((args.height, args.width)),
-        T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    transform_test = transforms.Compose([
+        transforms.Resize((args.height, args.width)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
     pin_memory = True if use_gpu else False
@@ -123,8 +127,11 @@ def main():
     trainloader = DataLoader(
         ImageDataset(dataset.train, transform=transform_train),
         sampler=RandomIdentitySampler(dataset.train, num_instances=args.num_instances),
-        batch_size=args.train_batch, num_workers=args.workers,
-        pin_memory=pin_memory, drop_last=True,
+        batch_size=args.train_batch,
+        num_workers=args.workers,
+        pin_memory=pin_memory,
+        drop_last=True,
+        prefetch_factor=4
     )
 
     queryloader = DataLoader(
@@ -176,7 +183,8 @@ def main():
         train(epoch, model, criterion_xent, criterion_htri, optimizer, trainloader, use_gpu)
         train_time += round(time.time() - start_train_time)
         
-        if args.stepsize > 0: scheduler.step()
+        if args.stepsize > 0: 
+            scheduler.step()
         
         if (epoch+1) > args.start_eval and args.eval_step > 0 and (epoch+1) % args.eval_step == 0 or (epoch+1) == args.max_epoch:
             print("==> Test")
@@ -194,7 +202,7 @@ def main():
                 'state_dict': state_dict,
                 'rank1': rank1,
                 'epoch': epoch,
-            }, is_best, osp.join(args.save_dir, 'checkpoint_ep' + str(epoch+1) + '.pth.tar'))
+            }, is_best, os.path.join(args.save_dir, 'checkpoint_ep' + str(epoch+1) + '.pth.tar'))
 
     print("==> Best Rank-1 {:.1%}, achieved at epoch {}".format(best_rank1, best_epoch))
 
@@ -202,6 +210,7 @@ def main():
     elapsed = str(datetime.timedelta(seconds=elapsed))
     train_time = str(datetime.timedelta(seconds=train_time))
     print("Finished. Total elapsed time (h:m:s): {}. Training time (h:m:s): {}.".format(elapsed, train_time))
+
 
 def train(epoch, model, criterion_xent, criterion_htri, optimizer, trainloader, use_gpu):
     losses = AverageMeter()

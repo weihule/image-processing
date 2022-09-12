@@ -10,15 +10,40 @@ __all__ = ['ResNet50',
            'ResNet50M']
 
 
+def cus_load_state_dict(saved_model_path, model, excluded_layer_name=()):
+    if not saved_model_path:
+        print('No pretrained model file!')
+        return
+    saved_state_dict = torch.load(saved_model_path,
+                                  map_location=torch.device('cpu'))
+
+    filtered_state_dict = {
+        name: weight
+        for name, weight in saved_state_dict.items()
+        if name in model.state_dict() and not any(excluded_name in name for excluded_name in excluded_layer_name)
+        and weight.shape == model.state_dict()[name].shape
+    }
+
+    if len(filtered_state_dict) == 0:
+        print('No pretrained parameters to load!')
+    else:
+        print(f'loading {len(filtered_state_dict)} layers parameters')
+        model.load_state_dict(filtered_state_dict, strict=False)
+
+    return
+
+
 class ResNet50(nn.Module):
-    def __init__(self, num_classes, loss=None, **kwargs):
+    def __init__(self, num_classes, loss=None, pre_trained=None, **kwargs):
         super(ResNet50, self).__init__()
         if loss is None:
             self.loss = {'xent'}
         else:
             self.loss = loss
 
-        resnet50 = torchvision.models.resnet50(pretrained=True)
+        resnet50 = torchvision.models.resnet50(pretrained=False)
+        if pre_trained:
+            cus_load_state_dict(pre_trained, resnet50)
         self.base = nn.Sequential(*list(resnet50.children())[:-2])
         self.classifier = nn.Linear(2048, num_classes)
         self.feat_dim = 2048     # feature dimension
