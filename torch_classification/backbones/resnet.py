@@ -240,6 +240,7 @@ if __name__ == "__main__":
     torch.cuda.manual_seed_all(seed)
 
     net = resnet50(num_classes=100)
+    print(net)
     inputs = torch.randn(1, 3, 224, 224)
     from thop import profile
     from thop import clever_format

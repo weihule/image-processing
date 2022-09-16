@@ -44,7 +44,9 @@ def train(logger, model, train_loader, criterion, optimizer, scheduler, epoch, d
 
             optimizer.step()
         if iter_idx % Config.print_interval == 0 or iter_idx == len(train_loader):
-            logger.info(f"train epoch {epoch:3d}, iter [{iter_idx:5d}, {len(train_loader)}], loss: {loss.item():.3f}")
+            # 'train epoch {epoch:3d}, iter [{iter_idx:5d}, {len(train_loader)}], loss: {loss}'
+            lr_value = optimizer.state_dict()['param_groups'][0]['lr']
+            logger.info(f"train epoch {epoch:3d}, iter [{iter_idx:5d}, {len(train_loader)}], loss: {loss.item():.3f} lr:{lr_value}")
         iter_idx += 1
 
     mean_loss = mean_loss / len(train_loader)
@@ -98,7 +100,7 @@ def main(logger):
                               num_workers=Config.num_workers,
                               pin_memory=True,
                               collate_fn=Config.cls_collater,
-                              prefetch_factor=4)
+                              prefetch_factor=6)
     logger.info('finish loading data')
     val_loader = DataLoader(Config.val_dataset,
                             batch_size=Config.batch_size,
@@ -110,8 +112,8 @@ def main(logger):
 
     model = Config.model
     model = model.to(device)
-    if Config.pre_weight_path:
-        load_state_dict(Config.pre_weight_path, model, [])
+
+    load_state_dict(Config.pre_weight_path, model, [])
 
     # 冻结特征提取层的参数
     if Config.freeze_layer:
@@ -126,7 +128,7 @@ def main(logger):
 
     criterion = CELoss(use_custom=False)
 
-    best_acc = 0
+    best_acc = 0.
     start_epoch = 1
 
     # resume training
@@ -134,7 +136,7 @@ def main(logger):
         logger.info(f'start resume model from {Config.resume}')
         checkpoint = torch.load(Config.resume, map_location=torch.device('cpu'))
         start_epoch += checkpoint['epoch']
-        model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(checkpoint['model_load_state'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         logger.info(f'finish resume model from {Config.resume}')
@@ -142,8 +144,8 @@ def main(logger):
         logger.info(f'finish resume model from {Config.resume}')
 
     logger.info('start training')
+    print('start_epoch = ', start_epoch)
     for epoch in range(start_epoch, Config.epochs+1):
-        print(epoch)
         mean_loss = train(logger=logger,
                           model=model,
                           train_loader=train_loader,
@@ -153,7 +155,7 @@ def main(logger):
                           epoch=epoch,
                           device=device)
         logger.info(f"train: epoch: {epoch}, loss: {mean_loss:.3f}")
-        if epoch % 1 == 0 or epoch == Config.epochs:
+        if epoch % Config.save_interval == 0 or epoch == Config.epochs:
             val_acc = evaluate_acc(model, val_loader, device)
             logger.info(f"epoch {epoch}, val_acc {val_acc}")
             print('epoch: {} acc: {:.3f}'.format(epoch+1, val_acc))
@@ -166,10 +168,10 @@ def main(logger):
                 'epoch': epoch,
                 'best_acc': best_acc,
                 'loss': mean_loss,
-                'model_load_state': model.state_dict(),
+                'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'scheduler_state_dict': scheduler.state_dict()
-            }, os.path.join(Config.checkpoints, 'latest.path'))
+            }, os.path.join(Config.checkpoints, 'latest.pth'))
     train_time = (time.time() - start_time) / 60
     logger.info(f'finish training, total training timr: {train_time:.2f} mins')
 
@@ -181,7 +183,9 @@ if __name__ == "__main__":
         os.mkdir(Config.log)
     if not os.path.exists(Config.checkpoints):
         os.mkdir(Config.checkpoints)
+    if not os.path.exists(Config.pth_path):
+        os.mkdir(Config.pth_path)
 
-    logger_writer = get_logger('yolov4', Config.log)
+    logger_writer = get_logger('resnet', Config.log)
     main(logger_writer)
 

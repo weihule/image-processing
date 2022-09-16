@@ -3,6 +3,7 @@ import json
 import logging
 from logging import handlers
 import torch
+import json
 
 
 def get_paths(root, mode, classes_json_file):
@@ -54,4 +55,22 @@ def load_state_dict(saved_model_path, model, excluded_layer_name):
     else:
         print(f'loading {len(filtered_state_dict)} layers parameters !')
         model.load_state_dict(filtered_state_dict, strict=False)
+
+
+def get_indices(root, save_path):
+    infos = {}
+    for idx, fn in enumerate(os.listdir(root)):
+        infos[idx] = fn
+    infos = {v: k for k, v in infos.items()}
+    infos = {'classes': infos}
+
+    json_str = json.dumps(infos, indent=4, ensure_ascii=False)
+    with open(save_path, "w") as json_file:
+        json_file.write(json_str)
+
+
+if __name__ == "__main__":
+    get_indices('/root/autodl-tmp/imagenet100/imagenet100_val',
+                '/code/study/torch_classification/utils/imagenet100.json')
+
 
