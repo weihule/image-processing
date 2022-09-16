@@ -163,12 +163,12 @@ class RetinaLoss(nn.Module):
 
     def compute_batch_box_loss(self, reg_preds, batch_anchors_annotations,
                                batch_anchors):
-        '''
+        """
         compute batch smoothl1 loss(reg loss)
         reg_preds:[batch_size*anchor_num,4]
         batch_anchors_annotations:[batch_size*anchor_num,5]
         batch_anchors:[batch_size*anchor_num,4]
-        '''
+        """
         # Filter anchors with gt class=-1, this part of anchor doesn't calculate smoothl1 loss
         device = reg_preds.device
         reg_preds = reg_preds[batch_anchors_annotations[:, 4] > 0]
@@ -184,7 +184,8 @@ class RetinaLoss(nn.Module):
                 reg_preds, batch_anchors_annotations)
         else:
             box_loss_type = 'EIoU' if self.box_loss_type == 'Focal_EIoU' else self.box_loss_type
-            pred_boxes = self.snap_txtytwth_to_xyxy(reg_preds, batch_anchors)
+            pred_boxes = self.snap_txtytwth_to_xyxy(reg_preds, batch_anchors)   # [batch_size*anchor_num, 4]
+            # TODO: 这块相当于是每个pred_bbox和对应的gt做iou，这两部分的框的数量都是batch_size*anchor_num
             ious = self.iou_function(pred_boxes,
                                      batch_anchors_annotations[:, 0:4],
                                      iou_type=box_loss_type,
@@ -193,8 +194,7 @@ class RetinaLoss(nn.Module):
 
             if self.box_loss_type == 'Focal_EIoU':
                 gamma_ious = self.iou_function(pred_boxes,
-                                               batch_anchors_annotations[:,
-                                               0:4],
+                                               batch_anchors_annotations[:, 0:4],
                                                iou_type='IoU',
                                                box_type='xyxy')
                 gamma_ious = torch.pow(gamma_ious, self.focal_eiou_gamma)
@@ -206,11 +206,11 @@ class RetinaLoss(nn.Module):
 
     def compute_batch_smoothl1_loss(self, reg_preds,
                                     batch_anchors_annotations):
-        '''
+        """
         compute batch smoothl1 loss(reg loss)
         reg_preds:[batch_size*anchor_num,4]
         anchors_annotations:[batch_size*anchor_num,5]
-        '''
+        """
         device = reg_preds.device
         positive_anchor_num = batch_anchors_annotations.shape[0]
 

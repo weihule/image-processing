@@ -439,6 +439,8 @@ class OSNet(nn.Module):
             return y
         elif self.loss == {'triplet'}:
             return y, v
+        elif self.loss == {'xent', 'htri'}:
+            return y, v
         elif self.loss == {'cent'}:
             return y, v
         else:

@@ -120,10 +120,10 @@ def main(logger):
     criterion = RetinaLoss().cuda()
     model = model.cuda()
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=Config.lr)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=Config.lr)
 
-    lf = lambda x: ((1 + math.cos(x * math.pi / Config.epochs)) / 2) * (1 - Config.lrf) + Config.lrf  # cosine
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
+    # lf = lambda x: ((1 + math.cos(x * math.pi / Config.epochs)) / 2) * (1 - Config.lrf) + Config.lrf  # cosine
+    # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=Config.lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,

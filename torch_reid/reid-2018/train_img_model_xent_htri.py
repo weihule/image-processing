@@ -8,6 +8,7 @@ import numpy as np
 
 import torch
 import torch.nn as nn
+from torch.cuda import amp
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
@@ -70,6 +71,7 @@ def parse_args():
     # Architecture
     parser.add_argument('-a', '--arch', type=str, default='resnet50', choices=models.get_names())
     parser.add_argument('--pre_trained', type=str)
+    parser.add_argument('--apex', action='store_true', default=False)
 
     # Miscs
     parser.add_argument('--print_freq', type=int, default=10, help="print frequency")
@@ -90,6 +92,9 @@ def parse_args():
 
 def main(args):
     torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_devices
     use_gpu = torch.cuda.is_available()
     if args.use_cpu:
@@ -136,26 +141,33 @@ def main(args):
         num_workers=args.workers,
         pin_memory=pin_memory,
         drop_last=True,
-        prefetch_factor=4
+        prefetch_factor=6
     )
 
     queryloader = DataLoader(
         ImageDataset(dataset.query, transform=transform_test),
-        batch_size=args.test_batch, shuffle=False, num_workers=args.workers,
-        pin_memory=pin_memory, drop_last=False,
-    )
+        batch_size=args.test_batch,
+        shuffle=False, num_workers=args.workers,
+        pin_memory=pin_memory,
+        drop_last=False)
 
     galleryloader = DataLoader(
         ImageDataset(dataset.gallery, transform=transform_test),
-        batch_size=args.test_batch, shuffle=False, num_workers=args.workers,
-        pin_memory=pin_memory, drop_last=False,
-    )
+        batch_size=args.test_batch,
+        shuffle=False,
+        num_workers=args.workers,
+        pin_memory=pin_memory,
+        drop_last=False)
 
     print("Initializing model: {}".format(args.arch))
     model = models.init_model(name=args.arch,
                               num_classes=dataset.num_train_pids,
                               loss={'xent', 'htri'},
                               pre_trained=args.pre_trained)
+    if use_gpu:
+        # model = nn.DataParallel(model).cuda()
+        model = model.cuda()
+
     print("Model size: {:.5f}M".format(sum(p.numel() for p in model.parameters())/1000000.0))
 
     criterion_xent = CrossEntropyLabelSmooth(num_classes=dataset.num_train_pids, use_gpu=use_gpu)
@@ -164,31 +176,34 @@ def main(args):
     optimizer = init_optim(args.optim, model.parameters(), args.lr, args.weight_decay)
     if args.stepsize > 0:
         scheduler = lr_scheduler.StepLR(optimizer, step_size=args.stepsize, gamma=args.gamma)
+    else:
+        scheduler = None
     start_epoch = args.start_epoch
-
-    if args.resume:
-        print("Loading checkpoint from '{}'".format(args.resume))
-        checkpoint = torch.load(args.resume)
-        model.load_state_dict(checkpoint['state_dict'])
-        start_epoch = checkpoint['epoch']
-
-    if use_gpu:
-        model = nn.DataParallel(model).cuda()
 
     if args.evaluate:
         print("Evaluate only")
-        test(model, queryloader, galleryloader, use_gpu)
+        test(model, queryloader, galleryloader, use_gpu, args)
         return
 
     start_time = time.time()
     train_time = 0
     best_rank1 = -np.inf
     best_epoch = 0
+
+    if args.resume:
+        print("Loading checkpoint from '{}'".format(args.resume))
+        checkpoint = torch.load(args.resume)
+        model.load_state_dict(checkpoint['state_dict'])
+        start_epoch = checkpoint['epoch']
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        best_rank1 = checkpoint['best_rank1']
+
     print("==> Start training")
 
     for epoch in range(start_epoch, args.max_epoch):
         start_train_time = time.time()
-        train(epoch, model, criterion_xent, criterion_htri, optimizer, trainloader, use_gpu)
+        train(epoch, model, criterion_xent, criterion_htri, optimizer, trainloader, use_gpu, args)
         train_time += round(time.time() - start_train_time)
         
         if args.stepsize > 0: 
@@ -196,21 +211,20 @@ def main(args):
         
         if (epoch+1) > args.start_eval and args.eval_step > 0 and (epoch+1) % args.eval_step == 0 or (epoch+1) == args.max_epoch:
             print("==> Test")
-            rank1 = test(model, queryloader, galleryloader, use_gpu)
+            rank1 = test(model, queryloader, galleryloader, use_gpu, args)
             is_best = rank1 > best_rank1
             if is_best:
                 best_rank1 = rank1
                 best_epoch = epoch + 1
 
-            if use_gpu:
-                state_dict = model.module.state_dict()
-            else:
-                state_dict = model.state_dict()
             save_checkpoint({
-                'state_dict': state_dict,
+                'state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
                 'rank1': rank1,
                 'epoch': epoch,
-            }, is_best, os.path.join(args.save_dir, 'checkpoint_ep' + str(epoch+1) + '.pth.tar'))
+                'best_rank1': best_rank1
+            }, is_best, os.path.join(args.save_dir, 'checkpoint_ep' + str(epoch+1) + '.pth'))
 
     print("==> Best Rank-1 {:.1%}, achieved at epoch {}".format(best_rank1, best_epoch))
 
@@ -264,12 +278,14 @@ def train(epoch, model, criterion_xent, criterion_htri, optimizer, trainloader, 
         losses.update(loss.item(), pids.size(0))
 
         if (batch_idx+1) % args.print_freq == 0:
+            lr_value = optimizer.state_dict()['param_groups'][0]['lr']
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                  'Lr {lr_value}'.format(
                    epoch+1, batch_idx+1, len(trainloader), batch_time=batch_time,
-                   data_time=data_time, loss=losses))
+                   data_time=data_time, loss=losses, lr_value=lr_value))
 
 
 def test(model, queryloader, galleryloader, use_gpu, args, ranks=None):
@@ -325,7 +341,8 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None):
     m, n = qf.size(0), gf.size(0)
     distmat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
               torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).t()
-    distmat.addmm_(1, -2, qf, gf.t())
+    # distmat.addmm_(1, -2, qf, gf.t())
+    distmat.addmm_(mat1=qf, mat2=gf.T, beta=1, alpha=-2)
     distmat = distmat.numpy()
 
     print("Computing CMC and mAP")
@@ -376,7 +393,7 @@ def study_test(args):
 
 if __name__ == '__main__':
     args_value = parse_args()
-    # main(args=args_value)
+    main(args=args_value)
 
-    study_test(args=args_value)
+    # study_test(args=args_value)
 

@@ -92,7 +92,8 @@ class TripletLoss(nn.Module):
         # Compute pairwise distance, replace by the official when merged
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
         dist = dist + dist.t()
-        dist.addmm_(1, -2, inputs, inputs.t())
+        # dist.addmm_(1, -2, inputs, inputs.t())
+        dist.addmm_(mat1=inputs, mat2=inputs.T, beta=1, alpha=-2)
         dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
 
         # beta(a^2 + b^2) + alpha(a @ b)
@@ -100,17 +101,19 @@ class TripletLoss(nn.Module):
         # dist = torch.sqrt(torch.clamp(dist, min=1e-12))    # for numerical stability
 
         # For each anchor, find the hardest positive and negative
-        # mask 相当于是一个对角线为1的距离矩阵
         mask = targets.expand(n, n).eq(targets.expand(n, n).t())
 
         dist_ap, dist_an = [], []
         for i in range(n):
             dist_ap.append(dist[i][mask[i]].max().unsqueeze(0))
             dist_an.append(dist[i][mask[i] == 0].min().unsqueeze(0))
-        dist_ap = torch.cat(dist_ap)
+
+        dist_ap = torch.cat(dist_ap)    # 这一步其实就相当于是将list转成tensor, shape is [batch_size, ]
         dist_an = torch.cat(dist_an)
         # Compute ranking hinge loss
         y = torch.ones_like(dist_an)
+
+        # TODO: dist_an, dist_ap 顺序不要写反了
         loss = self.ranking_loss(dist_an, dist_ap, y)
         return loss
 
@@ -161,7 +164,6 @@ class CenterLoss(nn.Module):
         # labels [4] -> [4, 1] -> [4, 751]
         labels = labels.unsqueeze(1).expand(batch_size, self.num_classes)
         # mask = labels.eq(classes.expand(batch_size, self.num_classes))
-        # mask 的每一行只有一个 True
         mask = labels.eq(classes)
 
         dist = []
@@ -190,5 +192,17 @@ class RingLoss(nn.Module):
         l = ((x.norm(p=2, dim=1) - self.radius)**2).mean()
         return l * self.weight_ring
 
+
 if __name__ == '__main__':
-    pass
+    # arr = torch.tensor([[1, 0, 2, 1, 3], [0, 1, 2, 3, 0],
+    #                     [1, 2, 3, 1, 1], [1, 0, 0, 1, 0]])
+    # a_2 = torch.pow(arr, 2).sum(dim=1, keepdim=True).expand(4, 4)
+    # b_2 = a_2.T
+    # a_b = arr @ arr.T
+    # dist = (a_2 + b_2 - 2*a_b).sqrt()
+
+    ins = torch.randn(8, 10)
+    tars = torch.tensor([0, 0, 0, 0, 2, 2, 2, 2]).long()
+    trip = TripletLoss()
+    res = trip(ins, tars)
+

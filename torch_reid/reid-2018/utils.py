@@ -4,13 +4,12 @@ import sys
 import errno
 import shutil
 import json
-import os.path as osp
 
 import torch
 
 
 def mkdir_if_missing(directory):
-    if not osp.exists(directory):
+    if not os.path.exists(directory):
         try:
             os.makedirs(directory)
         except OSError as e:
@@ -39,11 +38,12 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def save_checkpoint(state, is_best, fpath='checkpoint.pth.tar'):
-    mkdir_if_missing(osp.dirname(fpath))
-    torch.save(state, fpath)
+def save_checkpoint(states, is_best, fpath='checkpoint.pth'):
+    mkdir_if_missing(os.path.dirname(fpath))
+    torch.save(states, fpath)
     if is_best:
-        shutil.copy(fpath, osp.join(osp.dirname(fpath), 'best_model.pth.tar'))
+        torch.save(states['state_dict'], os.path.join(os.path.dirname(fpath), 'best_model.pth'))
+        # shutil.copy(fpath, os.path.join(os.path.dirname(fpath), 'best_model.pth'))
 
 
 class Logger(object):
@@ -91,7 +91,7 @@ def read_json(fpath):
 
 
 def write_json(obj, fpath):
-    mkdir_if_missing(osp.dirname(fpath))
+    mkdir_if_missing(os.path.dirname(fpath))
     with open(fpath, 'w') as f:
         json.dump(obj, f, indent=4, separators=(',', ': '))
 
