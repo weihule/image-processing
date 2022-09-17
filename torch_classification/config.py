@@ -9,7 +9,7 @@ from utils.util import get_paths
 
 
 class Config:
-    mode = 'autodl'      # company   autodl
+    mode = 'company1'      # company   autodl
 
     if mode == 'local':
         # dataset_path = 'D:\\workspace\\data\\dl\\flower'
@@ -21,17 +21,16 @@ class Config:
 
         dataset_path = 'D:\\workspace\\data\\dl\\flower'
         pre_weight_path = None
-        save_root = 'D:\\workspace\\data\\classification_data\\yolov4backbone'
+        save_root = 'D:\\workspace\\data\\classification_data\\mobilenetv2'
         log = os.path.join(save_root, 'log')
         checkpoints = os.path.join(save_root, 'checkpoints')
         pth_path = os.path.join(save_root, 'pths')
         resume = os.path.join(checkpoints, 'latest.pth')
-    elif mode == 'company':
+    elif mode == 'company1':
         dataset_path = '/workshop/weihule/data/dl/flower'
-        pre_weight_path = '/workshop/weihule/data/weights/yolov4backbone/darknet530.835.pth'
-        # pre_weight_path = None
-        save_path = '/workshop/weihule/data/weights/yolov4backbone/darknet53'
-        save_root = '/workshop/weihule/data/weights/yolov4backbone'
+        # pre_weight_path = '/workshop/weihule/data/weights/yolov4backbone/darknet530.835.pth'
+        pre_weight_path = None
+        save_root = '/workshop/weihule/data/classification_data/mobilenet'
         log = os.path.join(save_root, 'log')
         checkpoints = os.path.join(save_root, 'checkpoints')
         pth_path = os.path.join(save_root, 'pths')
@@ -61,11 +60,11 @@ class Config:
         pth_path = os.path.join(save_root, 'pths')
         resume = os.path.join(checkpoints, 'latest.pth')
 
-    epochs = 90
-    batch_size = 128
+    epochs = 50
+    batch_size = 8
     lr = 0.001
     lrf = 0.001
-    num_workers = 6
+    num_workers = 4
     freeze_layer = False
     apex = True
     seed = 1
@@ -88,19 +87,16 @@ class Config:
         ])
     }
 
-    train_images_path, train_images_label = get_paths(dataset_path, "imagenet100_train", 'utils/imagenet100.json')
-    val_images_path, val_images_label = get_paths(dataset_path, "imagenet100_val", 'utils/imagenet100.json')
+    # imagenet100_
+    train_images_path, train_images_label = get_paths(dataset_path, "train", 'utils/flower_indices.json')
+    val_images_path, val_images_label = get_paths(dataset_path, "val", 'utils/flower_indices.json')
 
     train_dataset = CustomDataset(train_images_path, train_images_label, transforms['train'])
     val_dataset = CustomDataset(val_images_path, val_images_label, transforms['val'])
 
-    backbone_type = 'resnet50'
-    # model = backbones.__dict__[backbone_type](
-    #     **{'num_classes': 5,
-    #        'act_type': 'leakyrelu'}
-    # )
+    backbone_type = 'resnet50'      # mobilenetv2_x1_0
     model = backbones.__dict__[backbone_type](
-        **{'num_classes': 100}
+        **{'num_classes': 5}
     )
 
     mean = [0.485, 0.456, 0.406],

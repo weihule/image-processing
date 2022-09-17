@@ -141,7 +141,7 @@ class BottleNeck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layer_nums, inplanes=64, num_classes=1000):
+    def __init__(self, block, layer_nums, inplanes=64, num_classes=1000, **kwargs):
         super(ResNet, self).__init__()
         self.block = block
         self.layer_nums = layer_nums
@@ -222,7 +222,7 @@ def resnet18(**kwargs):
 
 
 def resnet34(**kwargs):
-    return _resnet(BasicBlock, [3, 4, 6, 3], **kwargs)
+    return _resnet(BasicBlock, [3, 4, 6, 3], 64, **kwargs)
 
 
 def resnet50(**kwargs):

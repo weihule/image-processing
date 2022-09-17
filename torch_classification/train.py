@@ -2,9 +2,11 @@ import os
 import math
 import random
 import time
+
 from tqdm import tqdm
 
 import torch
+import torch.nn as nn
 from torch.cuda import amp
 import torch.nn.functional as F
 from torch.backends import cudnn
@@ -41,7 +43,6 @@ def train(logger, model, train_loader, criterion, optimizer, scheduler, epoch, d
             loss = criterion(preds, labels)
             mean_loss += loss.item()
             loss.backward()
-
             optimizer.step()
         if iter_idx % Config.print_interval == 0 or iter_idx == len(train_loader):
             # 'train epoch {epoch:3d}, iter [{iter_idx:5d}, {len(train_loader)}], loss: {loss}'
@@ -111,7 +112,14 @@ def main(logger):
                             prefetch_factor=4)
 
     model = Config.model
-    model = model.to(device)
+    # import torchvision
+    # model = torchvision.models.mobilenet_v2(False)
+    # classer = nn.Sequential(
+    #     nn.Dropout(0.4),
+    #     nn.Linear(1280, 5)
+    # )
+    # model.classifier = classer
+    model.to(device)
 
     load_state_dict(Config.pre_weight_path, model, [])
 
@@ -136,7 +144,8 @@ def main(logger):
         logger.info(f'start resume model from {Config.resume}')
         checkpoint = torch.load(Config.resume, map_location=torch.device('cpu'))
         start_epoch += checkpoint['epoch']
-        model.load_state_dict(checkpoint['model_load_state'])
+        best_acc = checkpoint['best_acc']
+        model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         logger.info(f'finish resume model from {Config.resume}')
@@ -154,11 +163,12 @@ def main(logger):
                           scheduler=scheduler,
                           epoch=epoch,
                           device=device)
+
         logger.info(f"train: epoch: {epoch}, loss: {mean_loss:.3f}")
         if epoch % Config.save_interval == 0 or epoch == Config.epochs:
             val_acc = evaluate_acc(model, val_loader, device)
             logger.info(f"epoch {epoch}, val_acc {val_acc}")
-            print('epoch: {} acc: {:.3f}'.format(epoch+1, val_acc))
+            print('epoch: {} acc: {:.3f}'.format(epoch, val_acc))
 
             if val_acc > best_acc:
                 best_acc = val_acc

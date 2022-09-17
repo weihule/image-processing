@@ -67,7 +67,7 @@ if __name__ == "__main__":
     mode = 'local'
     if mode == 'local':
         imgs = 'D:\\workspace\\data\\dl\\flower\\test'
-        model_path = 'D:\\workspace\\data\\classification_data\\yolov4backbone\\pths\\best.pth'
+        model_path = 'D:\\workspace\\data\\classification_data\\mobilenetv2\\pths\\best.pth'
     elif mode == 'company':
         imgs = '/workshop/weihule/data/dl/flower/test'
         model_path = '/workshop/weihule/data/weights/yolov4backbone/darknet53_857.pth'
@@ -75,7 +75,7 @@ if __name__ == "__main__":
         imgs = '/workshop/weihule/data/dl/flower/test'
         model_path = ''
 
-    backbone_type = 'yolov4_csp_darknet53'
+    backbone_type = 'mobilenetv2_x1_0'
     model = backbones.__dict__[backbone_type](
         **{'num_classes': 5,
            'act_type': 'leakyrelu'}
