@@ -1,0 +1,1 @@
+python train_img.py --root 'D:\\workspace\\data\\dl' --train_batch 4

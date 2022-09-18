@@ -6,6 +6,9 @@ import numpy as np
 
 from torch.utils.data import Dataset
 
+from torchreid.datas.datasets.images import Market1501
+# from datasets.images import Market1501
+
 
 class ImageDataset(Dataset):
     def __init__(self, dataset, transform=None):
@@ -19,7 +22,7 @@ class ImageDataset(Dataset):
         img_path, pid, camid = self.dataset[item]
         img = self.read_img(img_path)
         if self.transform:
-            img = self.transform
+            img = self.transform(img)
         return img, pid, camid
 
     @staticmethod
@@ -35,4 +38,29 @@ class ImageDataset(Dataset):
                 print("IOError incurred when reading '{}'. Will redo. Don't worry. Just chill.".format(img_path))
                 pass
         return img
+
+
+"""Create dataset"""
+
+__img_factory = {
+    'market1501': Market1501,
+}
+
+
+def get_names():
+    names = []
+    for k in __img_factory:
+        names.append(k)
+
+    return names
+
+
+def init_img_dataset(name, **kwargs):
+    if name not in __img_factory.keys():
+        raise KeyError('Invalid dataset, got {}, but excepted to be one of {}'.format(name, __img_factory.keys()))
+    return __img_factory[name](**kwargs)
+
+
+if __name__ == "__main__":
+    dataset = init_img_dataset('market1501', root='D:\\workspace\\data\\dl')
 

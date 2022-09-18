@@ -60,7 +60,6 @@ class Market1501:
     @staticmethod
     def _process_dir(dir_path, relabel=False):
         datasets = list()
-        print(os.path.join(dir_path, '*.jpg'))
         img_paths = glob.glob(os.path.join(dir_path, '*.jpg'))
         pids = set()
         for img_path in img_paths:
