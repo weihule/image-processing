@@ -358,9 +358,9 @@ class ResNet(nn.Module):
 
         y = self.classifier(v)
 
-        if self.loss == 'softmax':
+        if self.loss == 'softmax_centloss':
             return y
-        elif self.loss == 'triplet':
+        elif self.loss == 'softmax_trip':
             return y, v
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
@@ -375,10 +375,8 @@ def init_pretrained_weights(model, model_url, load_dir):
     # pretrain_dict = torch.load(model_url)
     model_dict = model.state_dict()
     pretrain_dict = {
-        k: v
-        for k, v in pretrain_dict.items()
-        if k in model_dict and model_dict[k].size() == v.size()
-    }
+        k: v for k, v in pretrain_dict.items()
+        if k in model_dict and model_dict[k].shape == v.shape}
     model_dict.update(pretrain_dict)
     print('load {} layers params'.format(len(model_dict)))
     model.load_state_dict(model_dict)

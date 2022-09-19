@@ -36,7 +36,7 @@ class TripletLoss:
         for i in range(n):
             # 增加一个维度方便之后用 torch.cat
             dist_ap.append(dist[i][mask[i]].max().unsqueeze(0))
-            dist_an.append(dist[i][mask[i] == 0].min().squeeze(0))
+            dist_an.append(dist[i][mask[i] == 0].min().unsqueeze(0))
 
         # 使用torch.cat将list转成Tensor
         dist_ap = torch.cat(dist_ap)

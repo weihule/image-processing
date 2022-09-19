@@ -1,6 +1,9 @@
 import os
 import sys
+import time
 import argparse
+
+import numpy as np
 from tqdm import tqdm
 
 import torch
@@ -13,6 +16,7 @@ from thop import profile, clever_format
 from torchreid.datas import data_manager, data_transfrom, ImageDataset
 from torchreid import models, datas, utils, losses
 from torchreid.datas.samplers import RandomIdentitySampler
+from torchreid.utils.avgmeter import AverageMeter
 
 
 def parse_args():
@@ -42,13 +46,12 @@ def parse_args():
     parser.add_argument('--train_batch', default=16, type=int, help="train batch size")
     parser.add_argument('--test_batch', default=32, type=int, help="test batch size")
     parser.add_argument('--lr', '--learning_rate', default=0.0003, type=float, help="initial learning rate")
-    parser.add_argument('--stepsize', default=20, type=int,
+    parser.add_argument('--step_size', default=20, type=int,
                         help="stepsize to decay learning rate (>0 means this is enabled)")
     parser.add_argument('--gamma', default=0.1, type=float, help="learning rate decay")
     parser.add_argument('--weight_decay', default=5e-04, type=float, help="weight decay")
     parser.add_argument('--margin', type=float, default=0.3, help="margin for triplet loss")
     parser.add_argument('--num_instances', type=int, default=4, help="number of instances per identity")
-    parser.add_argument('--loss_type', type=str, default='cent', help="type of loss function")
     parser.add_argument('--htri_only', action='store_true', default=False,
                         help="if this is True, only htri loss is used in training")
 
@@ -56,7 +59,8 @@ def parse_args():
     parser.add_argument('-a', '--arch', type=str, default='resnet50', choices=models.get_names())
     parser.add_argument('--pre_trained', type=str)
     parser.add_argument('--pre_train_load_dir', type=str, help='save dir of pretrain weight')
-    parser.add_argument('--loss_type', type=str, default='softmax', help='Determine the model output type')
+    parser.add_argument('--loss_type', type=str, default='softmax', help='Determine the model output type',
+                        choices=['softmax_trip', 'softmax_centloss'])
     parser.add_argument('--apex', action='store_true', default=False)
 
     # Miscs
@@ -105,10 +109,10 @@ def main(args):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    if args.loss_type == 'xent_htri':
+    if args.loss_type == 'softmax_trip':
         sampler = RandomIdentitySampler(dataset.train, num_instances=args.num_instances)
         shuffle = False
-    elif args.loss_type == 'cent':
+    elif args.loss_type == 'softmax_centloss':
         sampler = None
         shuffle = True
     else:
@@ -135,21 +139,97 @@ def main(args):
                                 pin_memory=args.pin_memory,
                                 drop_last=False)
 
-    for datas in tqdm(train_loader):
-        imgs, pids, camids = datas[0], datas[1], datas[2]
-
     model = models.init_model(name=args.arch,
-                              num_classes=5,
-                              loss='softmax',
+                              num_classes=dataset.num_train_pids,
+                              loss=args.loss_type,
                               pretrained=True,
-                              pre_train_load_dir='D:\\workspace\\data\\classification_data\\resnet')
+                              pre_train_load_dir=args.pre_train_load_dir)
     if use_gpu and args.use_ddp is False:
         model = model.cuda()
     if use_gpu and args.use_ddp:
         model = nn.DataParallel(model).cuda()
-    macs, params = profile(model, (torch.randn(1, 3, args.height, args.width), ))
+
+    test_input = torch.randn(1, 3, args.height, args.width)
+    if use_gpu:
+        test_input = test_input.cuda()
+    macs, params = profile(model, (test_input, ))
     macs, params = clever_format([macs, params], '%.3f')
     print('model size: {}'.format(params))
+
+    criterion_xent = losses.CrossEntropyLabelSmooth(num_classes=dataset.num_train_pids)
+    criterion_trip = losses.TripletLoss(margin=args.margin)
+
+    optimizer = utils.init_optimizer('sgd',
+                                     params=model.parameters(),
+                                     lr=args.lr,
+                                     weight_decay=args.weight_decay)
+    scheduler = utils.init_scheduler('steplr',
+                                     optimizer=optimizer,
+                                     step_size=args.step_size,
+                                     gamma=args.gamma)
+    start_epoch = args.start_epoch
+
+    start_time = time.time()
+    train_time = 0.
+    best_rank1 = -np.inf
+    best_epoch = 0
+
+    if args.resume:
+        print('Load checkpoint from {}'.format(args.resume))
+        checkpoints = torch.load(args.resume)
+        model.load_state_dict(checkpoints['model_state_dict'])
+        start_epoch = checkpoints['start_epoch']
+        optimizer.load_state_dict(checkpoints['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoints['scheduler_state_dict'])
+        best_rank1 = checkpoints['best_rank1']
+
+    print('===> Start training')
+    for epoch in range(start_epoch, args.max_epoch):
+        start_train_time = time.time()
+        train(epoch, model, criterion_trip, criterion_xent, optimizer, train_loader, use_gpu, args)
+        train_time += round(time.time() - start_train_time)
+
+        scheduler.step()
+
+
+def train(epoch, model, criterion_trip, criterion_xent, optimizer, trainloader, use_gpu, args):
+    losses = AverageMeter()
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+
+    model.train()
+
+    end = time.time()
+    for batch_idx, (imgs, pids, _) in enumerate(trainloader):
+        if use_gpu:
+            imgs, pids = imgs.cuda(), pids.cuda()
+        # measure data loading time
+        data_time.update(time.time() - end)
+
+        outputs, features = model(imgs)
+        if args.htri_only:
+            loss = criterion_trip(features, pids)
+        else:
+            htri_loss = criterion_trip(features, pids)
+            xent_loss = criterion_xent(outputs, pids)
+            loss = htri_loss + xent_loss
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        losses.update(loss.item(), pids.shape[0])
+
+        if (batch_idx + 1) % args.print_freq == 0:
+            lr_value = optimizer.state_dict()['param_groups'][0]['lr']
+            print(f'Epoch: [{epoch+1}][{batch_idx+1}/{len(trainloader)}]\t'
+                  f'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  f'Data {batch_time.val:.3f} ({data_time.avg:.3f})\t'
+                  f'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
+                  f'Lr {lr_value}')
 
 
 class DeBugModel(nn.Module):
@@ -172,27 +252,30 @@ class DeBugModel(nn.Module):
         return x
 
 
-def de_bug_main(inputs):
+def de_bug_main():
     datasets = [torch.randn(4, 3, 16, 16) for _ in range(10)]
     model = DeBugModel(num_classes=3)
     model = model.cuda()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, weight_decay=5e-04)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, weight_decay=5e-04, momentum=0.9)
     scheduler = utils.init_scheduler('steplr', optimizer, step_size=2, gamma=0.1)
     epochs = 10
 
     for epoch in range(epochs):
         model.train()
         for p in datasets:
+            p = p.cuda()
             outputs = model(p)
             optimizer.zero_grad()
             loss = torch.tensor(0.8, requires_grad=True)
             optimizer.step()
+        # print(epoch, optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_lr())
+        # print(optimizer.state_dict())
+        print(scheduler.state_dict())
         scheduler.step()
 
 
-
 if __name__ == "__main__":
-    # arg_infos = parse_args()
-    # main(arg_infos)
-    img = torch.randn(4, 3, 16, 16)
+    arg_infos = parse_args()
+    main(arg_infos)
+    # de_bug_main()
 
