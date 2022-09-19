@@ -96,7 +96,7 @@ class TripletLoss(nn.Module):
         dist.addmm_(mat1=inputs, mat2=inputs.T, beta=1, alpha=-2)
         dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
 
-        # beta(a^2 + b^2) + alpha(a @ b)
+        # beta(dist) + alpha(a @ b)
         # dist = torch.addmm(dist, mat1=inputs, mat2=inputs.t(), beta=1, alpha=-2)
         # dist = torch.sqrt(torch.clamp(dist, min=1e-12))    # for numerical stability
 

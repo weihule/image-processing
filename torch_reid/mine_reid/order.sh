@@ -1,1 +1,1 @@
-python train_img.py --root 'D:\\workspace\\data\\dl' --train_batch 4
+python train_img.py --root 'D:\\workspace\\data\\dl' --train_batch 4 --loss_type 'xent_htri'

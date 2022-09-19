@@ -6,3 +6,5 @@ from .data_manager import get_names, init_img_dataset
 
 from .data_transfrom import Random2DTranslation
 
+from .samplers import RandomIdentitySampler
+
