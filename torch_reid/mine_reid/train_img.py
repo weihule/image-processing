@@ -17,6 +17,7 @@ from torchreid.datas import data_manager, data_transfrom, ImageDataset
 from torchreid import models, datas, utils, losses
 from torchreid.datas.samplers import RandomIdentitySampler
 from torchreid.utils.avgmeter import AverageMeter
+from torchreid.utils.eval_metrics import evaluate
 
 
 def parse_args():
@@ -295,6 +296,12 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None):
     dis_mat = dis_mat.numpy()
 
     print('Compute CMC and mAP')
+    cmc, mAP = evaluate(dis_mat, q_pids, g_pids, q_camids, g_camids, use_metric_cuhk03=args.use_metric_cuhk03)
+    print("Results ----------")
+    print(f'mAP: {mAP:.2%}')
+    print('CMC Curve')
+    for p in ranks:
+        print(f'Rank-{p:2d}: {cmc[p-1]:.2%}')
 
 
 class DeBugModel(nn.Module):
