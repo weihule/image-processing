@@ -1,2 +1,3 @@
-from .market1501 import Market1501
+from .market1501 import *
+from .dukemtmc import *
 

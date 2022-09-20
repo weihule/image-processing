@@ -13,8 +13,8 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 from thop import profile, clever_format
 
-from torchreid.datas import data_manager, data_transfrom, ImageDataset
 from torchreid import models, datas, utils, losses
+from torchreid.datas import data_manager, data_transfrom, ImageDataset
 from torchreid.datas.samplers import RandomIdentitySampler
 from torchreid.utils.avgmeter import AverageMeter
 from torchreid.utils.eval_metrics import evaluate

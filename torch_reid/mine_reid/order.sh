@@ -1,1 +1,1 @@
-python train_img.py --root 'D:\\workspace\\data\\dl' --train_batch 12 --loss_type 'softmax_trip' --pre_train_load_dir 'D:\\workspace\\data\\classification_data\\resnet'
+python train_img.py --root 'D:\\workspace\\data\\dl' --dataset 'dukemtmc' --train_batch 12 --loss_type 'softmax_trip' --pre_train_load_dir 'D:\\workspace\\data\\classification_data\\resnet'

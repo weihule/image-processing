@@ -1,2 +1,2 @@
-from .images import Market1501
+from .images import *
 

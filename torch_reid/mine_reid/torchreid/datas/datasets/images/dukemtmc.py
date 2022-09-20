@@ -1,32 +1,36 @@
 import os
 import glob
 
+
 __all__ = [
-    'Market1501'
+    'DukeMTMC'
 ]
 
-class Market1501:
-    """
-    dataset statistics:
-    identities: 1501 (1 for background)
-    images: 12936 (train) + 3368 (query) + 15913 (gallery)
-    """
-    dataset_dir = 'market1501/Market-1501-v15.09.15'
 
-    def __init__(self, root, **kwargs):
+class DukeMTMC:
+    """
+    Dataset statistics:
+    identities: 1401 (train + query)
+    images: 16522 (train) + 2228 (query) + 17661 (gallery)
+    cameras: 8
+    """
+    dataset_dir = 'DukeMTMC-reID'
+
+    def __init__(self, root='data', **kwargs):
         self.dataset_dir = os.path.join(root, self.dataset_dir)
         self.train_dir = os.path.join(self.dataset_dir, 'bounding_box_train')
         self.query_dir = os.path.join(self.dataset_dir, 'query')
         self.gallery_dir = os.path.join(self.dataset_dir, 'bounding_box_test')
 
-        train, num_train_pids, num_train_imgs = self._process_dir(self.train_dir, relabel=True)
-        query, num_query_pids, num_query_imgs = self._process_dir(self.query_dir, relabel=False)
-        gallery, num_gallery_pids, num_gallery_imgs = self._process_dir(self.gallery_dir, relabel=False)
+        self._check_before_run()
 
+        train, num_train_pids, num_train_imgs = self._process_dir(self.train_dir, True)
+        query, num_query_pids, num_query_imgs = self._process_dir(self.query_dir, False)
+        gallery, num_gallery_pids, num_gallery_imgs = self._process_dir(self.gallery_dir, False)
         num_total_pids = num_train_pids + num_query_pids
         num_total_imgs = num_train_imgs + num_query_imgs + num_gallery_imgs
 
-        print("=> Market1501 loaded")
+        print("=> DukeMTMC-reID loaded")
         print("Dataset statistics:")
         print("  ------------------------------")
         print("  subset   | # ids | # images")
@@ -46,49 +50,46 @@ class Market1501:
         self.num_query_pids = num_query_pids
         self.num_gallery_pids = num_gallery_pids
 
-    def _check_before_run(self):
-        """
-        check if all files are available before going deeper
-        Returns:
-        """
-        if not os.path.exists(self.dataset_dir):
-            raise RuntimeError('{} is not available'.format(self.dataset_dir))
-        if not os.path.exists(self.train_dir):
-            raise RuntimeError('{} is not available'.format(self.train_dir))
-        if not os.path.exists(self.query_dir):
-            raise RuntimeError('{} is not available'.format(self.query_dir))
-        if not os.path.exists(self.gallery_dir):
-            raise RuntimeError('{} is not available'.format(self.gallery_dir))
 
+    def _check_before_run(self):
+        if not os.path.exists(self.dataset_dir):
+            raise RuntimeError(f'{self.dataset_dir} is not available')
+        if not os.path.exists(self.train_dir):
+            raise RuntimeError(f'{self.train_dir} is not available')
+        if not os.path.exists(self.query_dir):
+            raise RuntimeError(f'{self.query_dir} is not available')
+        if not os.path.exists(self.gallery_dir):
+            raise RuntimeError(f'{self.gallery_dir} is not available')
+
+    
     @staticmethod
     def _process_dir(dir_path, relabel=False):
-        datasets = list()
         img_paths = glob.glob(os.path.join(dir_path, '*.jpg'))
         pids = set()
+
+        dataset = []
         for img_path in img_paths:
             img_name = img_path.split(os.sep)[-1]
             infos = img_name.split('_')
             pid, camid = int(infos[0]), int(infos[1][1])
-            # ignore junk image
-            if pid == -1:
-                continue
-            assert 0 <= pid <= 1501
-            assert 1 <= camid <= 6
+            assert 1 <= camid <= 8
             pids.add(pid)
-            camid -= 1  # camera id start from 0
-            datasets.append([img_path, pid, camid])
-        if relabel:
-            pid2label = {pid: idx for idx, pid in enumerate(pids)}
-            for p in datasets:
-                p[1] = pid2label[p[1]]
-        num_pids = len(pids)
-        num_imgs = len(datasets)
+            camid -= 1
+            dataset.append([img_path, pid, camid])
 
-        return datasets, num_pids, num_imgs
+        if relabel:
+            pid2label = {v: k for k, v in enumerate(pids)}
+            for p in dataset:
+                p[1] = pid2label[p[1]]
+
+        num_pids = len(pids)
+        num_images = len(dataset)
+
+        return dataset, num_pids, num_images
 
 
 if __name__ == "__main__":
-    mark = Market1501(root='D:\\workspace\\data\\dl')
+    duke = DukeMTMC(root='D:\\workspace\\data\\dl')
 
 
 
