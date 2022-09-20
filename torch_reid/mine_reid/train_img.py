@@ -118,6 +118,11 @@ def main(args):
     else:
         sampler = None
         shuffle = False
+
+    # 如果使用了sampler, 对于market1501中, num_train_pids有751个, 也就是有751个行人
+    # id, 每个行人id取 num_instances 张图片, 也就是有 751 * num_instances 张图片
+    # 这些图片的实际id编码就是 [0,0,0,0,1,1,1,3,3,3,3, ...]
+    # 所以train_batch就必须是num_instances的倍数
     train_loader = DataLoader(ImageDataset(dataset.train, transform_train),
                               batch_size=args.train_batch,
                               shuffle=shuffle,
@@ -183,13 +188,16 @@ def main(args):
         scheduler.load_state_dict(checkpoints['scheduler_state_dict'])
         best_rank1 = checkpoints['best_rank1']
 
-    print('===> Start training')
-    for epoch in range(start_epoch, args.max_epoch):
-        start_train_time = time.time()
-        train(epoch, model, criterion_trip, criterion_xent, optimizer, train_loader, use_gpu, args)
-        train_time += round(time.time() - start_train_time)
+    test(model, query_loader, gallery_loader, use_gpu, args, ranks=None)
 
-        scheduler.step()
+    # print('===> Start training')
+    #
+    # for epoch in range(start_epoch, args.max_epoch):
+    #     start_train_time = time.time()
+    #     train(epoch, model, criterion_trip, criterion_xent, optimizer, train_loader, use_gpu, args)
+    #     train_time += round(time.time() - start_train_time)
+    #
+    #     scheduler.step()
 
 
 def train(epoch, model, criterion_trip, criterion_xent, optimizer, trainloader, use_gpu, args):
@@ -230,6 +238,63 @@ def train(epoch, model, criterion_trip, criterion_xent, optimizer, trainloader, 
                   f'Data {batch_time.val:.3f} ({data_time.avg:.3f})\t'
                   f'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
                   f'Lr {lr_value}')
+
+
+def test(model, queryloader, galleryloader, use_gpu, args, ranks=None):
+    if ranks is None:
+        ranks = [1, 5, 10, 20]
+    else:
+        ranks = ranks
+    batch_time = AverageMeter()
+
+    model.eval()
+    with torch.no_grad():
+        q_fs, q_pids, q_camids = [], [], []
+        for _, (imgs, pids, camids) in enumerate(queryloader):
+            if use_gpu:
+                imgs = imgs.cuda()
+
+            end = time.time()
+            features = model(imgs)      # if resnet50, shape is [batch_size, 2048]
+            batch_time.update(time.time() - end)
+
+            features = features.detach().cpu()
+            q_fs.append(features)
+            q_pids.extend(pids)
+            q_camids.extend(camids)
+        q_fs = torch.cat(q_fs, dim=0)       # if resnet50, shape is [num_query, 2048]
+        q_pids = np.array(q_pids)
+        q_camids = np.array(q_camids)
+        print(f'Extracted features for query set, obtained {q_fs.shape[0]}-by-{q_fs.shape[1]} matrix')
+
+        g_fs, g_pids, g_camids = [], [], []
+        for _, (imgs, pids, camids) in enumerate(galleryloader):
+            if use_gpu:
+                imgs = imgs.cuda()
+
+            end = time.time()
+            features = model(imgs)  # if resnet50, shape is [batch_size, 2048]
+            batch_time.update(time.time() - end)
+
+            features = features.detach().cpu()
+            g_fs.append(features)
+            g_pids.extend(pids)
+            g_camids.extend(camids)
+        g_fs = torch.cat(g_fs, dim=0)
+        g_pids = np.asarray(g_pids)
+        g_camids = np.asarray(g_camids)
+        print(f'Extracted features for gallery set, obtained {g_fs.shape[0]}-by-{g_fs.shape[1]} matrix')
+
+    print("==> BatchTime(s)/BatchSize(img): {:.3f}/{}".format(batch_time.avg, args.test_batch))
+
+    m, n = q_fs.shape[0], g_fs.shape[0]
+    # dis_mat shape is [m, n]
+    dis_mat = torch.pow(q_fs, 2).sum(dim=1, keepdim=True).expand(m, n) + \
+        torch.pow(g_fs, 2).sum(dim=1, keepdim=True).expand(n, m).T
+    dis_mat = torch.addmm(dis_mat, mat1=q_fs, mat2=g_fs.T, beta=1, alpha=-2)
+    dis_mat = dis_mat.numpy()
+
+    print('Compute CMC and mAP')
 
 
 class DeBugModel(nn.Module):
