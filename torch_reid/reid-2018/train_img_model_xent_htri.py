@@ -23,12 +23,13 @@ from utils import AverageMeter, Logger, save_checkpoint
 from eval_metrics import evaluate
 from samplers import RandomIdentitySampler
 from optimizers import init_optim
+from IPython import embed
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train image model with cross entropy loss and hard triplet loss')
     # Datasets
-    parser.add_argument('--root', type=str, default='data', help="root path to data directory")
+    parser.add_argument('--root', type=str, default='/root/autodl-tmp', help="root path to data directory")
     parser.add_argument('-d', '--dataset', type=str, default='market1501',
                         choices=data_manager.get_names())
     parser.add_argument('-j', '--workers', default=4, type=int,
@@ -57,7 +58,7 @@ def parse_args():
     parser.add_argument('--test_batch', default=32, type=int, help="test batch size")
     parser.add_argument('--lr', '--learning_rate', default=0.0003, type=float,
                         help="initial learning rate")
-    parser.add_argument('--stepsize', default=20, type=int,
+    parser.add_argument('--stepsize', default=60, type=int,
                         help="stepsize to decay learning rate (>0 means this is enabled)")
     parser.add_argument('--gamma', default=0.1, type=float,
                         help="learning rate decay")
@@ -76,12 +77,12 @@ def parse_args():
     # Miscs
     parser.add_argument('--print_freq', type=int, default=10, help="print frequency")
     parser.add_argument('--seed', type=int, default=1, help="manual seed")
-    parser.add_argument('--resume', type=str, default='', metavar='PATH')
+    parser.add_argument('--resume', type=str, default='/root/autodl-nas/reid_data/trip/checkpoint_ep5.pth')
     parser.add_argument('--evaluate', action='store_true', help="evaluation only")
     parser.add_argument('--eval_step', type=int, default=-1,
                         help="run evaluation for every N epochs (set to -1 to test after training)")
     parser.add_argument('--start_eval', type=int, default=0, help="start to evaluate after specific epoch")
-    parser.add_argument('--save_dir', type=str, default='log')
+    parser.add_argument('--save_dir', type=str, default='/root/autodl-nas/reid_data/resnet50_trip_0921')
     parser.add_argument('--use_cpu', action='store_true', help="use cpu")
     parser.add_argument('--gpu_devices', default='0', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
 
@@ -190,7 +191,7 @@ def main(args):
     best_rank1 = -np.inf
     best_epoch = 0
 
-    if args.resume:
+    if os.path.exists(args.resume):
         print("Loading checkpoint from '{}'".format(args.resume))
         checkpoint = torch.load(args.resume)
         model.load_state_dict(checkpoint['state_dict'])

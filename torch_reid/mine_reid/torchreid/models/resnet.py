@@ -358,28 +358,12 @@ class ResNet(nn.Module):
 
         y = self.classifier(v)
 
-        if self.loss == 'softmax_centloss':
-            return y
+        if self.loss == 'softmax_cent':
+            return y, v
         elif self.loss == 'softmax_trip':
             return y, v
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
-
-
-def init_pretrained_weights(model, model_url, load_dir):
-    """Initializes model with pretrained weights.
-
-    Layers that don't match with pretrained layers in name or size are kept unchanged.
-    """
-    pretrain_dict = model_zoo.load_url(model_url, model_dir=load_dir)
-    # pretrain_dict = torch.load(model_url)
-    model_dict = model.state_dict()
-    pretrain_dict = {
-        k: v for k, v in pretrain_dict.items()
-        if k in model_dict and model_dict[k].shape == v.shape}
-    model_dict.update(pretrain_dict)
-    print('load {} layers params'.format(len(model_dict)))
-    model.load_state_dict(model_dict)
 
 
 """ResNet"""
@@ -396,8 +380,6 @@ def resnet18(num_classes, loss='softmax', pretrained=True, pre_train_load_dir=No
         dropout_p=None,
         **kwargs
     )
-    if pretrained:
-        init_pretrained_weights(model, model_urls['resnet18'], pre_train_load_dir)
     return model
 
 
@@ -412,8 +394,6 @@ def resnet34(num_classes, loss='softmax', pretrained=True, pre_train_load_dir=No
         dropout_p=None,
         **kwargs
     )
-    if pretrained:
-        init_pretrained_weights(model, model_urls['resnet34'], pre_train_load_dir)
     return model
 
 
@@ -428,8 +408,6 @@ def resnet50(num_classes, loss='softmax', pretrained=True, pre_train_load_dir=No
         dropout_p=None,
         **kwargs
     )
-    if pretrained:
-        init_pretrained_weights(model, model_urls['resnet50'], pre_train_load_dir)
     return model
 
 
@@ -444,8 +422,6 @@ def resnet101(num_classes, loss='softmax', pretrained=True, pre_train_load_dir=N
         dropout_p=None,
         **kwargs
     )
-    if pretrained:
-        init_pretrained_weights(model, model_urls['resnet101'], pre_train_load_dir)
     return model
 
 
@@ -460,8 +436,6 @@ def resnet152(num_classes, loss='softmax', pretrained=True, pre_train_load_dir=N
         dropout_p=None,
         **kwargs
     )
-    if pretrained:
-        init_pretrained_weights(model, model_urls['resnet152'], pre_train_load_dir)
     return model
 
 
@@ -481,8 +455,6 @@ def resnext50_32x4d(num_classes, loss='softmax', pretrained=True, pre_train_load
         width_per_group=4,
         **kwargs
     )
-    if pretrained:
-        init_pretrained_weights(model, model_urls['resnext50_32x4d'], pre_train_load_dir)
     return model
 
 
@@ -499,8 +471,6 @@ def resnext101_32x8d(num_classes, loss='softmax', pretrained=True, pre_train_loa
         width_per_group=8,
         **kwargs
     )
-    if pretrained:
-        init_pretrained_weights(model, model_urls['resnext101_32x8d'], pre_train_load_dir)
     return model
 
 
@@ -520,8 +490,6 @@ def resnet50_fc512(num_classes, loss='softmax', pretrained=True, pre_train_load_
         dropout_p=None,
         **kwargs
     )
-    if pretrained:
-        init_pretrained_weights(model, model_urls['resnet50'], pre_train_load_dir)
     return model
 
 

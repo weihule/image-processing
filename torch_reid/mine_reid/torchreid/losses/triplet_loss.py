@@ -17,7 +17,7 @@ class TripletLoss:
     def __call__(self, inputs, targets):
         """
         Args:
-            inputs: prediction matrix (before softmax) with shape [B, num_classes]
+            inputs: prediction matrix (before softmax) with shape [B, feat_dim]
             targets: ground truth labels with shape [B]
         Returns:
         """

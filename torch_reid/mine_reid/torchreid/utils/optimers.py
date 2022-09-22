@@ -13,3 +13,4 @@ def init_optimizer(optim, params, lr, weight_decay):
         return torch.optim.SGD(params, lr=lr, momentum=0.9, weight_decay=weight_decay)
     else:
         raise KeyError('Unsupported optim: {}'.format(optim))
+
