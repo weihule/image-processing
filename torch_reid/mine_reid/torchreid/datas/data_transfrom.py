@@ -5,6 +5,10 @@ import numpy as np
 from PIL import Image
 import random
 
+__all__ = [
+    'Random2DTranslation'
+]
+
 
 class Random2DTranslation:
     def __init__(self, height, width, p=0.5):

@@ -154,28 +154,24 @@ def evaluate(dismat, q_pids, g_pids, q_camids, g_camids, max_rank=50, use_metric
     if use_metric_cuhk03:
         pass
     else:
-        return eval_market15012(dismat, q_pids, g_pids, q_camids, g_camids, max_rank)
+        return eval_market1501(dismat, q_pids, g_pids, q_camids, g_camids, max_rank)
 
 
 if __name__ == "__main__":
-    arr = np.array([[1, 0, 3, 3], [2, 6, 0, 5], [1, 7, 3, 4]])
-    indices = np.argsort(arr, axis=1)
-    g = np.array([23, 45, 10, 5])
+    arr = np.array([[1, 0, 3, 3], [2, 6, 0, 5], [1, 7, 3, 4]])  # [3, 4]
+    indices = np.argsort(arr, axis=1)       # [3, 4]
+    g = np.array([23, 45, 10, 4])
     q = np.array([5, 45, 7])
 
-    g, q = g[indices], q[:, np.newaxis]
-    # print(indices, indices.shape)
-    # print(g)
-    # print(q)
-    # print(g == q)
+    print(g[indices], g[indices].shape)
 
-    cmcs = np.array([False, True, True, True, False, False, True])
-    cmcs = cmcs.cumsum()
-    # cmcs[cmcs > 1] = 1
-    cmcs = np.where(cmcs >= 1, 1, 0)
-    # print(cmcs)
-
-    arrs = [[1, 2, 3], [4, 5, 6]]
-    arrs = np.asarray(arrs)
-    print(arrs.shape)
+    # cmcs = np.array([False, True, True, True, False, False, True])
+    # cmcs = cmcs.cumsum()
+    # # cmcs[cmcs > 1] = 1
+    # cmcs = np.where(cmcs >= 1, 1, 0)
+    # # print(cmcs)
+    #
+    # arrs = [[1, 2, 3], [4, 5, 6]]
+    # arrs = np.asarray(arrs)
+    # print(arrs.shape)
 

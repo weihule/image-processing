@@ -4,7 +4,7 @@ from .datasets import *
 from .data_manager import ImageDataset
 from .data_manager import get_names, init_img_dataset
 
-from .data_transfrom import Random2DTranslation
+from .data_transfrom import *
 
 from .samplers import RandomIdentitySampler
 

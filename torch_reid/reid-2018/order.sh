@@ -19,9 +19,9 @@ python train_img_model_xent_htri.py \
 --root '/root/autodl-tmp' \
 --dataset 'market1501' \
 --stepsize 60 \
---train_batch 64 \
---max_epoch 180 \
---save_dir '/root/autodl-nas/reid_data/resnet50_0922_delete' \
+--train_batch 80 \
+--max_epoch 120 \
+--save_dir '/root/autodl-nas/reid_data/resnet50_delete' \
 --eval_step 20 \
 --arch 'resnet50' \
 --resume '' \
