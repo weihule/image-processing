@@ -141,21 +141,8 @@ class TripletAlignedLoss:
         dist = torch.addmm(input=dist, mat1=inputs, mat2=inputs.T, beta=1, alpha=-2)
         dist = dist.clamp(min=1e-12).sqrt()
 
-        # for each anchor, find the hardest positive and negative
-        mask = targets.expand(n, n).eq(targets.expand(n, n).T)
-
-        dist_ap, dist_an = [], []
-        for i in range(n):
-            # 增加一个维度方便之后用 torch.cat
-            dist_ap.append(dist[i][mask[i]].max().unsqueeze(0))
-            dist_an.append(dist[i][mask[i] == 0].min().unsqueeze(0))
-
-        # 使用torch.cat将list转成Tensor
-        dist_ap = torch.cat(dist_ap)
-        dist_an = torch.cat(dist_an)
-
         # [B]
-        # dist_ap, dist_an, p_inds, n_inds = hard_example_mining(dist, targets, return_inds=True)
+        dist_ap, dist_an, p_inds, n_inds = hard_example_mining(dist, targets, return_inds=True)
         y = torch.ones_like(dist_an)
 
         # global loss
@@ -163,7 +150,6 @@ class TripletAlignedLoss:
         if local_features is None:
             return loss
         else:
-            p_inds, n_inds = 0, 0
             # if resnet 50, [b, 128, 8] -> [b, 8, 128]
             local_features = local_features.permute(0, 2, 1).contiguous()
             # 这样就拿到了难样本和local_features的pair_features

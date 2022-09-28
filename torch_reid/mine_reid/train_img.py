@@ -5,6 +5,7 @@ import argparse
 
 import numpy as np
 from tqdm import tqdm
+import datetime
 
 import torch
 import torch.nn as nn
@@ -108,7 +109,6 @@ def parse_args():
 
 
 def main(args):
-    print('****************mine_reid****************')
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
@@ -118,11 +118,14 @@ def main(args):
     if args.use_cpu:
         use_gpu = False
 
-    # if args.evaluate is False:
-    #     sys.stdout = Logger(os.path.join(args.save_dir, 'train.log'))
+    if args.evaluate is False:
+        sys.stdout = Logger(os.path.join(args.save_dir, 'train.log'))
     # else:
     #     sys.stdout = Logger(os.path.join(args.save_dir, 'test.log'))
     print(f'==============\nArgs:{args}\n==============')
+    print('****************mine_reid****************')
+    cur_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(args.loss_type, '--------', cur_time)
 
     if use_gpu:
         print(f'Currently using GPU {args.gpu_devices}')
@@ -140,6 +143,7 @@ def main(args):
                                             cuhk03_labeled=args.cuhk03_labeled,
                                             cuhk03_classic_split=args.cuhk03_classic_split)
     transform_train = transforms.Compose([
+        data_transfrom.Random2DErasing(sh=0.25),
         data_transfrom.Random2DTranslation(args.height, args.width),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
@@ -188,11 +192,11 @@ def main(args):
                                 drop_last=False)
 
     print(f'Initializing model: {args.arch}')
-    # model = models.init_model(name=args.arch,
-    #                           num_classes=dataset.num_train_pids,
-    #                           loss=args.loss_type,
-    #                           aligned=args.aligned)
-    model = ResNet50(num_classes=dataset.num_train_pids)
+    model = models.init_model(name=args.arch,
+                              num_classes=dataset.num_train_pids,
+                              loss=args.loss_type,
+                              aligned=args.aligned)
+    # model = ResNet50(num_classes=dataset.num_train_pids)
     init_pretrained_weights(model, args.pre_train_load_dir)
     if use_gpu and args.use_ddp is False:
         model = model.cuda()
@@ -207,8 +211,10 @@ def main(args):
     # print('model size: {}'.format(params))
 
     criterion_xent = losses.CrossEntropyLabelSmooth(num_classes=dataset.num_train_pids, use_gpu=use_gpu)
-    criterion_trip = losses.TripletLoss(margin=args.margin)
-
+    if args.aligned:
+        criterion_trip = losses.TripletAlignedLoss(margin=args.margin)
+    else:
+        criterion_trip = losses.TripletLoss(margin=args.margin)
     optimizer_model = utils.init_optimizer(args.optim,
                                            params=model.parameters(),
                                            lr=args.lr,
@@ -223,8 +229,8 @@ def main(args):
     else:
         criterion_cent = None
         optimizer_cent = None
-    # ======== center_loss ========
 
+    # ======== center_loss ========
     scheduler = utils.init_scheduler('steplr',
                                      optimizer=optimizer_model,
                                      step_size=args.step_size,
@@ -299,18 +305,27 @@ def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimize
 
         # outputs shape is [batch_size, num_classes]
         # features shape is [batch_size, feat_dim]
-        outputs, features = model(imgs)
+        # local feature shape is [batch_size, 128, 8]
+        if not args.aligned:
+            outputs, features = model(imgs)
+            local_features = None
+        else:
+            outputs, features, local_features = model(imgs)
         if args.htri_only:
             loss = criterion_trip(features, pids)
         elif args.loss_type == 'softmax_cent':
             xent_loss = criterion_xent(outputs, pids)
             cent_loss = criterion_cent(features, pids) * args.weight_cent
             loss = xent_loss + cent_loss
-        elif args.loss_type == 'softmax_trip':
+        elif args.loss_type == 'softmax_trip' and not args.aligned:
             xent_loss = criterion_xent(outputs, pids)
             htri_loss = criterion_trip(features, pids)
             # TODO: 如果写成 htri_loss + xent_loss 就不收敛了
             loss = xent_loss + htri_loss
+        elif args.loss_type == 'softmax_trip' and args.aligned:
+            xent_loss = criterion_xent(outputs, pids)
+            htri_loss, local_htri_loss = criterion_trip(features, pids, local_features)
+            loss = xent_loss + htri_loss + local_htri_loss
         else:
             raise KeyError(f'Unknown {args.loss_type} type')
         # 梯度清零

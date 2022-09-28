@@ -1,5 +1,6 @@
 from __future__ import print_function, absolute_import
 
+from .horizontal_pool import *
 from .osnet import *
 from .resnet import *
 from .mobilenet import *

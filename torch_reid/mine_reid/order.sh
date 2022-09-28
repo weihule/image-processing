@@ -18,16 +18,17 @@
 
 # 128.55
 python train_img.py --root '/workshop/weihule/data/dl/reid' \
+--lr 0.00005 \
 --gpu_devices '6' \
 --dataset 'market1501' \
 --optim 'adam' \
---max_epoch 150 \
+--max_epoch 50 \
 --train_batch 80 \
 --step_size 25 \
 --test_batch 64 \
 --arch 'resnet50' \
---pre_train_load_dir '/workshop/weihule/data/classification_data/resnet/resnet50-19c8e357.pth' \
+--pre_train_load_dir '/workshop/weihule/data/reid_data/resnet50_0926/cent_rank1_854.pth' \
 --loss_type 'softmax_trip' \
---resume 'checkpoint.pth' \
---eval_step 15 \
---save_dir '/workshop/weihule/data/reid_data/resnet50_delete' \
+--resume 'demo.pth' \
+--eval_step 10 \
+--save_dir '/workshop/weihule/data/reid_data/resnet50_0926' \

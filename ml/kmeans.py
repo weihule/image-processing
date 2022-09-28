@@ -1,7 +1,10 @@
+from copyreg import add_extension
 import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+from study.torch_detection.retinanet.train import train
 
 class Kmeans():
     def __init__(self, datas, num_clusters):
@@ -57,65 +60,49 @@ class Kmeans():
         return centroids
 
 
-class Kmeans2:
+class KMeans3:
     def __init__(self, train_datas, num_clusters):
         self.train_datas = train_datas
         self.num_clusters = num_clusters
+        self.num_examples = self.train_datas.shape[0]
     
     def train(self, max_iterations):
-        # 1.初始化中心点
+        # 1. 初始化中心点
         ctrs = self.init_ctrs()
 
         # 开始训练
-        num_examples = self.train_datas.shape[0]
-        closest_ctrs_ids = np.zeros((num_examples))     # 存放样本点到最近的中心点的索引值(0, 1, ..., K-1)
-        for _ in range(max_iterations):
-            # 2.计算每一个样本点到K个中心点的距离, 求出最小值的索引
-            closest_ctrs_ids = self.find_cloests(ctrs)
+        closest_ctrs_ids = np.zeros((self.num_examples))    # 存放样本点到哪个中心点最小值的索引
+        for i in range(max_iterations):
+            # 计算样本点到中心点最小值的索引
+            closest_ctrs_ids = self.find_closest(ctrs)
 
-            # 3.更新中心点
-            ctrs = self.update_ctrs(closest_ctrs_ids)
+            # 更新中心点
+            ctrs = self.update(closest_ctrs_ids)
         
         return ctrs, closest_ctrs_ids
-
-    def update_ctrs(self, closest_ctrs_ids):
-        """
-        更新中心点坐标
-        """
+    
+    def update(self, closest_ctrs_ids):
         ctrs = np.zeros((self.num_clusters, self.train_datas.shape[1]))
         for i in range(self.num_clusters):
             sub_datas = self.train_datas[closest_ctrs_ids == i]
             ctrs[i, :] = np.mean(sub_datas, axis=0)
+        
         return ctrs
-
-
-    def find_cloests(self, ctrs):
-        """
-        计算样本点到K个中心点的距离, 求出最小值的索引, 即属于哪个簇
-        """
-        num_examples = self.train_datas.shape[0]
-        closest_ctrs_ids = np.zeros((num_examples))
-        for i in range(num_examples):
-            cur_data = self.train_datas[i]
+    
+    def find_closest(self, ctrs):
+        closest_ctrs_ids = np.zeros((self.num_examples))
+        for i, cur_data in enumerate(self.train_datas):
             cur_difs = np.zeros((self.num_clusters))
-            for ctr_idx in range(self.num_clusters):
-                cur_dif = np.sum((cur_data - ctrs[ctr_idx]) ** 2)
-                cur_difs[ctr_idx] = cur_dif
-            cur_closest_ctr_idx = np.argmin(cur_difs)
-            closest_ctrs_ids[i] = cur_closest_ctr_idx
+            cur_difs = np.sum((cur_data - ctrs)**2, axis=1)
+            closest_ctrs_ids[i] = np.argmin(cur_difs)
         
         return closest_ctrs_ids
 
-
     def init_ctrs(self):
-        """
-        从所有样本点中随机选择K个作为初始化中心点
-        """
-        num_expmples = self.train_datas.shape[0]
-        random_choice = np.random.permutation(num_expmples)[:self.num_clusters]
-        random_ctrs = self.train_datas[random_choice]
+        random_choice = np.random.permutation(self.num_examples)[:self.num_clusters]
+        ctrs = self.train_datas[random_choice]
 
-        return random_ctrs
+        return ctrs
 
 
 def show_res(datas, class_types, x_axis, y_axis, trained_datas, trained_datas2):
