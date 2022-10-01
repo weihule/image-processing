@@ -43,7 +43,7 @@ class ResNet50(nn.Module):
         x = self.base(x)    # [batch_size, 2048, 8, 4]
         # 训练阶段
         if self.aligned and self.training:
-            lf = x
+            lf = x.clone()
             lf = self.bn(lf)    # [batch_size, 2048, 8, 4]
             lf = self.relu(lf)
             lf = self.horizontal_pool(lf)    # [batch_size, 2048, 8, 1]

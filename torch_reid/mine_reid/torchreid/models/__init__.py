@@ -4,10 +4,15 @@ from .horizontal_pool import *
 from .osnet import *
 from .resnet import *
 from .mobilenet import *
+from .resnet import resnet50
+from .osnet import osnet_x1_0, osnet_x0_75
+
 
 __factory = {
     # image classification models
     'resnet50': resnet50,
+    'osnet_x1_0': osnet_x1_0,
+    'osnet_x0_75': osnet_x0_75,
 }
 
 

@@ -13,7 +13,6 @@ from torch.backends import cudnn
 import torch.nn.functional as F
 from torchvision import transforms
 from torch.utils.data import DataLoader
-from thop import profile, clever_format
 
 from torchreid import models, datas, utils, losses
 from torchreid.losses import DeepSupervision
@@ -25,8 +24,9 @@ from torchreid.utils.util import Logger, init_pretrained_weights, save_checkpoin
 
 from IPython import embed
 
-
 import torchvision
+
+
 class ResNet50(nn.Module):
     def __init__(self, num_classes, loss=None, pre_trained=None, **kwargs):
         super(ResNet50, self).__init__()
@@ -34,7 +34,7 @@ class ResNet50(nn.Module):
         resnet50 = torchvision.models.resnet50(pretrained=True)
         self.base = nn.Sequential(*list(resnet50.children())[:-2])
         self.classifier = nn.Linear(2048, num_classes)
-        self.feat_dim = 2048     # feature dimension
+        self.feat_dim = 2048  # feature dimension
 
     def forward(self, x):
         x = self.base(x)
@@ -129,7 +129,7 @@ def main(args):
 
     if use_gpu:
         print(f'Currently using GPU {args.gpu_devices}')
-        torch.backends.cudnn.enabled = True     # 说明设置为使用非确定性算法
+        torch.backends.cudnn.enabled = True  # 说明设置为使用非确定性算法
         # 如果网络的输入数据维度或类型上变化不大，设置 torch.backends.cudnn.benchmark = true 可以增加运行效率
         # cudnn.enabled = True
         cudnn.benchmark = True
@@ -229,12 +229,13 @@ def main(args):
     else:
         criterion_cent = None
         optimizer_cent = None
-
     # ======== center_loss ========
-    scheduler = utils.init_scheduler('steplr',
+
+    scheduler = utils.init_scheduler('cosine_annealing_lr',
                                      optimizer=optimizer_model,
                                      step_size=args.step_size,
-                                     gamma=args.gamma)
+                                     gamma=args.gamma,
+                                     args=args)
     start_epoch = args.start_epoch
 
     start_time = time.time()
@@ -252,9 +253,16 @@ def main(args):
         best_rank1 = checkpoints['best_rank1']
 
     print('===> Start training')
-
     for epoch in range(start_epoch, args.max_epoch):
         start_train_time = time.time()
+        # 使用warm up加余弦退火学习率调整
+        utils.adjust_learning_rate(optimizer_model,
+                                   current_epoch=epoch,
+                                   max_epoch=args.max_epoch,
+                                   lr_min=1e-12,
+                                   lr_max=args.lr,
+                                   warmup_epoch=10,
+                                   warmup=True)
         train(epoch=epoch,
               model=model,
               criterion_trip=criterion_trip,
@@ -289,7 +297,8 @@ def main(args):
     print(f'Finnished training. train time: {train_time} mins')
 
 
-def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimizer_model, optimizer_cent, trainloader, use_gpu, args):
+def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimizer_model, optimizer_cent, trainloader,
+          use_gpu, args):
     losses = AverageMeter()
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -355,7 +364,7 @@ def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimize
                   f'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   f'Data {batch_time.val:.3f} ({data_time.avg:.3f})\t'
                   f'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
-                  f'xent_loss {xent_loss.item():.3f} htri_loss {htri_loss.item():.3f}\t'
+                  f'xent_loss {xent_loss.item():.3f} htri_loss {htri_loss.item():.3f} local_htri_loss {local_htri_loss.item():.3f}\t'
                   f'Lr {lr_value}')
 
 
@@ -447,30 +456,54 @@ class DeBugModel(nn.Module):
         return x
 
 
+import matplotlib.pyplot as plt
+import math
+
+
 def de_bug_main():
     datasets = [torch.randn(4, 3, 16, 16) for _ in range(10)]
+    epochs = 100
     model = DeBugModel(num_classes=3)
     model = model.cuda()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, weight_decay=5e-04, momentum=0.9)
-    scheduler = utils.init_scheduler('steplr', optimizer, step_size=2, gamma=0.1)
-    epochs = 10
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
+
+    lr_list = []
 
     for epoch in range(epochs):
         model.train()
+        utils.adjust_learning_rate(optimizer,
+                                   current_epoch=epoch,
+                                   max_epoch=epochs,
+                                   lr_min=1e-12,
+                                   lr_max=0.0001,
+                                   warmup_epoch=10,
+                                   warmup=True)
         for p in datasets:
             p = p.cuda()
             outputs = model(p)
             optimizer.zero_grad()
             loss = torch.tensor(0.8, requires_grad=True)
+            loss.backward()
             optimizer.step()
-        # print(epoch, optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_lr())
+        print(len(optimizer.param_groups))
+        print('[', epoch, ']', optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_lr())
         # print(optimizer.state_dict())
-        print(scheduler.state_dict())
+        # print(scheduler.state_dict())
         scheduler.step()
+        lr_list.append(optimizer.state_dict()['param_groups'][0]['lr'])
+    plt.plot(range(epochs), lr_list, color='r')
+    plt.show()
 
 
 if __name__ == "__main__":
-    arg_infos = parse_args()
-    # print(arg_infos)
-    main(arg_infos)
+    # arg_infos = parse_args()
+    # main(arg_infos)
     # de_bug_main()
+
+    model = models.init_model('osnet_x1_0', num_classes=751)
+    arr = torch.randn(4, 3, 256, 128)
+    outs = model(arr)
+    print(outs.shape)
+

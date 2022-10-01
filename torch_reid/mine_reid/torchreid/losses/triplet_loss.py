@@ -1,6 +1,7 @@
 from __future__ import print_function, absolute_import
 import torch
 from .local_dist import batch_local_dist
+# from local_dist import batch_local_dist
 
 __all__ = [
     'TripletLoss',
@@ -125,14 +126,15 @@ class TripletAlignedLoss:
         self.margin = margin
         self.ranking_loss = torch.nn.MarginRankingLoss(margin=margin)
 
-    def __call__(self, inputs, targets, local_features=None):
+    def __call__(self, inputs, targets, local_features):
         """
         Args:
             inputs: prediction matrix (before softmax) with shape [B, feat_dim]
             targets: ground truth labels with shape [B]
-            local_features: if not None, shape is [B, 128]
+            local_features: shape is [B, 128]
         Returns:
         """
+        print(inputs, targets, local_features)
         n = inputs.shape[0]
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
         dist = dist + dist.T
@@ -146,33 +148,34 @@ class TripletAlignedLoss:
         y = torch.ones_like(dist_an)
 
         # global loss
-        loss = self.ranking_loss(dist_an, dist_ap, y)
-        if local_features is None:
-            return loss
-        else:
-            # if resnet 50, [b, 128, 8] -> [b, 8, 128]
-            local_features = local_features.permute(0, 2, 1).contiguous()
-            # 这样就拿到了难样本和local_features的pair_features
-            p_local_features = local_features[p_inds]
-            n_local_features = local_features[n_inds]
-            local_dist_ap = batch_local_dist(local_features, p_local_features)
-            local_dist_an = batch_local_dist(local_features, n_local_features)
-            y = torch.ones_like(local_dist_ap)
-            # print('local_dist_ap = ', local_dist_ap)
-            # print('local_dist_an = ', local_dist_an)
-            local_loss = self.ranking_loss(local_dist_an, local_dist_ap, y)
+        global_loss = self.ranking_loss(dist_an, dist_ap, y)
 
-            return loss, local_loss
+        # if resnet 50, [b, 128, 8] -> [b, 8, 128]
+        local_features = local_features.permute(0, 2, 1).contiguous()
+        # 这样就拿到了难样本和local_features的pair_features
+        p_local_features = local_features[p_inds]
+        n_local_features = local_features[n_inds]
+        local_dist_ap = batch_local_dist(local_features, p_local_features)
+        local_dist_an = batch_local_dist(local_features, n_local_features)
+        y = torch.ones_like(local_dist_ap)
+        local_loss = self.ranking_loss(local_dist_an, local_dist_ap, y)
+
+        return global_loss, local_loss
 
 
 if __name__ == "__main__":
     torch.manual_seed(0)
-    trip = TripletLoss()
+    criterion1 = TripletLoss()
+    criterion2 = TripletAlignedLoss()
     inputs = torch.randn(12, 2048)
     labels = torch.tensor([3, 3, 3, 3, 0, 0, 0, 0, 1, 1, 1, 1])
     local_f = torch.randn(12, 128, 8)
-    loss1, loss2 = trip(inputs, labels, local_f)
+    loss1, loss2 = criterion2(inputs=inputs,
+                              targets=labels,
+                              local_features=local_f)
     print(loss1, loss2)
+
+
 
 
 
