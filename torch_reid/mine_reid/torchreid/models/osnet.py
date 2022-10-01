@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from other_modules import activate_function
+
 __all__ = [
     'osnet_x1_0',
     'osnet_x0_75'
@@ -91,7 +93,7 @@ class LightConv3x3(nn.Module):
 
     1x1 (linear) + dw 3x3 (nolinear)
     """
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, act_func):
         super(LightConv3x3, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=in_channels,
                                out_channels=out_channels,
@@ -107,13 +109,15 @@ class LightConv3x3(nn.Module):
                                bias=False,
                                groups=out_channels)
         self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU(inplace=True)
+        # self.act_func = nn.ReLU(inplace=True)
+        self.act_func = activate_function(act_name=act_func,
+                                          channels=out_channels)
 
     def forward(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.bn(x)
-        x = self.relu(x)
+        x = self.act_func(x)
 
         return x
 
@@ -180,27 +184,28 @@ class OSBlock(nn.Module):
     def __init__(self,
                  in_channels,
                  out_channels,
+                 act_func,
                  IN=False,
                  bottleneck_reduction=4,
                  **kwargs):
         super(OSBlock, self).__init__()
         mid_channels = out_channels // bottleneck_reduction
         self.conv1 = Conv1x1(in_channels, mid_channels)
-        self.conv2a = LightConv3x3(mid_channels, mid_channels)
+        self.conv2a = LightConv3x3(mid_channels, mid_channels, act_func)
         self.conv2b = nn.Sequential(
-            LightConv3x3(mid_channels, mid_channels),
-            LightConv3x3(mid_channels, mid_channels)
+            LightConv3x3(mid_channels, mid_channels, act_func),
+            LightConv3x3(mid_channels, mid_channels, act_func)
         )
         self.conv2c = nn.Sequential(
-            LightConv3x3(mid_channels, mid_channels),
-            LightConv3x3(mid_channels, mid_channels),
-            LightConv3x3(mid_channels, mid_channels)
+            LightConv3x3(mid_channels, mid_channels, act_func),
+            LightConv3x3(mid_channels, mid_channels, act_func),
+            LightConv3x3(mid_channels, mid_channels, act_func)
         )
         self.conv2d = nn.Sequential(
-            LightConv3x3(mid_channels, mid_channels),
-            LightConv3x3(mid_channels, mid_channels),
-            LightConv3x3(mid_channels, mid_channels),
-            LightConv3x3(mid_channels, mid_channels)
+            LightConv3x3(mid_channels, mid_channels, act_func),
+            LightConv3x3(mid_channels, mid_channels, act_func),
+            LightConv3x3(mid_channels, mid_channels, act_func),
+            LightConv3x3(mid_channels, mid_channels, act_func)
         )
         self.gate = ChannelGate(mid_channels)
         self.conv3 = Conv1x1Linear(mid_channels, out_channels)
@@ -236,6 +241,7 @@ class OSNet(nn.Module):
                  layers,
                  channels,
                  feature_dim=512,
+                 act_func='relu',
                  loss='softmax',
                  IN=False,
                  **kwargs):
@@ -264,6 +270,7 @@ class OSNet(nn.Module):
             channels[0],
             channels[1],
             reduce_spatial_size=True,
+            act_func=act_func,
             IN=IN
         )
         # [conv2, transition]
@@ -272,7 +279,8 @@ class OSNet(nn.Module):
             layers[1],
             channels[1],
             channels[2],
-            reduce_spatial_size=True
+            reduce_spatial_size=True,
+            act_func=act_func,
         )
         # conv4
         self.conv4 = self._make_layers(
@@ -280,7 +288,8 @@ class OSNet(nn.Module):
             layers[2],
             channels[2],
             channels[3],
-            reduce_spatial_size=False
+            reduce_spatial_size=False,
+            act_func=act_func,
         )
         self.conv5 = Conv1x1(channels[3], channels[3])
         self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
@@ -383,14 +392,15 @@ class OSNet(nn.Module):
                      in_channels,
                      out_channels,
                      reduce_spatial_size,
+                     act_func,
                      IN=False):
         """
         layer 是 block 的重复次数
         """
         layers = []
-        layers.append(block(in_channels, out_channels, IN=IN))
+        layers.append(block(in_channels, out_channels, act_func=act_func, IN=IN))
         for i in range(1, layer):
-            layers.append(block(out_channels, out_channels, IN=IN))
+            layers.append(block(out_channels, out_channels, act_func=act_func, IN=IN))
 
         # 宽高减半
         if reduce_spatial_size:
@@ -404,23 +414,26 @@ class OSNet(nn.Module):
         return nn.Sequential(*layers)
 
 
-def osnet_x1_0(num_classes=1000, loss='softmax', **kwargs):
+def osnet_x1_0(num_classes=1000, act_func='relu', loss='softmax', **kwargs):
     model = OSNet(num_classes,
                   blocks=[OSBlock, OSBlock, OSBlock],
                   layers=[2, 2, 2],
                   channels=[64, 256, 384, 512],
                   feature_dim=512,
+                  act_func=act_func,
                   loss=loss,
                   **kwargs)
 
     return model
 
 
-def osnet_x0_75(num_classes=1000, loss='softmax', **kwargs):
+def osnet_x0_75(num_classes=1000, act_func='relu', loss='softmax', **kwargs):
     model = OSNet(num_classes,
                   blocks=[OSBlock, OSBlock, OSBlock],
                   layers=[2, 2, 2],
                   channels=[48, 192, 288, 384],
+                  feature_dim=512,
+                  act_func=act_func,
                   loss=loss,
                   **kwargs)
 
@@ -429,7 +442,7 @@ def osnet_x0_75(num_classes=1000, loss='softmax', **kwargs):
 
 if __name__ == "__main__":
     arr = torch.randn(4, 3, 256, 128)
-    model = osnet_x0_75(num_classes=751, loss='softmax_trip')
+    model = osnet_x0_75(num_classes=751, act_func='relu', loss='softmax_trip')
     outs, features = model(arr)
     print(outs.shape, features.shape, model.feature_dim)
 
