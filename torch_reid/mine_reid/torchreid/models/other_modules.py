@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 __all__ = [
     'HorizontalPooling'
@@ -13,7 +14,7 @@ class HorizontalPooling(nn.Module):
     def forward(self, x):
         x_width = x.shape[3]
 
-        return torch.nn.functional.max_pool2d(x, kernel_size=(1, x_width))
+        return F.max_pool2d(x, kernel_size=(1, x_width))
 
 
 if __name__ == "__main__":
