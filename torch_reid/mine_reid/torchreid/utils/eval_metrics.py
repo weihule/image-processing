@@ -23,13 +23,12 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     Returns:
 
     """
-    # dismat [m, n] 含义是query中有m张图片, 每一行共n个元素, 是query (m) 中每张图片和
-    # gallery (n)中每张图片算出的距离
+    # dismat [m, n] 含义是query中有m张图片, 每一行共n个元素, 是query (m) 中每张图片和gallery (n)中每张图片算出的距离
     num_q, num_g = distmat.shape
     if num_g < max_rank:
         max_rank = num_g
         print(f'Note: number of gallery samples is quite small, got {num_g}')
-    # 输出按行进行排序的索引 (升序, 从小到大)
+    # indices: [m, n]   输出按行进行排序的索引 (升序, 从小到大)
     indices = np.argsort(distmat, axis=1)
     # g_pids[indices] shape is [m, n]
     # g_pids 原来是 [n, ], g_pids[indices]操作之后, 扩展到了 [m, n]
@@ -38,7 +37,6 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     g_pids_exp_dims, g_camids_exp_dims = g_pids[indices], g_camids[indices]
     q_pids_exp_dims = np.expand_dims(q_pids, axis=1)
 
-    # matches = (g_pids[indices] == q_pids[:, np.newaxis])
     # matches中为 1 的表示query中和gallery中的行人id相同, 也就是表示同一个人
     # matches中的结果就是和后续预测出的结果进行对比的正确label
     matches = (g_pids_exp_dims == q_pids_exp_dims).astype(np.int32)      # shape is [m, n]
@@ -86,7 +84,7 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     
     assert num_valid_q > 0, "Error: all query identity do not appear in gallery"
 
-    # all_cmc中一共有num_valid_q个元素, 其中每个元素又包含n个值
+    # all_cmc中一共有num_valid_q个元素, 其中每个元素又包含max_rank个值
     # 将all_cmc按列求和, 可以得到 n 个值，然后除以 num_valid_q
     all_cmc = np.asarray(all_cmc).astype(np.float32)
     all_cmc = all_cmc.sum(axis=0) / num_valid_q

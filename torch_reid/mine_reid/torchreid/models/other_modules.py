@@ -47,11 +47,9 @@ def activate_function(act_name, channels=None):
 
 
 if __name__ == "__main__":
-    arr1 = torch.randn(3, 4)
-    arr2 = torch.randn(3, 4)
-    print(arr1)
-    print(arr2)
-    arr = torch.maximum(arr1, arr2)
-    print(arr, arr.shape)
+    arr = torch.randn(4, 512, 16, 8)
+    hpool = HorizontalPooling()
+    outs = hpool(arr)
+    print(outs.shape)
 
 

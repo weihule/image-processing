@@ -1,7 +1,6 @@
 from __future__ import print_function, absolute_import
 import torch
 from .local_dist import batch_local_dist
-# from local_dist import batch_local_dist
 
 __all__ = [
     'TripletLoss',
@@ -35,16 +34,15 @@ def hard_example_mining(dist_mat, labels, return_inds=False, use_gpu=True):
     """
     for each anchor, find the hardest positive and negative sample
     Args:
-        dist_mat: [N, M]
+        dist_mat: [N, M] N == M, 因为是一个[batch_size, 2048]求出来的距离矩阵
         labels: [N]
-        return_inds:
-
+        return_inds: bool
+        use_gpu: bool
     Returns:
         dist_ap: distance_ap; [N]
         dist_an: distance_an; [N]
         p_inds: LongTensor, [N]; 0 <= p_inds[i] <= N -1
         n_inds: LongTensor, [N]; 0 <= p_inds[i] <= N -1
-
     """
     assert len(dist_mat.shape) == 2
     assert dist_mat.shape[0] == dist_mat.shape[1]
@@ -122,9 +120,11 @@ class TripletAlignedLoss:
     """
     TripletLoss with hard positive/negative mining
     """
-    def __init__(self, margin=0.3):
+    def __init__(self, margin=0.3, mutual_flag=False):
         self.margin = margin
         self.ranking_loss = torch.nn.MarginRankingLoss(margin=margin)
+        self.ranking_local_loss = torch.nn.MarginRankingLoss(margin=margin)
+        self.mutual = mutual_flag
 
     def __call__(self, inputs, targets, local_features):
         """
@@ -134,31 +134,34 @@ class TripletAlignedLoss:
             local_features: shape is [B, 128]
         Returns:
         """
-        print(inputs, targets, local_features)
         n = inputs.shape[0]
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
         dist = dist + dist.T
 
         # beta * dist + alpha * (mat1 @ mat2)
         dist = torch.addmm(input=dist, mat1=inputs, mat2=inputs.T, beta=1, alpha=-2)
-        dist = dist.clamp(min=1e-12).sqrt()
+        dist = dist.clamp(min=1e-12).sqrt()        # [batch_size, batch_size]
 
-        # [B]
+        # [batch_size]
         dist_ap, dist_an, p_inds, n_inds = hard_example_mining(dist, targets, return_inds=True)
         y = torch.ones_like(dist_an)
 
         # global loss
         global_loss = self.ranking_loss(dist_an, dist_ap, y)
 
-        # if resnet 50, [b, 128, 8] -> [b, 8, 128]
+        # if resnet 50, [batch_size, 128, 8] -> [batch_size, 8, 128]
         local_features = local_features.permute(0, 2, 1).contiguous()
+
+        # TODO: 这里还没明白
         # 这样就拿到了难样本和local_features的pair_features
         p_local_features = local_features[p_inds]
         n_local_features = local_features[n_inds]
-        local_dist_ap = batch_local_dist(local_features, p_local_features)
-        local_dist_an = batch_local_dist(local_features, n_local_features)
+        local_dist_ap = batch_local_dist(local_features, p_local_features)    # [batch_size]
+        local_dist_an = batch_local_dist(local_features, n_local_features)    # [batch_size]
         y = torch.ones_like(local_dist_ap)
-        local_loss = self.ranking_loss(local_dist_an, local_dist_ap, y)
+        local_loss = self.ranking_local_loss(local_dist_an, local_dist_ap, y)
+        if self.mutual:
+            return global_loss+local_loss, dist
 
         return global_loss, local_loss
 
@@ -170,6 +173,8 @@ if __name__ == "__main__":
     inputs = torch.randn(12, 2048)
     labels = torch.tensor([3, 3, 3, 3, 0, 0, 0, 0, 1, 1, 1, 1])
     local_f = torch.randn(12, 128, 8)
+    local_f = local_f / torch.pow(local_f, 2).sum(dim=1, keepdim=True).clamp(min=1e-12).sqrt()
+    inputs, labels, local_f = inputs.cuda(), labels.cuda(), local_f.cuda()
     loss1, loss2 = criterion2(inputs=inputs,
                               targets=labels,
                               local_features=local_f)

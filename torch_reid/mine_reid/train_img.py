@@ -20,31 +20,8 @@ from torchreid.datas import data_manager, data_transfrom, ImageDataset
 from torchreid.datas.samplers import RandomIdentitySampler
 from torchreid.utils.avgmeter import AverageMeter
 from torchreid.utils.eval_metrics import evaluate
+from torchreid.utils.re_ranking import re_ranking
 from torchreid.utils.util import Logger, init_pretrained_weights, save_checkpoints
-
-from IPython import embed
-
-import torchvision
-
-
-class ResNet50(nn.Module):
-    def __init__(self, num_classes, loss=None, pre_trained=None, **kwargs):
-        super(ResNet50, self).__init__()
-
-        resnet50 = torchvision.models.resnet50(pretrained=True)
-        self.base = nn.Sequential(*list(resnet50.children())[:-2])
-        self.classifier = nn.Linear(2048, num_classes)
-        self.feat_dim = 2048  # feature dimension
-
-    def forward(self, x):
-        x = self.base(x)
-        x = F.avg_pool2d(x, x.size()[2:])
-        f = x.view(x.size(0), -1)
-        if self.training is False:
-            return f
-        y = self.classifier(f)
-
-        return y, f
 
 
 def parse_args():
@@ -102,6 +79,9 @@ def parse_args():
     parser.add_argument('--use_cpu', action='store_true', help="use cpu")
     parser.add_argument('--use_ddp', action='store_true', help="use multiple devices")
     parser.add_argument('--gpu_devices', default='0', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
+
+    parser.add_argument('--reranking', action='store_true', help='result re_ranking')
+    parser.add_argument('--test_distance', type=str, default='global', help='test distance type')
     parser.add_argument('--aligned', action='store_true')
 
     args = parser.parse_args()
@@ -364,7 +344,7 @@ def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimize
                   f'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   f'Data {batch_time.val:.3f} ({data_time.avg:.3f})\t'
                   f'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
-                  f'xent_loss {xent_loss.item():.3f} htri_loss {htri_loss.item():.3f} local_htri_loss {local_htri_loss.item():.3f}\t'
+                  f'xent_loss {xent_loss.item():.3f} htri_loss {htri_loss.item():.3f} \t'
                   f'Lr {lr_value}')
 
 
@@ -377,50 +357,59 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None):
 
     model.eval()
     with torch.no_grad():
-        qf, q_pids, q_camids = [], [], []
+        qf, lqf, q_pids, q_camids = [], [], [], []
         for batch_idx, (imgs, pids, camids) in enumerate(queryloader):
             if use_gpu:
                 imgs = imgs.cuda()
 
             end = time.time()
-            features = model(imgs)
+            # features: [batch_size, 2048], local_feature: [batch_size, 128, 8]
+            features, local_feature = model(imgs)
             batch_time.update(time.time() - end)
 
             features = features.data.cpu()
             qf.append(features)
+            lqf.append(local_feature)
             q_pids.extend(pids)
             q_camids.extend(camids)
-        qf = torch.cat(qf, 0)
-        q_pids = np.asarray(q_pids)
-        q_camids = np.asarray(q_camids)
+        qf = torch.cat(qf, 0)            # [query_num, 2048]
+        lqf = torch.cat(lqf, 0)          # [query_num, 128, 8]
+        q_pids = np.asarray(q_pids)      # [query_num]
+        q_camids = np.asarray(q_camids)  # [query_num]
 
-        print("Extracted features for query set, obtained {}-by-{} matrix".format(qf.size(0), qf.size(1)))
+        print("Extracted features for query set, obtained {}-by-{} matrix".format(qf.shape[0], qf.shape[1]))
 
-        gf, g_pids, g_camids = [], [], []
+        gf, lgf, g_pids, g_camids = [], [], [], []
         for batch_idx, (imgs, pids, camids) in enumerate(galleryloader):
             if use_gpu:
                 imgs = imgs.cuda()
 
             end = time.time()
-            features = model(imgs)
+            features, local_feature = model(imgs)
             batch_time.update(time.time() - end)
 
             features = features.data.cpu()
             gf.append(features)
+            lgf.append(local_feature)
             g_pids.extend(pids)
             g_camids.extend(camids)
-        gf = torch.cat(gf, 0)
-        g_pids = np.asarray(g_pids)
-        g_camids = np.asarray(g_camids)
+        gf = torch.cat(gf, 0)            # [gallery_num, 2048]
+        lgf = torch.cat(lgf, 0)          # [gallery_num, 128, 8]
+        g_pids = np.asarray(g_pids)      # [gallery_num]
+        g_camids = np.asarray(g_camids)  # [gallery_num]
 
-        print("Extracted features for gallery set, obtained {}-by-{} matrix".format(gf.size(0), gf.size(1)))
+        print("Extracted features for gallery set, obtained {}-by-{} matrix".format(gf.shape[0], gf.shape[1]))
 
     print("==> BatchTime(s)/BatchSize(img): {:.3f}/{}".format(batch_time.avg, args.test_batch))
 
+    # TODO: 给表示图片的向量做单位化，单位化后向量的模为1，这点很重要
+    qf = 1. * qf / (torch.norm(qf, p=2, dim=-1, keepdim=True) + 1e-12)
+    gf = 1. * gf / (torch.norm(gf, p=2, dim=-1, keepdim=True) + 1e-12)
+
     m, n = qf.shape[0], gf.shape[0]
     distmat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
-              torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).t()
-    distmat.addmm_(mat1=qf, mat2=gf.T, beta=1, alpha=-2)
+              torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).T
+    distmat = torch.addmm(distmat, qf, gf.T, beta=1, alpha=-2)
     distmat = distmat.numpy()
 
     print("Computing CMC and mAP")
@@ -433,6 +422,16 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None):
         print("Rank-{:<3}: {:.1%}".format(r, cmc[r - 1]))
     print("------------------")
 
+    if args.reranking:
+        if args.test_distance == 'global':
+            distmat = re_ranking(qf, gf, k1=20, k2=6, lambda_value=0.3)
+        print('Compute CMC and mAP for re_ranking')
+        cmc, mAP = evaluate(distmat, q_pids, g_pids, q_camids, g_camids)
+        print("Results ----------")
+        print(f'mAP(RK): {mAP:.1%}')
+        print('CMC curve(RK)')
+        for r in ranks:
+            print(f'Rank-{r:<3}: {cmc[r-1]:.1%}')
     return cmc[0]
 
 
@@ -498,12 +497,8 @@ def de_bug_main():
 
 
 if __name__ == "__main__":
-    # arg_infos = parse_args()
-    # main(arg_infos)
+    arg_infos = parse_args()
+    main(arg_infos)
     # de_bug_main()
 
-    model = models.init_model('osnet_x1_0', num_classes=751)
-    arr = torch.randn(4, 3, 256, 128)
-    outs = model(arr)
-    print(outs.shape)
 

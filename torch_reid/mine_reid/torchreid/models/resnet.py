@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
@@ -7,16 +8,6 @@ from .other_modules import HorizontalPooling
 __all__ = [
     'resnet50',
 ]
-
-
-# class HorizontalPooling(nn.Module):
-#     def __init__(self):
-#         super(HorizontalPooling, self).__init__()
-#
-#     def forward(self, x):
-#         x_width = x.shape[3]
-#
-#         return F.max_pool2d(x, kernel_size=(1, x_width))
 
 
 class ResNet50(nn.Module):
@@ -38,23 +29,29 @@ class ResNet50(nn.Module):
             self.relu = nn.ReLU(inplace=True)
             self.conv1 = nn.Conv2d(2048, 128, kernel_size=1, stride=1, padding=0, bias=True)
 
-
     def forward(self, x):
         x = self.base(x)    # [batch_size, 2048, 8, 4]
-        # 训练阶段
+        if not self.training:
+            lf = self.horizontal_pool(x)    # [batch_size, 2048, 8, 1]
+        # 训练阶段，使用aligned
         if self.aligned and self.training:
             lf = x.clone()
             lf = self.bn(lf)    # [batch_size, 2048, 8, 4]
             lf = self.relu(lf)
             lf = self.horizontal_pool(lf)    # [batch_size, 2048, 8, 1]
             lf = self.conv1(lf)  # [batch_size, 128, 8, 1]
-            lf = lf.view(lf.shape[:3])  # [batch_size, 128, 8]
-        x = F.avg_pool2d(x, x.size()[2:])
-        f = x.view(x.size(0), -1)
 
-        # 测试阶段只输出 global feature
+        # 如果使用的aligned，或者处于测试阶段的时候
+        if self.aligned or not self.training:
+            lf = lf.view(lf.shape[:3])  # [batch_size, 128, 8]
+            # TODO：没明白为什么会有这么一步操作
+            lf = lf / torch.pow(lf, 2).sum(dim=1, keepdim=True).clamp(min=1e-12).sqrt()
+        x = F.avg_pool2d(x, x.shape[2:])    # [batch_size, 2048, 1, 1]
+        f = x.view(x.shape[0], -1)    # [batch_size, 2048]
+
+        # 测试阶段
         if not self.training:
-            return f
+            return f, lf
         y = self.classifier(f)
 
         # y: [batch_size, num_classes]
@@ -85,25 +82,7 @@ def resnet50(num_classes, loss='softmax_cent', aligned=False, **kwargs):
 
 if __name__ == "__main__":
     import torch
-    net = resnet50(num_classes=5,
-                   loss='softmax_trip',
-                   aligned=True)
-    inp = torch.randn(4, 3, 256, 128)
-    net.train()
-    net.base[7][0].conv2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=False)
-    net.base[7][0].downsample[0] = nn.Conv2d(1024, 2048, kernel_size=1, stride=1, padding=0, bias=False)
-    outputs, global_feature, local_feature = net(inp)
-
-    # print(type(net.base), len(net.base))
-    # base_7 = net.base[7]
-    # for p in base_7:
-    #     print(p.conv2)
-    #
-    # print(outputs.shape, global_feature.shape, local_feature.shape)
-
-    arr = torch.randn(4, 1024, 16, 8)
-    hh = HorizontalPooling()
-    hh_outputs = hh(arr)
-    print(hh_outputs.shape)
+    arr = torch.randn(4, 128, 8)
+    print(arr.sum(dim=1, keepdim=True).shape)
 
 

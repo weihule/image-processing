@@ -18,6 +18,7 @@ from torchreid import models, datas, utils, losses
 from torchreid.datas import data_manager, data_transfrom, ImageDataset
 from torchreid.utils.avgmeter import AverageMeter
 from torchreid.utils.eval_metrics import evaluate
+from torchreid.utils.re_ranking import re_ranking, re_ranking2, re_ranking3, euclidean_dist
 
 
 class ResNet50(nn.Module):
@@ -59,6 +60,9 @@ def main(config):
     width = config['width']
     test_batch = config['test_batch']
     pth_path = config['pth_path']
+    aligned = config['aligned']
+    reranking = config['reranking']
+    test_distance = config['test_distance']
 
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu_devices
     use_gpu = torch.cuda.is_available()
@@ -99,11 +103,11 @@ def main(config):
                                 drop_last=False)
 
     print(f'Initializing model: {arch}')
-    # model = models.init_model(name=arch,
-    #                           num_classes=dataset.num_train_pids,
-    #                           loss=config['loss_type'])
-    model = ResNet50(num_classes=dataset.num_train_pids)
-    model.load_state_dict(torch.load('D:\\Desktop\\best_model.pth')['state_dict'])
+    model = models.init_model(name=arch,
+                              num_classes=dataset.num_train_pids,
+                              loss=loss_type,
+                              aligned=aligned)
+    model.load_state_dict(torch.load('D:\\Desktop\\best_model.pth'))
     model = model.cuda()
     
     ranks = [1, 5, 10, 20]
@@ -117,7 +121,7 @@ def main(config):
                 imgs = imgs.cuda()
 
             end = time.time()
-            features = model(imgs)  # if resnet50, shape is [batch_size, 2048]
+            features, local_feature = model(imgs)  # if resnet50, shape is [batch_size, 2048]
             batch_time.update(time.time() - end)
 
             features = features.detach().cpu()
@@ -135,7 +139,7 @@ def main(config):
                 imgs = imgs.cuda()
 
             end = time.time()
-            features = model(imgs)  # if resnet50, shape is [batch_size, 2048]
+            features, local_feature = model(imgs)  # if resnet50, shape is [batch_size, 2048]
             batch_time.update(time.time() - end)
 
             features = features.detach().cpu()
@@ -148,6 +152,9 @@ def main(config):
         print(f'Extracted features for gallery set, obtained {g_fs.shape[0]}-by-{g_fs.shape[1]} matrix')
 
     # print("==> BatchTime(s)/BatchSize(img): {:.3f}/{}".format(batch_time.avg, test_batch)
+    # feature normalization
+    q_fs = 1. * q_fs / (torch.norm(q_fs, p=2, dim=-1, keepdim=True) + 1e-12)
+    g_fs = 1. * g_fs / (torch.norm(g_fs, p=2, dim=-1, keepdim=True) + 1e-12)
 
     m, n = q_fs.shape[0], g_fs.shape[0]
     # dis_mat shape is [m, n]
@@ -164,6 +171,29 @@ def main(config):
     for p in ranks:
         print(f'Rank-{p:2d}: {cmc[p - 1]:.2%}')
     print('-----------------')
+
+    if reranking:
+        if test_distance == 'global':
+            if test_distance == 'global':
+                # dis_mat = re_ranking(q_fs, g_fs, k1=20, k2=6, lambda_value=0.3)
+
+                # 欧式距离矩阵
+                # q_q_dist = euclidean_dist(q_fs, q_fs)   # [3368, 3368]
+                # q_g_dist = euclidean_dist(q_fs, g_fs)   # [3368, 15913]
+                # g_g_dist = euclidean_dist(g_fs, g_fs)   # [15913, 15913]
+
+                # 余弦距离矩阵
+                q_q_dist = np.dot(q_fs, q_fs.T)   # [3368, 3368]
+                q_g_dist = np.dot(q_fs, g_fs.T)   # [3368, 15913]
+                g_g_dist = np.dot(g_fs, g_fs.T)   # [15913, 15913]
+                dis_mat = re_ranking3(q_g_dist, q_q_dist, g_g_dist, k1=20, k2=6)
+            print('Compute CMC and mAP for re_ranking')
+            cmc, mAP = evaluate(dis_mat, q_pids, g_pids, q_camids, g_camids)
+            print("Results ----------")
+            print(f'mAP(RK): {mAP:.2%}')
+            print('CMC curve(RK)')
+            for r in ranks:
+                print(f'Rank-{r:2d}: {cmc[r - 1]:.2%}')
     
 
 if __name__ == "__main__":
@@ -177,11 +207,14 @@ if __name__ == "__main__":
         'cuhk03_classic_split': False,
         'use_metric_cuhk03': False,
         'arch': 'resnet50',
-        'loss_type': {'xent', 'htri'},
+        'loss_type': 'softmax_trip',
         'height': 256,
         'width': 128,
-        'test_batch': 16,
-        'pth_path': 'D:\\Desktop\\best_model.pth'
+        'test_batch': 32,
+        'pth_path': 'D:\\Desktop\\best_model.pth',
+        'aligned': False,
+        'reranking': True,
+        'test_distance': 'global'
     }
     
     main(configs)
