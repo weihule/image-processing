@@ -8,7 +8,7 @@ __all__ = [
 ]
 
 
-def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, g_names, max_rank):
+def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50, need_indices=False):
     """
     Evaluate with market1501 metric
     Key: for each query identity, its gallery images from the same camera view are discard
@@ -34,10 +34,9 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, g_names, max_ra
     # g_pids 原来是 [n, ], g_pids[indices]操作之后, 扩展到了 [m, n]
     # 也就是每一行中的n个元素都按照 indices 中每一行的顺序进行了重排列
     g_pids_exp_dims, g_camids_exp_dims = g_pids[indices], g_camids[indices]
+    if need_indices:
+        g_pids_indices_sorted = np.ones_like(g_pids_exp_dims, dtype=np.int32)*(-1)
     q_pids_exp_dims = np.expand_dims(q_pids, axis=1)    # [m, 1]
-    if g_names is not None:
-        g_origin_name = g_names[indices]
-        g_names_exp_dims = g_names[indices]     # [m, n]
 
     # matches中为 1 的表示query中和gallery中的行人id相同, 也就是表示同一个人
     # matches中的结果就是和后续预测出的结果进行对比的正确label
@@ -48,7 +47,6 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, g_names, max_ra
     all_ap = []
     num_valid_q = 0.    # number of valid query
 
-    # 遍历每一张query图片
     for q_idx in range(num_q):
         # q_pid, q_camid 分别都是一个数字
         q_pid, q_camid = q_pids[q_idx], q_camids[q_idx]
@@ -62,23 +60,14 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, g_names, max_ra
         # 且keep中从左到右就是当前查找图片和每一个gallery中图片的距离距离依次递增的顺序
         keep = np.where(removed == 0, True, False)    # [n, ]
 
-        # 把不符合查找条件的图片名字置为-1, 也就是keep中为false的; 其他位置不变
-        if g_names is not None:
-            g_names_exp_dims[q_idx][keep == 0] = -1
-
         # ===== compute cmc curve =====
         # orig_cmc中为1的位置表示查找的图片匹配正确了
         orig_cmc = matches[q_idx][keep]
+        # orig_cmc = matches[q_idx] == keep
 
         # orig_cmc中为1即表示匹配正确，为0表示匹配错误, 但是orig_cmc经过keep这个mask之后，数量就发生了变化
-        if g_names is not None:
-            # temp1 = matches[q_idx].copy()[keep == 0] = -1
-            # temp_mask = (temp1 == keep)
-            # g_names_exp_dims[q_idx][temp_mask == 1] = 0
-            # g_names_exp_dims[q_idx][temp_mask == 0] = 1
-            g_names_exp_dims[q_idx] = np.pad(orig_cmc,
-                                             (0, g_names_exp_dims.shape[1]-len(orig_cmc)),
-                                             constant_values=-1)
+        if need_indices:
+            g_pids_indices_sorted[q_idx][:len(orig_cmc)] = indices[q_idx][keep]
 
         # 如果orig_cmc全为0, 也就是待查询图片没有在gallery中匹配到
         # 也就不计算top-n和ap值了
@@ -97,7 +86,7 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, g_names, max_ra
         tmp_cmc = np.asarray(tmp_cmc) * orig_cmc
         ap = tmp_cmc.sum() / num_rel
         all_ap.append(ap)
-    
+
     assert num_valid_q > 0, "Error: all query identity do not appear in gallery"
 
     # all_cmc中一共有num_valid_q个元素, 其中每个元素又包含max_rank个值
@@ -106,10 +95,7 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, g_names, max_ra
     all_cmc = all_cmc.sum(axis=0) / num_valid_q
     mAP = np.mean(all_ap)
 
-    if g_names is not None:
-        return all_cmc, mAP, g_origin_name, g_names_exp_dims.astype(np.int32)
-
-    return all_cmc, mAP
+    return all_cmc, mAP, g_pids_indices_sorted
 
 
 def eval_market15012(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
@@ -167,7 +153,7 @@ def eval_market15012(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     return all_cmc, mAP
 
 
-def evaluate(dismat, q_pids, g_pids, q_camids, g_camids, g_names=None, max_rank=50, use_metric_cuhk03=False):
+def evaluate(dismat, q_pids, g_pids, q_camids, g_camids, max_rank=50, need_indices=False, use_metric_cuhk03=False):
     if use_metric_cuhk03:
         pass
     else:
@@ -176,8 +162,8 @@ def evaluate(dismat, q_pids, g_pids, q_camids, g_camids, g_names=None, max_rank=
                                g_pids,
                                q_camids,
                                g_camids,
-                               g_names=g_names,
-                               max_rank=max_rank)
+                               max_rank=max_rank,
+                               need_indices=need_indices)
 
 
 if __name__ == "__main__":

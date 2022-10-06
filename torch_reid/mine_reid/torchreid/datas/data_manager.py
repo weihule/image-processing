@@ -19,11 +19,11 @@ class ImageDataset(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, item):
-        img_path, pid, camid, img_name = self.dataset[item]
+        img_path, pid, camid = self.dataset[item]
         img = self.read_img(img_path)
         if self.transform:
             img = self.transform(img)
-        return img, pid, camid, img_name
+        return img, pid, camid
 
     @staticmethod
     def read_img(img_path):

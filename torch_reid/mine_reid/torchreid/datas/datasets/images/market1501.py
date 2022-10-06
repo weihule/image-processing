@@ -78,7 +78,7 @@ class Market1501:
             assert 1 <= camid <= 6
             pids.add(pid)
             camid -= 1  # camera id start from 0
-            datasets.append([img_path, pid, camid, img_name])
+            datasets.append([img_path, pid, camid])
         if relabel:
             pid2label = {pid: idx for idx, pid in enumerate(pids)}
             for p in datasets:

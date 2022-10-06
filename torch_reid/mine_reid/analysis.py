@@ -123,8 +123,8 @@ def main(config):
 
     model.eval()
     with torch.no_grad():
-        q_fs, q_pids, q_camids, q_names = [], [], [], []
-        for _, (imgs, pids, camids, img_names) in enumerate(query_loader):
+        q_fs, q_pids, q_camids = [], [], []
+        for _, (imgs, pids, camids) in enumerate(query_loader):
             if use_gpu:
                 imgs = imgs.cuda()
 
@@ -136,15 +136,13 @@ def main(config):
             q_fs.append(features)
             q_pids.extend(pids)
             q_camids.extend(camids)
-            q_names.extend(img_names)
         q_fs = torch.cat(q_fs, dim=0)  # if resnet50, shape is [num_query, 2048]
         q_pids = np.array(q_pids)
         q_camids = np.array(q_camids)
-        q_names = np.array(q_names)
         print(f'Extracted features for query set, obtained {q_fs.shape[0]}-by-{q_fs.shape[1]} matrix')
 
-        g_fs, g_pids, g_camids, g_names = [], [], [], []
-        for _, (imgs, pids, camids, img_names) in enumerate(gallery_loader):
+        g_fs, g_pids, g_camids = [], [], []
+        for _, (imgs, pids, camids) in enumerate(gallery_loader):
             if use_gpu:
                 imgs = imgs.cuda()
 
@@ -156,11 +154,9 @@ def main(config):
             g_fs.append(features)
             g_pids.extend(pids)
             g_camids.extend(camids)
-            g_names.extend(img_names)
         g_fs = torch.cat(g_fs, dim=0)
         g_pids = np.asarray(g_pids)
         g_camids = np.asarray(g_camids)
-        g_names = np.array(g_names)
         print(f'Extracted features for gallery set, obtained {g_fs.shape[0]}-by-{g_fs.shape[1]} matrix')
 
     # print("==> BatchTime(s)/BatchSize(img): {:.3f}/{}".format(batch_time.avg, test_batch)
@@ -176,24 +172,11 @@ def main(config):
     dis_mat = dis_mat.numpy()
 
     print('Compute CMC and mAP')
-    if not visualize:
-        cmc, mAP = evaluate(dis_mat,
-                            q_pids,
-                            g_pids,
-                            q_camids,
-                            g_camids,
-                            use_metric_cuhk03=use_metric_cuhk03)
-    else:
-        cmc, mAP, g_names_sorted, g_names_indices = evaluate(dis_mat,
-                                                             q_pids,
-                                                             g_pids,
-                                                             q_camids,
-                                                             g_camids,
-                                                             g_names=g_names,
-                                                             use_metric_cuhk03=config['use_metric_cuhk03'])
-        q_root = os.path.join(root, 'market1501', "Market-1501-v15.09.15", 'query')
-        g_root = os.path.join(root, 'market1501', "Market-1501-v15.09.15", 'bounding_box_test')
-        visualization(q_names, g_names_sorted, g_names_indices, q_root, g_root, save_dir)
+    cmc, mAP, g_pids_sorted = evaluate(dis_mat, q_pids, g_pids, q_camids, g_camids,
+                                       need_indices=visualize,
+                                       use_metric_cuhk03=config['use_metric_cuhk03'])
+    if visualize:
+        visualization(dataset, g_pids_sorted, save_dir, re_rank=reranking)
     print("Results ----------")
     print(f'mAP: {mAP:.2%}')
     print('CMC Curve')
@@ -217,25 +200,11 @@ def main(config):
                 g_g_dist = np.dot(g_fs, g_fs.T)  # [15913, 15913]
                 dis_mat = re_ranking3(q_g_dist, q_q_dist, g_g_dist, k1=20, k2=6)
             print('Compute CMC and mAP for re_ranking')
-            if not visualize:
-                cmc, mAP = evaluate(dis_mat,
-                                    q_pids,
-                                    g_pids,
-                                    q_camids,
-                                    g_camids,
-                                    use_metric_cuhk03=config['use_metric_cuhk03'])
-            # 进行可视化
-            else:
-                cmc, mAP, g_names_sorted, g_names_indices = evaluate(dis_mat,
-                                                                     q_pids,
-                                                                     g_pids,
-                                                                     q_camids,
-                                                                     g_camids,
-                                                                     g_names=g_names,
-                                                                     use_metric_cuhk03=config['use_metric_cuhk03'])
-                q_root = os.path.join(root, 'market1501', "Market-1501-v15.09.15", 'query')
-                g_root = os.path.join(root, 'market1501', "Market-1501-v15.09.15", 'bounding_box_test')
-                visualization(q_names, g_names_sorted, g_names_indices, q_root, g_root, save_dir, True)
+            cmc, mAP, g_pids_sorted = evaluate(dis_mat, q_pids, g_pids, q_camids, g_camids,
+                                               need_indices=visualize,
+                                               use_metric_cuhk03=config['use_metric_cuhk03'])
+            if visualize:
+                visualization(dataset, g_pids_sorted, save_dir, re_rank=reranking)
             print("Results(RK) ----------")
             print(f'mAP(RK): {mAP:.2%}')
             print('CMC curve(RK)')
@@ -251,40 +220,41 @@ def imshow(path, title=None):
     plt.pause(0.001)  # pause a bit so that plots are updated
 
 
-def visualization(q_names, g_names, g_names_indices, q_root, g_root, save_dir, re_rank=False):
+def visualization(dataset, g_pids_indices, save_dir, re_rank=False):
     print('Top 10 images as follow:')
-    assert q_names.shape[0] == g_names_indices.shape[0]
-    assert g_names.shape == g_names_indices.shape
-    # print(g_names_indices.shape, g_names_indices[0].shape, type(g_names_indices[0]))
     if re_rank:
         save_dir = os.path.join(save_dir, 're_rank')
     else:
         save_dir = os.path.join(save_dir, 'no_re_rank')
     mkdir_if_missing(save_dir)
 
-    for idx, q_name in enumerate(q_names):
-        q_path = os.path.join(q_root, q_name)
-        q_label = int(q_name.split('_')[0])
-        gids = g_names_indices[idx][g_names_indices[idx] >= 0][:10]
-        gnas = g_names[idx][g_names_indices[idx] >= 0][:10]
-        print(q_name, gids)
+    for idx in range(dataset.num_query_pids):
+        q_path = dataset.query[idx][0]
+        q_pid = dataset.query[idx][1]
         fig = plt.figure(figsize=(16, 4))
         ax = plt.subplot(1, 11, 1)
         ax.axis('off')
         imshow(q_path, 'query')
-        for i in range(10):
+
+        # 没有在gallery中找到匹配的行人
+        if (g_pids_indices[idx] == -1).all():
+            print(f'{q_path.split(os.sep)[-1]} has no matched in gallery')
+            continue
+
+        for i, g_pid_idx in enumerate(g_pids_indices[idx][:10]):
             ax = plt.subplot(1, 11, i + 2)
             ax.axis('off')
-            g_path = os.path.join(g_root, gnas[i])
+            g_path = dataset.gallery[int(g_pid_idx)][0]
+            g_pid = dataset.gallery[int(g_pid_idx)][1]
             imshow(g_path)
-            g_label = int(gnas[i].split('_')[0])
-            print(q_label, g_label, )
-            if g_label == q_label:
+
+            # print(q_label, g_label, gids[i])
+            if g_pid == q_pid:
                 ax.set_title('%d' % (i + 1), color='green')
             else:
                 ax.set_title('%d' % (i + 1), color='red')
 
-        fig.savefig(os.path.join(save_dir, q_name))
+        fig.savefig(os.path.join(save_dir, q_path.split(os.sep)[-1]))
         plt.close()
 
         if idx == 20:
@@ -315,7 +285,3 @@ if __name__ == "__main__":
     }
 
     main(configs)
-
-    # arr = np.array([-1, 0, 1, -1, 0, 1])
-    # arr = np.pad(arr, (0, 2), 'constant', constant_values=11)
-    # print(arr)

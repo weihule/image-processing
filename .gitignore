@@ -1,5 +1,6 @@
 torch_classification/*/__pycache__/
 torch_detection/*/__pycache__/
+__pycache__/
 */__pycache__/
 */*/__pycache__/
 */*/*/__pycache__/

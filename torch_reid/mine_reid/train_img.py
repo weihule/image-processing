@@ -289,7 +289,7 @@ def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimize
     model.train()
 
     end = time.time()
-    for batch_idx, (imgs, pids, _, _) in enumerate(trainloader):
+    for batch_idx, (imgs, pids, _) in enumerate(trainloader):
         if use_gpu:
             imgs, pids = imgs.cuda(), pids.cuda()
         # measure data loading time
@@ -364,7 +364,7 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
     model.eval()
     with torch.no_grad():
         qf, lqf, q_pids, q_camids = [], [], [], []
-        for batch_idx, (imgs, pids, camids, _) in enumerate(queryloader):
+        for batch_idx, (imgs, pids, camids) in enumerate(queryloader):
             if use_gpu:
                 imgs = imgs.cuda()
 
@@ -386,7 +386,7 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
         print("Extracted features for query set, obtained {}-by-{} matrix".format(qf.shape[0], qf.shape[1]))
 
         gf, lgf, g_pids, g_camids = [], [], [], []
-        for batch_idx, (imgs, pids, camids, _) in enumerate(galleryloader):
+        for batch_idx, (imgs, pids, camids) in enumerate(galleryloader):
             if use_gpu:
                 imgs = imgs.cuda()
 
@@ -443,7 +443,7 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
             g_g_dist = np.dot(gf, gf.T)   # [15913, 15913]
             dismat = re_ranking3(q_g_dist, q_q_dist, g_g_dist, k1=20, k2=6)
             print('Compute CMC and mAP for re_ranking')
-            cmc, mAP = evaluate(dismat, q_pids, g_pids, q_camids, g_camids)
+            cmc, mAP, _ = evaluate(dismat, q_pids, g_pids, q_camids, g_camids)
             print("Results(RK) ----------")
             print(f'mAP(RK): {mAP:.2%}')
             print('CMC curve(RK)')
