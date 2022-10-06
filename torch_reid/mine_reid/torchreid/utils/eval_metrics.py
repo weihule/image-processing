@@ -8,7 +8,7 @@ __all__ = [
 ]
 
 
-def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
+def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, g_names, max_rank):
     """
     Evaluate with market1501 metric
     Key: for each query identity, its gallery images from the same camera view are discard
@@ -33,9 +33,11 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     # g_pids[indices] shape is [m, n]
     # g_pids 原来是 [n, ], g_pids[indices]操作之后, 扩展到了 [m, n]
     # 也就是每一行中的n个元素都按照 indices 中每一行的顺序进行了重排列
-    # q_pids[:, np.newaxis] shape is [m, 1]
     g_pids_exp_dims, g_camids_exp_dims = g_pids[indices], g_camids[indices]
-    q_pids_exp_dims = np.expand_dims(q_pids, axis=1)
+    q_pids_exp_dims = np.expand_dims(q_pids, axis=1)    # [m, 1]
+    if g_names is not None:
+        g_origin_name = g_names[indices]
+        g_names_exp_dims = g_names[indices]     # [m, n]
 
     # matches中为 1 的表示query中和gallery中的行人id相同, 也就是表示同一个人
     # matches中的结果就是和后续预测出的结果进行对比的正确label
@@ -60,9 +62,23 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
         # 且keep中从左到右就是当前查找图片和每一个gallery中图片的距离距离依次递增的顺序
         keep = np.where(removed == 0, True, False)    # [n, ]
 
+        # 把不符合查找条件的图片名字置为-1, 也就是keep中为false的; 其他位置不变
+        if g_names is not None:
+            g_names_exp_dims[q_idx][keep == 0] = -1
+
         # ===== compute cmc curve =====
         # orig_cmc中为1的位置表示查找的图片匹配正确了
         orig_cmc = matches[q_idx][keep]
+
+        # orig_cmc中为1即表示匹配正确，为0表示匹配错误, 但是orig_cmc经过keep这个mask之后，数量就发生了变化
+        if g_names is not None:
+            # temp1 = matches[q_idx].copy()[keep == 0] = -1
+            # temp_mask = (temp1 == keep)
+            # g_names_exp_dims[q_idx][temp_mask == 1] = 0
+            # g_names_exp_dims[q_idx][temp_mask == 0] = 1
+            g_names_exp_dims[q_idx] = np.pad(orig_cmc,
+                                             (0, g_names_exp_dims.shape[1]-len(orig_cmc)),
+                                             constant_values=-1)
 
         # 如果orig_cmc全为0, 也就是待查询图片没有在gallery中匹配到
         # 也就不计算top-n和ap值了
@@ -89,6 +105,9 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     all_cmc = np.asarray(all_cmc).astype(np.float32)
     all_cmc = all_cmc.sum(axis=0) / num_valid_q
     mAP = np.mean(all_ap)
+
+    if g_names is not None:
+        return all_cmc, mAP, g_origin_name, g_names_exp_dims.astype(np.int32)
 
     return all_cmc, mAP
 
@@ -148,28 +167,24 @@ def eval_market15012(distmat, q_pids, g_pids, q_camids, g_camids, max_rank):
     return all_cmc, mAP
 
 
-def evaluate(dismat, q_pids, g_pids, q_camids, g_camids, max_rank=50, use_metric_cuhk03=False):
+def evaluate(dismat, q_pids, g_pids, q_camids, g_camids, g_names=None, max_rank=50, use_metric_cuhk03=False):
     if use_metric_cuhk03:
         pass
     else:
-        return eval_market1501(dismat, q_pids, g_pids, q_camids, g_camids, max_rank)
+        return eval_market1501(dismat,
+                               q_pids,
+                               g_pids,
+                               q_camids,
+                               g_camids,
+                               g_names=g_names,
+                               max_rank=max_rank)
 
 
 if __name__ == "__main__":
-    arr = np.array([[1, 0, 3, 3], [2, 6, 0, 5], [1, 7, 3, 4]])  # [3, 4]
-    indices = np.argsort(arr, axis=1)       # [3, 4]
-    g = np.array([23, 45, 10, 4])
-    q = np.array([5, 45, 7])
-
-    print(g[indices], g[indices].shape)
-
-    # cmcs = np.array([False, True, True, True, False, False, True])
-    # cmcs = cmcs.cumsum()
-    # # cmcs[cmcs > 1] = 1
-    # cmcs = np.where(cmcs >= 1, 1, 0)
-    # # print(cmcs)
-    #
-    # arrs = [[1, 2, 3], [4, 5, 6]]
-    # arrs = np.asarray(arrs)
-    # print(arrs.shape)
+    arr = np.array(['001.jpg', '002.jpg', '003.jpg', '004.jpg'])
+    mask = np.array([True, False, False, True])
+    keep = np.where(mask == 0, 1, 0)
+    arr[mask] = 0
+    print(keep)
+    print(arr)
 

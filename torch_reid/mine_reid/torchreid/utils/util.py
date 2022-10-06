@@ -7,7 +7,8 @@ from torch.utils import model_zoo
 __all__ = [
     'Logger',
     'save_checkpoints',
-    'init_pretrained_weights'
+    'init_pretrained_weights',
+    'mkdir_if_missing'
 ]
 
 
@@ -79,8 +80,9 @@ def init_pretrained_weights(model, load_dir):
     pretrain_dict = {
         k: v for k, v in pretrain_dict.items()
         if k in model_dict and model_dict[k].shape == v.shape}
+
     model_dict.update(pretrain_dict)
-    print('load {} layers params !'.format(len(model_dict)))
+    print('load {} layers params , all {} layers'.format(len(pretrain_dict), len(model_dict)))
     model.load_state_dict(model_dict)
 
 

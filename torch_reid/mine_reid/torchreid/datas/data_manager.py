@@ -19,11 +19,11 @@ class ImageDataset(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, item):
-        img_path, pid, camid = self.dataset[item]
+        img_path, pid, camid, img_name = self.dataset[item]
         img = self.read_img(img_path)
         if self.transform:
             img = self.transform(img)
-        return img, pid, camid
+        return img, pid, camid, img_name
 
     @staticmethod
     def read_img(img_path):
@@ -44,7 +44,8 @@ class ImageDataset(Dataset):
 
 __img_factory = {
     'market1501': Market1501,
-    'dukemtmc': DukeMTMC
+    'dukemtmc': DukeMTMC,
+    'reid_debug': Market1501,
 }
 
 

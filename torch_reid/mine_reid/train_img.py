@@ -4,7 +4,7 @@ import time
 import argparse
 
 import numpy as np
-from tqdm import tqdm
+import random
 import datetime
 
 import torch
@@ -20,7 +20,7 @@ from torchreid.datas import data_manager, data_transfrom, ImageDataset
 from torchreid.datas.samplers import RandomIdentitySampler
 from torchreid.utils.avgmeter import AverageMeter
 from torchreid.utils.eval_metrics import evaluate
-from torchreid.utils.re_ranking import re_ranking
+from torchreid.utils.re_ranking import re_ranking, re_ranking3
 from torchreid.utils.util import Logger, init_pretrained_weights, save_checkpoints
 
 
@@ -69,7 +69,7 @@ def parse_args():
 
     # Miscs
     parser.add_argument('--print_freq', type=int, default=10, help="print frequency")
-    parser.add_argument('--seed', type=int, default=1, help="manual seed")
+    parser.add_argument('--seed', type=int, default=3407, help="manual seed")
     parser.add_argument('--resume', type=str, default='checkpoint.pth')
     parser.add_argument('--evaluate', action='store_true', help="evaluation only")
     parser.add_argument('--eval_step', type=int, default=-1,
@@ -92,6 +92,8 @@ def main(args):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_devices
     use_gpu = torch.cuda.is_available()
@@ -111,8 +113,9 @@ def main(args):
         print(f'Currently using GPU {args.gpu_devices}')
         torch.backends.cudnn.enabled = True  # 说明设置为使用非确定性算法
         # 如果网络的输入数据维度或类型上变化不大，设置 torch.backends.cudnn.benchmark = true 可以增加运行效率
-        # cudnn.enabled = True
-        cudnn.benchmark = True
+        cudnn.enabled = False
+        cudnn.benchmark = False
+        cudnn.deterministic = True
     else:
         print('Currently using CPU (GPU is highly recommended)')
 
@@ -139,12 +142,13 @@ def main(args):
     if args.loss_type == 'softmax_trip':
         sampler = RandomIdentitySampler(dataset.train, num_instances=args.num_instances)
         shuffle = False
-    elif args.loss_type == 'softmax_cent':
-        sampler = None
-        shuffle = True
     else:
         sampler = None
-        shuffle = False
+        shuffle = True
+
+    def worker_init_fn(worker_id):
+        np.random.seed(args.seed)
+        random.seed(args.seed)
 
     # 如果使用了sampler, 对于market1501中, num_train_pids有751个, 也就是有751个行人
     # id, 每个行人id取 num_instances 张图片, 也就是有 751 * num_instances 张图片
@@ -157,6 +161,7 @@ def main(args):
                               num_workers=args.num_workers,
                               pin_memory=args.pin_memory,
                               prefetch_factor=6,
+                              worker_init_fn=worker_init_fn,
                               drop_last=True)
     query_loader = DataLoader(ImageDataset(dataset.query, transform_test),
                               batch_size=args.test_batch,
@@ -175,7 +180,9 @@ def main(args):
     model = models.init_model(name=args.arch,
                               num_classes=dataset.num_train_pids,
                               loss=args.loss_type,
-                              aligned=args.aligned)
+                              aligned=args.aligned,
+                              act_func='prelu',
+                              attention=None)
     # model = ResNet50(num_classes=dataset.num_train_pids)
     init_pretrained_weights(model, args.pre_train_load_dir)
     if use_gpu and args.use_ddp is False:
@@ -183,12 +190,7 @@ def main(args):
     if use_gpu and args.use_ddp:
         model = nn.DataParallel(model).cuda()
 
-    # test_input = torch.randn(1, 3, args.height, args.width)
-    # if use_gpu:
-    #     test_input = test_input.cuda()
-    # macs, params = profile(model, (test_input,))
-    # macs, params = clever_format([macs, params], '%.3f')
-    # print('model size: {}'.format(params))
+    print("Model size: {:.5f}M".format(sum(p.numel() for p in model.parameters()) / 1000000.0))
 
     criterion_xent = losses.CrossEntropyLabelSmooth(num_classes=dataset.num_train_pids, use_gpu=use_gpu)
     if args.aligned:
@@ -258,7 +260,8 @@ def main(args):
         scheduler.step()
 
         if (epoch + 1) > args.start_eval and (epoch + 1) % args.eval_step == 0 or (epoch + 1) == args.max_epoch:
-            rank1 = test(model, query_loader, gallery_loader, use_gpu, args)
+            reranking = True if epoch+1 == args.max_epoch else False
+            rank1 = test(model, query_loader, gallery_loader, use_gpu, args, reranking=reranking)
             is_best = rank1 >= best_rank1
             if is_best:
                 best_rank1 = rank1
@@ -286,7 +289,7 @@ def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimize
     model.train()
 
     end = time.time()
-    for batch_idx, (imgs, pids, _) in enumerate(trainloader):
+    for batch_idx, (imgs, pids, _, _) in enumerate(trainloader):
         if use_gpu:
             imgs, pids = imgs.cuda(), pids.cuda()
         # measure data loading time
@@ -302,6 +305,9 @@ def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimize
             outputs, features, local_features = model(imgs)
         if args.htri_only:
             loss = criterion_trip(features, pids)
+        elif args.loss_type == 'softmax':
+            xent_loss = criterion_xent(outputs, pids)
+            loss = xent_loss
         elif args.loss_type == 'softmax_cent':
             xent_loss = criterion_xent(outputs, pids)
             cent_loss = criterion_cent(features, pids) * args.weight_cent
@@ -348,7 +354,7 @@ def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimize
                   f'Lr {lr_value}')
 
 
-def test(model, queryloader, galleryloader, use_gpu, args, ranks=None):
+def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking=False):
     if ranks is None:
         ranks = [1, 5, 10, 20]
     else:
@@ -358,7 +364,7 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None):
     model.eval()
     with torch.no_grad():
         qf, lqf, q_pids, q_camids = [], [], [], []
-        for batch_idx, (imgs, pids, camids) in enumerate(queryloader):
+        for batch_idx, (imgs, pids, camids, _) in enumerate(queryloader):
             if use_gpu:
                 imgs = imgs.cuda()
 
@@ -380,7 +386,7 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None):
         print("Extracted features for query set, obtained {}-by-{} matrix".format(qf.shape[0], qf.shape[1]))
 
         gf, lgf, g_pids, g_camids = [], [], [], []
-        for batch_idx, (imgs, pids, camids) in enumerate(galleryloader):
+        for batch_idx, (imgs, pids, camids, _) in enumerate(galleryloader):
             if use_gpu:
                 imgs = imgs.cuda()
 
@@ -416,22 +422,33 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None):
     cmc, mAP = evaluate(distmat, q_pids, g_pids, q_camids, g_camids, use_metric_cuhk03=args.use_metric_cuhk03)
 
     print("Results ----------")
-    print("mAP: {:.1%}".format(mAP))
+    print("mAP: {:.2%}".format(mAP))
     print("CMC curve")
     for r in ranks:
-        print("Rank-{:<3}: {:.1%}".format(r, cmc[r - 1]))
+        print("Rank-{:<3}: {:.2%}".format(r, cmc[r - 1]))
     print("------------------")
 
-    if args.reranking:
+    if reranking:
         if args.test_distance == 'global':
-            distmat = re_ranking(qf, gf, k1=20, k2=6, lambda_value=0.3)
-        print('Compute CMC and mAP for re_ranking')
-        cmc, mAP = evaluate(distmat, q_pids, g_pids, q_camids, g_camids)
-        print("Results ----------")
-        print(f'mAP(RK): {mAP:.1%}')
-        print('CMC curve(RK)')
-        for r in ranks:
-            print(f'Rank-{r:<3}: {cmc[r-1]:.1%}')
+            # dis_mat = re_ranking(q_fs, g_fs, k1=20, k2=6, lambda_value=0.3)
+
+            # 欧式距离矩阵
+            # q_q_dist = euclidean_dist(q_fs, q_fs)   # [3368, 3368]
+            # q_g_dist = euclidean_dist(q_fs, g_fs)   # [3368, 15913]
+            # g_g_dist = euclidean_dist(g_fs, g_fs)   # [15913, 15913]
+
+            # 余弦距离矩阵
+            q_q_dist = np.dot(qf, qf.T)   # [3368, 3368]
+            q_g_dist = np.dot(qf, gf.T)   # [3368, 15913]
+            g_g_dist = np.dot(gf, gf.T)   # [15913, 15913]
+            dismat = re_ranking3(q_g_dist, q_q_dist, g_g_dist, k1=20, k2=6)
+            print('Compute CMC and mAP for re_ranking')
+            cmc, mAP = evaluate(dismat, q_pids, g_pids, q_camids, g_camids)
+            print("Results(RK) ----------")
+            print(f'mAP(RK): {mAP:.2%}')
+            print('CMC curve(RK)')
+            for r in ranks:
+                print(f'Rank-{r:2d}: {cmc[r - 1]:.2%}')
     return cmc[0]
 
 

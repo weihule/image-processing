@@ -1,12 +1,13 @@
 import os
 import glob
+import json
 
 __all__ = [
     'Market1501'
 ]
 
 
-class Market15012:
+class Market1501:
     """
     dataset statistics:
     identities: 1501 (1 for background)
@@ -77,7 +78,7 @@ class Market15012:
             assert 1 <= camid <= 6
             pids.add(pid)
             camid -= 1  # camera id start from 0
-            datasets.append([img_path, pid, camid])
+            datasets.append([img_path, pid, camid, img_name])
         if relabel:
             pid2label = {pid: idx for idx, pid in enumerate(pids)}
             for p in datasets:
@@ -89,7 +90,7 @@ class Market15012:
 
 
 import re
-class Market1501(object):
+class Market15012(object):
     """
     Market1501
 
@@ -202,6 +203,9 @@ class Market1501(object):
             assert 1 <= camid <= 6
             camid -= 1  # index starts from 0
             if relabel:
+                json_str = json.dumps(pid2label, indent=4, ensure_ascii=False)
+                with open('market1501.json', 'w') as fw:
+                    fw.write(json_str)
                 pid = pid2label[pid]
             dataset.append((img_path, pid, camid))
 
