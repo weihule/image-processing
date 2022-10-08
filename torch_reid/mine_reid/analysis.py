@@ -129,7 +129,9 @@ def main(config):
                 imgs = imgs.cuda()
 
             end = time.time()
-            features, local_feature = model(imgs)  # if resnet50, shape is [batch_size, 2048]
+            # if resnet50
+            # outputs: [b, num_classes], features: [b, 2048], local_feature: [b, 128, 8]
+            outputs, features, local_feature = model(imgs)
             batch_time.update(time.time() - end)
 
             features = features.detach().cpu()

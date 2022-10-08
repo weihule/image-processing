@@ -34,8 +34,7 @@ def eval_market1501(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50, ne
     # g_pids 原来是 [n, ], g_pids[indices]操作之后, 扩展到了 [m, n]
     # 也就是每一行中的n个元素都按照 indices 中每一行的顺序进行了重排列
     g_pids_exp_dims, g_camids_exp_dims = g_pids[indices], g_camids[indices]
-    if need_indices:
-        g_pids_indices_sorted = np.ones_like(g_pids_exp_dims, dtype=np.int32)*(-1)
+    g_pids_indices_sorted = np.ones_like(g_pids_exp_dims, dtype=np.int32)*(-1)
     q_pids_exp_dims = np.expand_dims(q_pids, axis=1)    # [m, 1]
 
     # matches中为 1 的表示query中和gallery中的行人id相同, 也就是表示同一个人

@@ -3,7 +3,6 @@ import torch
 
 __all__ = [
     'batch_euclidean_dist',
-    'euclidean_dist',
     'shortest_dist',
     'batch_local_dist'
 ]

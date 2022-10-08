@@ -154,11 +154,11 @@ class TripletAlignedLoss:
 
         # TODO: 这里还没明白
         # 这样就拿到了难样本和local_features的pair_features
-        p_local_features = local_features[p_inds]
-        n_local_features = local_features[n_inds]
+        p_local_features = local_features[p_inds]   # [batch_size, 8, 128]
+        n_local_features = local_features[n_inds]   # [batch_size, 8, 128]
         local_dist_ap = batch_local_dist(local_features, p_local_features)    # [batch_size]
         local_dist_an = batch_local_dist(local_features, n_local_features)    # [batch_size]
-        y = torch.ones_like(local_dist_ap)
+        # y = torch.ones_like(local_dist_ap)
         local_loss = self.ranking_local_loss(local_dist_an, local_dist_ap, y)
         if self.mutual:
             return global_loss+local_loss, dist

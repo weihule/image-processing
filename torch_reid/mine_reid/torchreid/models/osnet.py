@@ -139,6 +139,7 @@ class ChannelGate(nn.Module):
     """
     A mini-network that generates channel-wise gates conditioned on input tensor
     """
+
     def __init__(self,
                  in_channels,
                  num_gates=None,
@@ -200,6 +201,7 @@ class OSBlock(nn.Module):
     """
     Omni-scale feature learning block
     """
+
     def __init__(self,
                  in_channels,
                  out_channels,
@@ -359,44 +361,40 @@ class OSNet(nn.Module):
 
     def forward(self, x):
         x = self.featuremaps(x)  # [b, 512, 16, 8]
+
         if not self.training:
-            lf = self.horizontal_pool(x)  # [b, 512, 16, 1]
-        if self.training and self.aligned:
-            lf = x.clone()
-            lf = self.aligned_bn(lf)
+            lf = self.horizontal_pool(x)
+
+        if self.aligned and self.training:
+            lf = self.aligned_bn(x)
             lf = self.aligned_relu(lf)
             lf = self.horizontal_pool(lf)  # [b, 512, 16, 1]
             lf = self.aligned_conv1(lf)  # [b, 128, 16, 1]
 
         if self.aligned or not self.training:
-            lf = lf.view(lf.shape[:3])
-            # feature normalization
+            lf = lf.view(lf.shape[:3])  # [b, 128, 16]
             lf = lf / torch.pow(lf, 2).sum(dim=1, keepdim=True).clamp(min=1e-12).sqrt()
 
-        x = F.avg_pool2d(x, x.shape[2:])  # [b, 512, 1, 1]
-        f = x.reshape(x.shape[0], -1)  # [b, 512]
+        f = F.avg_pool2d(x, x.shape[2:])  # [b, 512, 1, 1]
+        f = f.reshape(f.shape[0], -1)  # [b, 512]
+        if self.fc is not None:
+            f = self.fc(f)
 
         if not self.training and self.loss != 'grad_cam':
             return f, lf
-
-        if self.fc is not None:
-            f = self.fc(f)
-        y = self.classifier(f)
+        y = self.classifier(f)  # [b, num_classes]
 
         # grad cam 可视化
         if not self.training and self.loss == 'grad_cam':
             return y
 
-        if self.loss == 'softmax':
-            return y, f
-        elif self.loss == 'softmax_cent':
-            return y, f
-        elif self.loss == 'softmax_trip' and not self.aligned:
-            return y, f
-        elif self.loss == 'softmax_trip' and self.aligned:
+        if self.loss not in ['softmax', 'softmax_cent', 'softmax_trip', 'softmax_trip_cent']:
+            raise KeyError(f'Unsupported {self.loss} loss type')
+
+        if self.aligned:
             return y, f, lf
         else:
-            raise KeyError(f'Unsupported {self.loss}')
+            return y, f
 
     def _construct_fc_layer(self, fc_dims, input_dim, dropout_p=None):
         """

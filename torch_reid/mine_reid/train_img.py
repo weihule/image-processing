@@ -64,7 +64,7 @@ def parse_args():
     parser.add_argument('-a', '--arch', type=str, default='resnet50', choices=models.get_names())
     parser.add_argument('--pre_train_load_dir', type=str, default=None, help='save dir of pretrain weight')
     parser.add_argument('--loss_type', type=str, default='softmax', help='Determine the model output type',
-                        choices=['softmax_trip', 'softmax_cent', 'softmax'])
+                        choices=['softmax_trip', 'softmax_cent', 'softmax', 'softmax_trip_cent'])
     parser.add_argument('--apex', action='store_true')
 
     # Miscs
@@ -139,7 +139,7 @@ def main(args):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    if args.loss_type == 'softmax_trip':
+    if args.loss_type == 'softmax_trip' or args.loss_type == 'softmax_trip_cent':
         sampler = RandomIdentitySampler(dataset.train, num_instances=args.num_instances)
         shuffle = False
     else:
@@ -202,7 +202,7 @@ def main(args):
                                            lr=args.lr,
                                            weight_decay=args.weight_decay)
     # ======== center_loss ========
-    if args.loss_type == 'softmax_cent':
+    if args.loss_type == 'softmax_cent' or args.loss_type == 'softmax_trip_cent':
         criterion_cent = losses.CenterLoss(num_classes=dataset.num_train_pids, feat_dim=model.feature_dim)
         optimizer_cent = utils.init_optimizer('sgd',
                                               params=criterion_cent.parameters(),
@@ -298,11 +298,11 @@ def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimize
         # outputs shape is [batch_size, num_classes]
         # features shape is [batch_size, feat_dim]
         # local feature shape is [batch_size, 128, 8]
-        if not args.aligned:
-            outputs, features = model(imgs)
-            local_features = None
-        else:
+        if args.aligned:
             outputs, features, local_features = model(imgs)
+        else:
+            outputs, features = model(imgs)
+
         if args.htri_only:
             loss = criterion_trip(features, pids)
         elif args.loss_type == 'softmax':
@@ -321,6 +321,11 @@ def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimize
             xent_loss = criterion_xent(outputs, pids)
             htri_loss, local_htri_loss = criterion_trip(features, pids, local_features)
             loss = xent_loss + htri_loss + local_htri_loss
+        elif args.loss_type == 'softmax_trip_cent' and not args.aligned:
+            xent_loss = criterion_xent(outputs, pids)
+            htri_loss = criterion_trip(features, pids)
+            cent_loss = criterion_cent(features, pids) * args.weight_cent
+            loss = xent_loss + cent_loss + htri_loss
         else:
             raise KeyError(f'Unknown {args.loss_type} type')
         # 梯度清零
@@ -350,7 +355,7 @@ def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimize
                   f'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   f'Data {batch_time.val:.3f} ({data_time.avg:.3f})\t'
                   f'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
-                  f'xent_loss {xent_loss.item():.3f} htri_loss {htri_loss.item():.3f} \t'
+                  f'xent_loss {xent_loss.item():.3f}'
                   f'Lr {lr_value}')
 
 
@@ -419,7 +424,7 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
     distmat = distmat.numpy()
 
     print("Computing CMC and mAP")
-    cmc, mAP = evaluate(distmat, q_pids, g_pids, q_camids, g_camids, use_metric_cuhk03=args.use_metric_cuhk03)
+    cmc, mAP, _ = evaluate(distmat, q_pids, g_pids, q_camids, g_camids, use_metric_cuhk03=args.use_metric_cuhk03)
 
     print("Results ----------")
     print("mAP: {:.2%}".format(mAP))
@@ -450,67 +455,6 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
             for r in ranks:
                 print(f'Rank-{r:2d}: {cmc[r - 1]:.2%}')
     return cmc[0]
-
-
-class DeBugModel(nn.Module):
-    def __init__(self, num_classes=3):
-        super(DeBugModel, self).__init__()
-        self.conv = nn.Conv2d(3, 10, kernel_size=3, stride=2, padding=1, bias=False)
-        self.bn = nn.BatchNorm2d(10)
-        self.relu = nn.ReLU(inplace=True)
-        self.global_avg = nn.AdaptiveAvgPool2d((1, 1))
-        self.classifier = nn.Linear(10, num_classes)
-
-    def forward(self, x):
-        x = self.conv(x)
-        x = self.bn(x)
-        x = self.relu(x)
-        x = self.global_avg(x)
-        x = x.view(x.shape[0], -1)
-        x = self.classifier(x)
-
-        return x
-
-
-import matplotlib.pyplot as plt
-import math
-
-
-def de_bug_main():
-    datasets = [torch.randn(4, 3, 16, 16) for _ in range(10)]
-    epochs = 100
-    model = DeBugModel(num_classes=3)
-    model = model.cuda()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, weight_decay=5e-04, momentum=0.9)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
-
-    lr_list = []
-
-    for epoch in range(epochs):
-        model.train()
-        utils.adjust_learning_rate(optimizer,
-                                   current_epoch=epoch,
-                                   max_epoch=epochs,
-                                   lr_min=1e-12,
-                                   lr_max=0.0001,
-                                   warmup_epoch=10,
-                                   warmup=True)
-        for p in datasets:
-            p = p.cuda()
-            outputs = model(p)
-            optimizer.zero_grad()
-            loss = torch.tensor(0.8, requires_grad=True)
-            loss.backward()
-            optimizer.step()
-        print(len(optimizer.param_groups))
-        print('[', epoch, ']', optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_lr())
-        # print(optimizer.state_dict())
-        # print(scheduler.state_dict())
-        scheduler.step()
-        lr_list.append(optimizer.state_dict()['param_groups'][0]['lr'])
-    plt.plot(range(epochs), lr_list, color='r')
-    plt.show()
 
 
 if __name__ == "__main__":
