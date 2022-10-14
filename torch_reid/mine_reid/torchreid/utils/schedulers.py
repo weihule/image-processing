@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 
-def adjust_learning_rate(optimizer, current_epoch, max_epoch, lr_min=0., lr_max=0.1, warmup_epoch=10, warmup=True):
+def adjust_learning_rate(optimizer, current_epoch, max_epoch, lr_min=0., lr_max=0.1, warmup_epoch=5, warmup=True):
     if warmup:
         warmup_epoch = warmup_epoch
     else:

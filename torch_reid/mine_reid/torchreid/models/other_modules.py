@@ -186,6 +186,26 @@ class TripletAttention(nn.Module):
         return x_out
 
 
+class NAM(nn.Module):
+    def __init__(self, channels):
+        super(NAM, self).__init__()
+        self.channels = channels
+        self.bn2 = nn.BatchNorm2d(self.channels, affine=True)
+
+    def forward(self, x):
+        residual = x
+        x = self.bn2(x)
+        weight_bn = self.bn2.weight.data.abs() / torch.sum(self.bn2.weight.data.abs())      # [channel]
+        # 交换维度是为了 weight_bn 进行广播操作 -> [1, 1, 1, channel]
+        # [b, c, h, w] -> [b, h, w, c]
+        x = x.permute(0, 2, 3, 1).contiguous()
+        x = torch.mul(weight_bn, x)
+        x = x.permute(0, 3, 1, 2).contiguous()
+        x = torch.sigmoid(x) * residual
+
+        return x
+
+
 def attention_module(attention_name, channel=None):
     if attention_name == 'se_attention':
         return SEAttention(channel)
@@ -193,6 +213,8 @@ def attention_module(attention_name, channel=None):
         return CBAMAttention(channel)
     elif attention_name == 'triplet_attention':
         return TripletAttention(no_spatial=True)
+    elif attention_name == 'nam_attention':
+        return NAM(channel)
     else:
         raise KeyError(f'Unknown {attention_name}')
 
@@ -202,9 +224,17 @@ if __name__ == "__main__":
     cbam = CBAMAttention(channel=512)
     se = SEAttention(channel=512)
     trip = TripletAttention(no_spatial=True)
+    nam = attention_module('nam_attention', channel=512)
     outs_cbam = cbam(arr)
     outs_se = se(arr)
     outs_trip = trip(arr)
-    print(outs_cbam.shape, outs_se.shape, outs_trip.shape)
+    outs_nam = nam(arr)
+    print(outs_nam.shape)
+
+    a = torch.arange(16).reshape(2, 2, 2, 2)
+    b = torch.tensor([3, 4])
+    ab = torch.mul(a, b)
+    print(a)
+    print(ab)
 
 

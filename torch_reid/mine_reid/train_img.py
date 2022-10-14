@@ -182,7 +182,7 @@ def main(args):
                               loss=args.loss_type,
                               aligned=args.aligned,
                               act_func='prelu',
-                              attention=None)
+                              attention='nam_attention')
     # model = ResNet50(num_classes=dataset.num_train_pids)
     init_pretrained_weights(model, args.pre_train_load_dir)
     if use_gpu and args.use_ddp is False:

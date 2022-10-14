@@ -286,4 +286,22 @@ if __name__ == "__main__":
         'visualize': True
     }
 
-    main(configs)
+    # main(configs)
+
+    ress = [1, 1, 0, 1, 0, 1, 1]
+    res = 0
+    cur = []
+    for i in range(len(ress)):
+        if ress[i] == 1:
+            ress[i] = 0
+            cur.append(i)
+            while cur:
+                cur_i = cur.pop(0)
+                if cur_i + 1 < len(ress):
+                    temp = cur_i + 1
+                    if ress[temp] == 1:
+                        ress[temp] = 0
+                        cur.append(temp)
+                
+            res += 1
+    print(res)

@@ -252,7 +252,7 @@ class OSBlock(nn.Module):
         x2d = self.conv2d(x1)
         x2 = self.gate(x2a) + self.gate(x2b) + self.gate(x2c) + self.gate(x2d)
         x3 = self.conv3(x2)
-        if self.attention:
+        if self.attention is not None:
             x3 = self.attention(x3)
 
         if self.downsample is not None:
