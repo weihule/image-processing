@@ -380,6 +380,7 @@ class OSNet(nn.Module):
         if self.fc is not None:
             f = self.fc(f)
 
+        # 不使用 grad_cam 的测试阶段
         if not self.training and self.loss != 'grad_cam':
             return f, lf
         y = self.classifier(f)  # [b, num_classes]
@@ -486,7 +487,7 @@ def osnet_x1_0(num_classes=1000, act_func='relu', loss='softmax', aligned=False,
                   feature_dim=512,
                   act_func=act_func,
                   loss=loss,
-                  aligned=False,
+                  aligned=aligned,
                   **kwargs)
 
     return model

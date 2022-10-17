@@ -111,11 +111,10 @@ def main(args):
 
     if use_gpu:
         print(f'Currently using GPU {args.gpu_devices}')
-        torch.backends.cudnn.enabled = True  # 说明设置为使用非确定性算法
         # 如果网络的输入数据维度或类型上变化不大，设置 torch.backends.cudnn.benchmark = true 可以增加运行效率
-        cudnn.enabled = False
-        cudnn.benchmark = False
-        cudnn.deterministic = True
+        # cudnn.enabled = False
+        cudnn.benchmark = True
+        cudnn.deterministic = False
     else:
         print('Currently using CPU (GPU is highly recommended)')
 

@@ -134,6 +134,7 @@ class TripletAlignedLoss:
             local_features: shape is [B, 128]
         Returns:
         """
+        device = inputs.device
         n = inputs.shape[0]
         dist = torch.pow(inputs, 2).sum(dim=1, keepdim=True).expand(n, n)
         dist = dist + dist.T
@@ -159,7 +160,8 @@ class TripletAlignedLoss:
         local_dist_ap = batch_local_dist(local_features, p_local_features)    # [batch_size]
         local_dist_an = batch_local_dist(local_features, n_local_features)    # [batch_size]
         # y = torch.ones_like(local_dist_ap)
-        local_loss = self.ranking_local_loss(local_dist_an, local_dist_ap, y)
+
+        local_loss = self.ranking_local_loss(local_dist_an, local_dist_ap, y.to(local_dist_an.device))
         if self.mutual:
             return global_loss+local_loss, dist
 
