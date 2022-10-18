@@ -89,6 +89,7 @@ class MultiScaleCollater():
         imgs = [p['img'] for p in samples]
         annots = [p['annot'] for p in samples]
         scales = [p['scale'] for p in samples]
+        sizes = [p['size'] for p in samples]
 
         batch_size = len(imgs)
 
@@ -103,6 +104,7 @@ class MultiScaleCollater():
 
             annots[index][:, :4] *= resize_factor
             scales[index] *= resize_factor
+            sizes[index] = [origin_h, origin_w]
 
         # padded_img [B, H, W, 3] -> [B, 3, H, W]
         padded_img = padded_img / 255.
@@ -120,7 +122,7 @@ class MultiScaleCollater():
         else:
             padded_annots = torch.ones((batch_size, 1, 5)) * (-1)
 
-        return {'img': padded_img, 'annot': padded_annots, 'scale': scales}
+        return {'img': padded_img, 'annot': padded_annots, 'scale': scales, 'size': sizes}
 
 
 

@@ -85,7 +85,7 @@ def evaluate_voc_detection(test_loader, model, criterion, decoder, args):
         preds, gts = [], []
         model_on_cuda = next(model.parameters()).is_cuda
         end = time.time()
-        for _, data in tqdm(enumerate(test_loader)):
+        for data in tqdm(test_loader):
             images, annots, scales, sizes = data['img'], data['annot'], data['scale'], data['size']
             if model_on_cuda:
                 images, annots = images.cuda(), annots.cuda()
@@ -160,15 +160,9 @@ def evaluate_voc_detection(test_loader, model, criterion, decoder, args):
         for per_iou_threshold in tqdm(args.eval_voc_iou_threshold_list):
             per_iou_threshold_all_class_ap = collections.OrderedDict()
             for class_index in range(args.num_classes):
-                per_class_gt_boxes = [
-                    image[0][image[1] == class_index] for image in gts
-                ]
-                per_class_pred_boxes = [
-                    image[0][image[1] == class_index] for image in preds
-                ]
-                per_class_pred_scores = [
-                    image[2][image[1] == class_index] for image in preds
-                ]
+                per_class_gt_boxes = [image[0][image[1] == class_index] for image in gts]
+                per_class_pred_boxes = [image[0][image[1] == class_index] for image in preds]
+                per_class_pred_scores = [image[2][image[1] == class_index] for image in preds]
 
                 fp = np.zeros((0,))
                 tp = np.zeros((0,))

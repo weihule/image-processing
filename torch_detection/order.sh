@@ -37,7 +37,9 @@ python train.py  --dataset_name 'voc' \
 --pre_train_load_dir '/root/autodl-nas/classification_data/resnet/pths/resnet50-acc76.322.pth' \
 --num_workers 8 \
 --step_size 50 \
---resume 'demo.pth' \
+--resume '/root/autodl-nas/detection_data/new_retinanet/checkpoint_ep1.pth' \
+--eval_step 2 \
+--only_evaluate \
 --use_mosaic \
 --eval_step 50 \
 --save_dir '/root/autodl-nas/detection_data/new_retinanet'

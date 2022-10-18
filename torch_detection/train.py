@@ -56,7 +56,7 @@ def parse_args():
     parser.add_argument('--num_workers', type=int, default=4)
 
     # Miscs
-    parser.add_argument('--print_freq', type=int, default=10, help="print frequency")
+    parser.add_argument('--print_freq', type=int, default=50, help="print frequency")
     parser.add_argument('--seed', type=int, default=3407, help="manual seed")
     parser.add_argument('--resume', type=str, default='checkpoint.pth')
     parser.add_argument('--eval_step', type=int, default=-1,
@@ -71,6 +71,7 @@ def parse_args():
     # Eval
     parser.add_argument('--eval_voc_iou_threshold_list', type=list,
                         default=[0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95])
+    parser.add_argument('--only_evaluate', action='store_true')
 
     args = parser.parse_args()
     return args
@@ -186,7 +187,7 @@ def main(args):
     start_time = time.time()
     train_time = 0.
     best_epoch = 0
-    best_metric, metric, test_loss = 0, 0, 0
+    best_metric, metric, test_loss = 0., 0, 0
 
     if os.path.exists(args.resume):
         print('Load checkpoint from {}'.format(args.resume))
@@ -196,6 +197,19 @@ def main(args):
         optimizer.load_state_dict(checkpoints['optimizer_model_state_dict'])
         scheduler.load_state_dict(checkpoints['scheduler_state_dict'])
         best_metric = checkpoints['best_metric']
+
+    if args.only_evaluate:
+        res_dict = test(args.dataset_name,
+                        test_loader=test_loader,
+                        model=model,
+                        criterion=criterion,
+                        decoder=decoder,
+                        args=args)
+        for k, v in res_dict.items():
+            if 'per_class_ap' in k:
+                continue
+            print(k, v)
+        return
 
     print('===> Start training')
     for epoch in range(start_epoch, args.max_epoch):
@@ -219,31 +233,53 @@ def main(args):
 
         scheduler.step()
 
+        if (epoch + 1) > args.start_eval and (epoch + 1) % args.eval_step == 0 or (epoch + 1) == args.max_epoch:
+            res_dict = test(args.dataset_name,
+                            test_loader=test_loader,
+                            model=model,
+                            criterion=criterion,
+                            decoder=decoder,
+                            args=args)
+            for k, v in res_dict:
+                if 'per_class_ap' in k:
+                    continue
+                print(k, v)
+            max_map = res_dict['IoU=0.50,area=all,maxDets=100,mAP']
+            is_best = max_map >= best_metric
+            if is_best:
+                best_metric = max_map
+                best_epoch = epoch + 1
+            save_states = {
+                'model_state_dict': model.state_dict(),
+                'optimizer_model_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'epoch': epoch,
+                'best_metric': best_metric,
+                'best_epoch': best_epoch
+            }
+            save_checkpoints(save_states,
+                             isbest=True,
+                             save_dir=args.save_dir,
+                             checkpoint_name='checkpoint_ep' + str(epoch + 1) + '.pth')
+
+        # save_states = {
+        #         'model_state_dict': model.state_dict(),
+        #         'optimizer_model_state_dict': optimizer.state_dict(),
+        #         'scheduler_state_dict': scheduler.state_dict(),
+        #         'epoch': epoch,
+        #         'best_metric': best_metric
+        #     }
+        # save_checkpoints(save_states,
+        #                  isbest=True,
+        #                  save_dir=args.save_dir,
+        #                  checkpoint_name='checkpoint_ep' + str(epoch + 1) + '.pth')
+        #
         # res_dict = test(args.dataset_name,
         #                 test_loader=test_loader,
         #                 model=model,
         #                 criterion=criterion,
         #                 decoder=decoder,
         #                 args=args)
-
-        save_states = {
-                'model_state_dict': model.state_dict(),
-                'optimizer_model_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict(),
-                'epoch': epoch,
-                'best_metric': best_metric
-            }
-        save_checkpoints(save_states,
-                         isbest=True,
-                         save_dir=args.save_dir,
-                         checkpoint_name='checkpoint_ep' + str(epoch + 1) + '.pth')
-
-        res_dict = test(args.dataset_name,
-                        test_loader=test_loader,
-                        model=model,
-                        criterion=criterion,
-                        decoder=decoder,
-                        args=args)
 
     train_time = round((time.time() - start_time) / 60, 2)
     print(f'Finnished training. train time: {train_time} mins')
