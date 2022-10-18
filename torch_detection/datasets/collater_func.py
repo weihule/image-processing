@@ -2,7 +2,7 @@ import os
 import torch
 import cv2
 import random
-from data_transfrom import Normalize
+from .data_transfrom import Normalize
 
 __all__ = [
     'collater',

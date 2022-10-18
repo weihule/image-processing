@@ -122,7 +122,11 @@ class VOCDataset(Dataset):
             img = self._load_image(img_id)
             annot = self._load_annotations(img_id)
 
-        sample = {'img': img, 'annot': annot, 'scale': 1.}
+        size = np.array([img.shape[0], img.shape[1]]).astype(np.float32)
+        sample = {'img': img,
+                  'annot': annot,
+                  'scale': np.array(1.).astype(np.float32),
+                  'size': size}
 
         if self.transform:
             sample = self.transform(sample)

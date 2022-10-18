@@ -18,6 +18,7 @@ __all__ = [
 class RetinaNet(nn.Module):
     def __init__(self,
                  backbone_type,
+                 pre_train_load_dir,
                  planes=256,
                  num_anchors=9,
                  num_classes=80):
@@ -26,7 +27,9 @@ class RetinaNet(nn.Module):
         self.num_anchors = num_anchors
         self.num_classes = num_classes
 
-        self.backbone = backbones.__dict__[backbone_type]()
+        self.backbone = backbones.__dict__[backbone_type](
+            **{'pre_train_load_dir': pre_train_load_dir}
+        )
         self.fpn = RetinaFPN(self.backbone.out_channels,
                              self.planes,
                              use_p5=False)
@@ -70,46 +73,52 @@ class RetinaNet(nn.Module):
         return [cls_heads, reg_heads]
 
 
-def _retinanet(backbone_type, num_classes, **kwargs):
+def _retinanet(backbone_type, num_classes, pre_train_load_dir, **kwargs):
     model = RetinaNet(backbone_type,
                       num_classes=num_classes,
+                      pre_train_load_dir=pre_train_load_dir,
                       **kwargs)
 
     return model
 
 
-def resnet18_retinanet(num_classes, **kwargs):
+def resnet18_retinanet(num_classes, pre_train_load_dir, **kwargs):
     return _retinanet('resnet18backbone',
                       num_classes=num_classes,
+                      pre_train_load_dir=pre_train_load_dir,
                       **kwargs)
 
 
-def resnet34_retinanet(num_classes, **kwargs):
+def resnet34_retinanet(num_classes, pre_train_load_dir, **kwargs):
     return _retinanet('resnet34backbone',
                       num_classes=num_classes,
+                      pre_train_load_dir=pre_train_load_dir,
                       **kwargs)
 
 
-def resnet50_retinanet(num_classes, **kwargs):
+def resnet50_retinanet(num_classes, pre_train_load_dir, **kwargs):
     return _retinanet('resnet50backbone',
                       num_classes=num_classes,
+                      pre_train_load_dir=pre_train_load_dir,
                       **kwargs)
 
 
-def resnet101_retinanet(num_classes, **kwargs):
+def resnet101_retinanet(num_classes, pre_train_load_dir, **kwargs):
     return _retinanet('resnet101backbone',
                       num_classes=num_classes,
+                      pre_train_load_dir=pre_train_load_dir,
                       **kwargs)
 
 
-def resnet152_retinanet(num_classes, **kwargs):
+def resnet152_retinanet(num_classes, pre_train_load_dir, **kwargs):
     return _retinanet('resnet152backbone',
                       num_classes=num_classes,
+                      pre_train_load_dir=pre_train_load_dir,
                       **kwargs)
 
 
 if __name__ == "__main__":
-    model = resnet50_retinanet(num_classes=20)
+    model = resnet50_retinanet(num_classes=20, pre_train_load_dir=None)
     inputs = torch.randn(4, 3, 640, 640)
     outputs = model(inputs)
     for p in outputs:

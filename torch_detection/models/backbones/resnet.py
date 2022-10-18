@@ -2,6 +2,10 @@ import os
 import sys
 import torch
 import torch.nn as nn
+sys.path.append(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+))
+from util.utils import load_pretrained_weights
 
 __all__ = [
     'resnet18backbone',
@@ -229,63 +233,71 @@ class ResNetBackbone(nn.Module):
         return [C3, C4, C5]
 
 
-def _resnetbackbone(block, layers, inplanes, **kwargs):
+def _resnetbackbone(block, layers, inplanes, pre_train_load_dir=None, **kwargs):
     model = ResNetBackbone(block, layers, inplanes)
+    load_pretrained_weights(model, pre_train_load_dir)
 
     return model
 
 
-def resnet18backbone(**kwargs):
+def resnet18backbone(pre_train_load_dir=None, **kwargs):
     model = _resnetbackbone(BasicBlock, [2, 2, 2, 2],
                             64,
+                            pre_train_load_dir=pre_train_load_dir,
                             **kwargs)
 
     return model
 
 
-def resnet34halfbackbone(**kwargs):
+def resnet34halfbackbone(pre_train_load_dir=None, **kwargs):
     model = _resnetbackbone(BasicBlock, [3, 4, 6, 3],
                             32,
+                            pre_train_load_dir=pre_train_load_dir,
                             **kwargs)
 
     return model
 
 
-def resnet34backbone(**kwargs):
+def resnet34backbone(pre_train_load_dir=None, **kwargs):
     model = _resnetbackbone(BasicBlock, [3, 4, 6, 3],
                             64,
+                            pre_train_load_dir=pre_train_load_dir,
                             **kwargs)
 
     return model
 
 
-def resnet50halfbackbone(**kwargs):
+def resnet50halfbackbone(pre_train_load_dir=None, **kwargs):
     model = _resnetbackbone(Bottleneck, [3, 4, 6, 3],
                             32,
+                            pre_train_load_dir=pre_train_load_dir,
                             **kwargs)
 
     return model
 
 
-def resnet50backbone(**kwargs):
+def resnet50backbone(pre_train_load_dir=None, **kwargs):
     model = _resnetbackbone(Bottleneck, [3, 4, 6, 3],
                             64,
+                            pre_train_load_dir=pre_train_load_dir,
                             **kwargs)
 
     return model
 
 
-def resnet101backbone(**kwargs):
+def resnet101backbone(pre_train_load_dir=None, **kwargs):
     model = _resnetbackbone(Bottleneck, [3, 4, 23, 3],
                             64,
+                            pre_train_load_dir=pre_train_load_dir,
                             **kwargs)
 
     return model
 
 
-def resnet152backbone(**kwargs):
+def resnet152backbone(pre_train_load_dir=None, **kwargs):
     model = _resnetbackbone(Bottleneck, [3, 8, 36, 3],
                             64,
+                            pre_train_load_dir=pre_train_load_dir,
                             **kwargs)
 
     return model

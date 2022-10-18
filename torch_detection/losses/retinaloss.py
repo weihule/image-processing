@@ -53,9 +53,9 @@ class RetinaLoss(nn.Module):
         self.iou_function = IoUMethod()
 
     def forward(self, preds, annotations):
-        '''
+        """
         compute cls loss and reg loss in one batch
-        '''
+        """
         device = annotations.device
         batch_size = annotations.shape[0]
         cls_preds, reg_preds = preds
@@ -91,7 +91,7 @@ class RetinaLoss(nn.Module):
 
         cls_preds = cls_preds.view(-1, cls_preds.shape[-1])
         reg_preds = reg_preds.view(-1, reg_preds.shape[-1])
-        batch_anchors = batch_anchors.view(-1, batch_anchors.shape[-1])
+        batch_anchors = batch_anchors.view(-1, batch_anchors.shape[-1]).to(device)
         batch_anchors_annotations = batch_anchors_annotations.view(
             -1, batch_anchors_annotations.shape[-1])
 
@@ -313,11 +313,11 @@ class RetinaLoss(nn.Module):
         return snaped_annotations_for_anchors
 
     def snap_txtytwth_to_xyxy(self, snap_boxes, anchors):
-        '''
+        """
         snap reg heads to pred bboxes
         snap_boxes:[batch_size*anchor_nums,4],4:[tx,ty,tw,th]
         anchors:[batch_size*anchor_nums,4],4:[x_min,y_min,x_max,y_max]
-        '''
+        """
         anchors_wh = anchors[:, 2:4] - anchors[:, 0:2]
         anchors_ctr = anchors[:, 0:2] + 0.5 * anchors_wh
 

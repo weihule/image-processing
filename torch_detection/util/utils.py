@@ -6,7 +6,8 @@ import errno
 __all__ = [
     'Logger',
     'mkdir_if_missing',
-    'load_pretrained_weights'
+    'load_pretrained_weights',
+    'save_checkpoints'
 ]
 
 
@@ -62,15 +63,20 @@ def load_pretrained_weights(model, weight_path=None):
         print('No pretrained weight')
         return
     pretrain_dict = torch.load(weight_path)
-    print(pretrain_dict.keys())
-
     model_dict = model.state_dict()
-    print(model_dict.keys())
-    pretrain_dict = {
+
+    valid_pretrain_dict = {
         k: v for k, v in pretrain_dict.items()
-        if k in model_dict and model_dict[k] == v.shape
+        if k in model_dict and model_dict[k].shape == v.shape
     }
-    model_dict.update(pretrain_dict)
-    print('load {} layers params , all {} layers'.format(len(pretrain_dict), len(model_dict)))
+    model_dict.update(valid_pretrain_dict)
+    print('load {} layers params , all {} layers'.format(len(valid_pretrain_dict), len(model_dict)))
     model.load_state_dict(model_dict)
+
+
+def save_checkpoints(states, isbest, save_dir, checkpoint_name):
+    mkdir_if_missing(save_dir)
+    torch.save(states, os.path.join(save_dir, checkpoint_name))
+    if isbest:
+        torch.save(states['model_state_dict'], os.path.join(save_dir, 'best_model.pth'))
 
