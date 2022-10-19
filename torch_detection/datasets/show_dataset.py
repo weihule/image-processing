@@ -11,7 +11,7 @@ from torchvision import transforms
 from torchvision.utils import make_grid
 from pycocotools.coco import COCO
 from custom_dataste import VOCDataset, COCODataset
-from data_transfrom import RandomFlip
+from data_transfrom import RandomFlip, RandomCrop
 from collater_func import MultiScaleCollater
 
 
@@ -19,7 +19,7 @@ def test_make_grid():
     data_transform = {
         'train': transforms.Compose([
             RandomFlip(flip_prob=0.5),
-            # RandomCrop(crop_prob=0.2),
+            RandomCrop(crop_prob=0.35),
             # RandomTranslate(translate_prob=0.2)
         ]),
         'val': transforms.Compose([
@@ -34,7 +34,7 @@ def test_make_grid():
     voc_root_dir = voc_root_dir2
     dataset = VOCDataset(root_dir=voc_root_dir,
                          transform=data_transform['train'],
-                         resize=400,
+                         resize=640,
                          use_mosaic=True)
 
     for i, p in enumerate(dataset):
@@ -73,9 +73,9 @@ def test_make_grid():
 
     detec_collater = MultiScaleCollater(mean=mean,
                                         std=std,
-                                        resize=640,
+                                        resize=560,
                                         stride=32,
-                                        use_multi_scale=False,
+                                        use_multi_scale=True,
                                         normalize=True)
     data_loader = DataLoader(dataset,
                              batch_size=4,

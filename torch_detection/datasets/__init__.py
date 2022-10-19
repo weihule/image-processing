@@ -15,7 +15,8 @@ def init_dataset(dataset_name,
             root_dir=root_dir,
             resize=resize,
             use_mosaic=use_mosaic,
-            transform=transform
+            transform=transform,
+            **kwargs
         )
     elif dataset_name == 'coco2017':
         dataset = COCODataset(
@@ -23,7 +24,8 @@ def init_dataset(dataset_name,
             annotation_root_dir=annotation_root_dir,
             resize=resize,
             use_mosaic=use_mosaic,
-            transform=transform
+            transform=transform,
+            **kwargs
         )
     else:
         raise KeyError(f'Unsupported {dataset_name} type')

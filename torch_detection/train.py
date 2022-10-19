@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import os
+import sys
 import random
 import time
 
@@ -18,11 +19,11 @@ import models
 import metrics
 from models.decoder import RetinaDecoder
 from datasets.collater_func import MultiScaleCollater
-from datasets.data_transfrom import RandomFlip
+from datasets.data_transfrom import RandomFlip, RandomCrop
 from util.avgmeter import AverageMeter
 from util.optimizers import init_optimizer
 from util.schedulers import init_scheduler, adjust_learning_rate
-from util.utils import save_checkpoints
+from util.utils import save_checkpoints, Logger
 
 
 def parse_args():
@@ -70,7 +71,7 @@ def parse_args():
 
     # Eval
     parser.add_argument('--eval_voc_iou_threshold_list', type=list,
-                        default=[0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95])
+                        default=[0.5, 0.6, 0.7, 0.8, 0.9])
     parser.add_argument('--only_evaluate', action='store_true')
 
     args = parser.parse_args()
@@ -89,7 +90,7 @@ def main(args):
     if args.use_cpu:
         use_gpu = False
 
-    # sys.stdout = Logger(os.path.join(args.save_dir, 'train.log'))
+    sys.stdout = Logger(os.path.join(args.save_dir, 'train.log'))
     print(f'==============\nArgs:{args}\n==============')
     cur_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
@@ -104,7 +105,8 @@ def main(args):
 
     data_transform = {
         'train': transforms.Compose([
-            RandomFlip(flip_prob=0.5)
+            RandomFlip(flip_prob=0.5),
+            RandomCrop(crop_prob=0.25)
         ]),
         'test': None
     }
@@ -119,6 +121,7 @@ def main(args):
 
     test_dataset = datasets.init_dataset(args.dataset_name,
                                          root_dir=args.root_dir,
+                                         image_sets=[('2007', 'test')],
                                          image_root_dir=args.image_root_dir,
                                          annotation_root_dir=args.annotation_root_dir,
                                          resize=args.resize,
@@ -147,7 +150,7 @@ def main(args):
                               drop_last=True)
 
     test_loader = DataLoader(test_dataset,
-                             batch_size=args.train_batch,
+                             batch_size=args.test_batch,
                              shuffle=False,
                              num_workers=args.num_workers,
                              pin_memory=args.pin_memory,
@@ -240,7 +243,7 @@ def main(args):
                             criterion=criterion,
                             decoder=decoder,
                             args=args)
-            for k, v in res_dict:
+            for k, v in res_dict.items():
                 if 'per_class_ap' in k:
                     continue
                 print(k, v)

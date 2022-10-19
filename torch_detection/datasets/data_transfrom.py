@@ -36,6 +36,7 @@ class RandomFlip:
             image = cv2.flip(image, 1)
             annots = sample['annot']
             scale = sample['scale']
+            size = sample['size']
 
             height, width, channel = image.shape
 
@@ -45,17 +46,17 @@ class RandomFlip:
             annots[:, 0] = width - x2
             annots[:, 2] = width - x1
 
-            sample = {'img': image, 'annot': annots, 'scale': scale}
+            sample = {'img': image, 'annot': annots, 'scale': scale, 'size': size}
 
         return sample
 
 
 class RandomCrop:
-    def __init__(self, crop_prob=0.5):
+    def __init__(self, crop_prob=0.35):
         self.crop_prob = crop_prob
 
     def __call__(self, sample):
-        image, annots, scale = sample['img'], sample['annot'], sample['scale']
+        image, annots, scale, size = sample['img'], sample['annot'], sample['scale'], sample['size']
         if annots.shape[0] == 0:
             return sample
         prob = random.uniform(0, 1)
@@ -77,7 +78,7 @@ class RandomCrop:
             annots[:, [0, 2]] = annots[:, [0, 2]] - crop_x_min
             annots[:, [1, 3]] = annots[:, [1, 3]] - crop_y_min
 
-            sample = {'img': image, 'annot': annots, 'scale': scale}
+            sample = {'img': image, 'annot': annots, 'scale': scale, 'size': size}
         return sample
 
 

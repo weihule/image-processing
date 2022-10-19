@@ -75,7 +75,11 @@ class VOCDataset(Dataset):
                 sub_annot = self._load_annotations(img_idx)
                 origin_h, origin_w, _ = sub_img.shape
 
-                # 这里四张子图不resize到416
+                # 四张子图resize
+                scale = self.resize * 1.2 / max(origin_h, origin_w)
+                origin_h, origin_w = int(round(scale * origin_h)), int(round(scale * origin_w))
+                sub_img = cv2.resize(sub_img, (origin_w, origin_h))
+                sub_annot[:, :4] *= scale
                 # top left
                 if i == 0:
                     x1a, y1a = max(x_ctr - origin_w, 0), max(y_ctr - origin_h, 0)
@@ -113,7 +117,7 @@ class VOCDataset(Dataset):
                     sub_annot[:, [1, 3]] += pad_h
                 annot.append(sub_annot)
             annot = np.concatenate(annot, axis=0)
-            annot[:, :4] = np.clip(annot[:, :4], a_min=0, a_max=self.resize*2)
+            annot[:, :4] = np.clip(annot[:, :4], a_min=5, a_max=self.resize*2)
 
             annot = annot[annot[:, 2] - annot[:, 0] > 1]
             annot = annot[annot[:, 3] - annot[:, 1] > 1]

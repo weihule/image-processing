@@ -102,26 +102,20 @@ def evaluate_voc_detection(test_loader, model, criterion, decoder, args):
 
             pred_scores, pred_classes, pred_boxes = decoder(outs_tuple)
 
-            pred_boxes /= np.expand_dims(np.expand_dims(scales, axis=-1),
-                                         axis=-1)
+            pred_boxes /= np.expand_dims(np.expand_dims(scales, axis=-1), axis=-1)
 
             torch.cuda.synchronize()
             batch_time.update(time.time() - end, images.size(0))
 
             annots = annots.cpu().numpy()
             gt_bboxes, gt_classes = annots[:, :, 0:4], annots[:, :, 4]
-            gt_bboxes /= np.expand_dims(np.expand_dims(scales, axis=-1),
-                                        axis=-1)
+            gt_bboxes /= np.expand_dims(np.expand_dims(scales, axis=-1), axis=-1)
 
             for per_image_pred_scores, per_image_pred_classes, per_image_pred_boxes, per_image_gt_bboxes, per_image_gt_classes, per_image_size in zip(
-                    pred_scores, pred_classes, pred_boxes, gt_bboxes,
-                    gt_classes, sizes):
-                per_image_pred_scores = per_image_pred_scores[
-                    per_image_pred_classes > -1]
-                per_image_pred_boxes = per_image_pred_boxes[
-                    per_image_pred_classes > -1]
-                per_image_pred_classes = per_image_pred_classes[
-                    per_image_pred_classes > -1]
+                    pred_scores, pred_classes, pred_boxes, gt_bboxes, gt_classes, sizes):
+                per_image_pred_scores = per_image_pred_scores[per_image_pred_classes > -1]
+                per_image_pred_boxes = per_image_pred_boxes[per_image_pred_classes > -1]
+                per_image_pred_classes = per_image_pred_classes[per_image_pred_classes > -1]
 
                 # clip boxes
                 per_image_pred_boxes[:, 0] = np.maximum(per_image_pred_boxes[:, 0], 0)
@@ -130,14 +124,12 @@ def evaluate_voc_detection(test_loader, model, criterion, decoder, args):
                 per_image_pred_boxes[:, 3] = np.minimum(per_image_pred_boxes[:, 3], per_image_size[0])
 
                 preds.append([
-                    per_image_pred_boxes, per_image_pred_classes,
-                    per_image_pred_scores
-                ])
+                    per_image_pred_boxes,
+                    per_image_pred_classes,
+                    per_image_pred_scores])
 
-                per_image_gt_bboxes = per_image_gt_bboxes[
-                    per_image_gt_classes > -1]
-                per_image_gt_classes = per_image_gt_classes[
-                    per_image_gt_classes > -1]
+                per_image_gt_bboxes = per_image_gt_bboxes[per_image_gt_classes > -1]
+                per_image_gt_classes = per_image_gt_classes[per_image_gt_classes > -1]
 
                 gts.append([per_image_gt_bboxes, per_image_gt_classes])
 
@@ -171,22 +163,19 @@ def evaluate_voc_detection(test_loader, model, criterion, decoder, args):
 
                 # loop for each sample
                 for per_image_gt_boxes, per_image_pred_boxes, per_image_pred_scores in zip(
-                        per_class_gt_boxes, per_class_pred_boxes,
-                        per_class_pred_scores):
+                        per_class_gt_boxes, per_class_pred_boxes, per_class_pred_scores):
                     total_gts = total_gts + len(per_image_gt_boxes)
                     # one gt can only be assigned to one predicted bbox
                     assigned_gt = []
                     # loop for each predicted bbox
                     for index in range(len(per_image_pred_boxes)):
-                        scores = np.append(scores,
-                                           per_image_pred_scores[index])
+                        scores = np.append(scores, per_image_pred_scores[index])
                         if per_image_gt_boxes.shape[0] == 0:
                             # if no gts found for the predicted bbox, assign the bbox to fp
                             fp = np.append(fp, 1)
                             tp = np.append(tp, 0)
                             continue
-                        pred_box = np.expand_dims(per_image_pred_boxes[index],
-                                                  axis=0)
+                        pred_box = np.expand_dims(per_image_pred_boxes[index], axis=0)
                         iou = compute_ious(per_image_gt_boxes, pred_box)
                         gt_for_box = np.argmax(iou, axis=0)
                         max_overlap = iou[gt_for_box, 0]
@@ -211,11 +200,9 @@ def evaluate_voc_detection(test_loader, model, criterion, decoder, args):
                 per_iou_threshold_all_class_ap[class_index] = ap * 100
 
             per_iou_threshold_map = 0.
-            for _, per_iou_threshold_per_class_ap in per_iou_threshold_all_class_ap.items(
-            ):
+            for _, per_iou_threshold_per_class_ap in per_iou_threshold_all_class_ap.items():
                 per_iou_threshold_map += float(per_iou_threshold_per_class_ap)
             per_iou_threshold_map /= args.num_classes
-
             all_iou_threshold_map[
                 f'IoU={per_iou_threshold:.2f},area=all,maxDets=100,mAP'] = per_iou_threshold_map
             all_iou_threshold_per_class_ap[

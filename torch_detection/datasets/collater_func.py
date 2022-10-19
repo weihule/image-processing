@@ -104,7 +104,7 @@ class MultiScaleCollater():
 
             annots[index][:, :4] *= resize_factor
             scales[index] *= resize_factor
-            sizes[index] = [origin_h, origin_w]
+            # sizes[index] = [origin_h, origin_w]
 
         # padded_img [B, H, W, 3] -> [B, 3, H, W]
         padded_img = padded_img / 255.

@@ -10,14 +10,11 @@ import torch
 from torch.backends import cudnn
 import json
 
-warnings.filterwarnings('ignore')
+import models
+from models.decoder import RetinaDecoder
+from util.utils import mkdir_if_missing
 
-base_dir = os.path.dirname(
-    os.path.dirname(
-        os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(base_dir)
-from torch_detection.retinanet.retina_decode import RetinaDecoder
-from network_files.retinanet_model import resnet50_retinanet
+warnings.filterwarnings('ignore')
 
 
 class InferResizer:
@@ -26,6 +23,7 @@ class InferResizer:
 
     def __call__(self, image):
         h, w, c = image.shape
+        size = np.array([h, w]).astype(np.float32)
         scale = self.resize / max(h, w)
         resize_h, resize_w = int(round(scale * h)), int(round(scale * w))
 
@@ -34,7 +32,7 @@ class InferResizer:
         padded_img[:resize_h, :resize_w, :] = resize_img
         padded_img = torch.from_numpy(padded_img)
 
-        return {'img': padded_img, 'scale': scale}
+        return {'img': padded_img, 'scale': np.array(scale).astype(np.float32), 'size': size}
 
 
 def infer_folder(mode):
@@ -42,7 +40,7 @@ def infer_folder(mode):
     img_root2 = 'D:\\workspace\\data\\dl\\test_images\\*.jpg'
 
     model_path1 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50_retinanet-metric80.558.pth'
-    model_path2 = 'D:\\workspace\\data\\detection_data\\retinanet\\checkpoints\\latest.pth'
+    model_path2 = 'D:\\Desktop\\best_model.pth'
     model_path3 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/latest.pth'
 
     save_root1 = 'D:\\Desktop\\shows'
@@ -58,15 +56,16 @@ def infer_folder(mode):
         save_root = save_root2
     else:
         raise 'wrong value'
+    mkdir_if_missing(save_root)
 
-    with open('../utils/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
+    with open('./utils/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
         infos = json.load(fr)
         voc_name2id = infos['classes']
         voc_colors = infos['colors']
     voc_id2name = {v: k for k, v in voc_name2id.items()}
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    infer_resizer = InferResizer()
+    infer_resizer = InferResizer(resize=640)
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
     mean = torch.tensor(mean, dtype=torch.float32, device=device).tile(1, 1, 1, 1)
@@ -76,18 +75,24 @@ def infer_folder(mode):
     cudnn.benchmark = True
     cudnn.deterministic = False
 
+    use_gpu = True
+
+    model = models.init_model(name='resnet50_retinanet',
+                              num_classes=20,
+                              pre_train_load_dir=None
+                              )
+    if use_gpu:
+        model = model.cuda()
+
+    checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
+    # checkpoint = checkpoint['model_state_dict']
+
+    model.load_state_dict(checkpoint)
+    model.eval()
+
     with torch.no_grad():
-        model = resnet50_retinanet(num_classes=20).to(device)
-
-        checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
-        checkpoint = checkpoint['model_state_dict']
-
-        model.load_state_dict(checkpoint)
-        model.eval()
-        decoder = RetinaDecoder(min_score_threshold=0.2,
-                                nms_type='python_nms',
-                                nms_threshold=0.15)
-
+        decoder = RetinaDecoder(min_score_threshold=0.15,
+                                nms_type='python_nms')
         img_lists = glob.glob(img_root)
         img_spilt_lists = [img_lists[start: start + infer_batch] for start in range(0, len(img_lists), infer_batch)]
         print(len(img_spilt_lists))
@@ -97,32 +102,42 @@ def infer_folder(mode):
             images_name = [p.split(os.sep)[-1] for p in img_spilt_list]
             images = []
             scales = []
+            sizes = []
             for img in images_src:
                 infos = infer_resizer(img)
                 images.append(infos['img'])
                 scales.append(infos['scale'])
+                sizes.append(infos['size'])
             images_tensor = torch.stack(images, dim=0).to(device)
             images_tensor = images_tensor / 255.
             images_tensor = (images_tensor - mean) / std
             images_tensor = images_tensor.permute(0, 3, 1, 2).contiguous()
-            preds = model(images_tensor)
+            if use_gpu:
+                images_tensor = images_tensor.cuda()
+            outs_tuple = model(images_tensor)
 
-            [batch_scores, batch_classes, batch_pred_bboxes] = decoder(preds)
+            batch_scores, batch_classes, batch_pred_bboxes = decoder(outs_tuple)
 
             # 处理每张图片
-            for scores, classes, pred_bboxes, img, img_name, scale in \
-                    zip(batch_scores, batch_classes, batch_pred_bboxes, images_src, images_name, scales):
+            for scores, classes, pred_bboxes, img, img_name, scale, size in \
+                    zip(batch_scores, batch_classes, batch_pred_bboxes, images_src, images_name, scales, sizes):
 
                 image = Image.fromarray(img)
                 draw = ImageDraw.Draw(image)
                 font_size = 16
-                font = ImageFont.truetype("../utils/simhei.ttf", size=font_size)
+                font = ImageFont.truetype("./utils/simhei.ttf", size=font_size)
 
                 mask = classes >= 0
                 scores, classes, pred_bboxes = scores[mask], classes[mask], pred_bboxes[mask]
+
+                # clip boxes
+                pred_bboxes[:, 0] = np.maximum(pred_bboxes[:, 0], 0)
+                pred_bboxes[:, 1] = np.maximum(pred_bboxes[:, 1], 0)
+                pred_bboxes[:, 2] = np.minimum(pred_bboxes[:, 2], size[1])
+                pred_bboxes[:, 3] = np.minimum(pred_bboxes[:, 3], size[0])
+
                 for class_id, bbox, score in zip(classes, pred_bboxes, scores):
                     bbox = bbox / scale
-
                     score = round(score, 3)
                     category_name = voc_id2name[int(class_id)]
                     text = category_name + ' ' + str(score)
