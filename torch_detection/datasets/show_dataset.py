@@ -28,44 +28,35 @@ def test_make_grid():
     }
 
     # -----------------------------------
-    voc_root_dir1 = '/data/weihule/data/dl/VOCdataset'
-    voc_root_dir2 = 'D:\\workspace\\data\\dl\\VOCdataset'
-
-    voc_root_dir = voc_root_dir2
-    dataset = VOCDataset(root_dir=voc_root_dir,
-                         transform=data_transform['train'],
-                         resize=640,
-                         use_mosaic=True)
-
-    for i, p in enumerate(dataset):
-        print(i, p['img'].shape)
-        if i == 10:
-            break
-    save_root1 = 'images_show'
-    save_root2 = 'D:\\Desktop\\infer_shows'
-
-    save_root = save_root2
-    if not os.path.exists(save_root):
-        os.mkdir(save_root)
-    # -----------------------------------
-
-    # -----------------------------------
-    # data_set_root1 = '/workshop/weihule/data/dl/COCO2017'
-    # data_set_root2 = 'D:\\workspace\\data\\dl\\COCO2017'
-    # data_set_roots = [data_set_root1, data_set_root2]
-    # data_set_root = ''
-    # for p in data_set_roots:
-    #     if os.path.exists(p):
-    #         data_set_root = p
-    #         break
+    # voc_root_dir1 = '/data/weihule/data/dl/VOCdataset'
+    # voc_root_dir2 = 'D:\\workspace\\data\\dl\\VOCdataset'
     #
-    # dataset_path = os.path.join(data_set_root, 'images', 'train2017')
-    # dataset_annot_path = os.path.join(data_set_root, 'annotations')
-    # dataset = COCODataset(image_root_dir=dataset_path,
-    #                       annotation_root_dir=dataset_annot_path,
-    #                       set_name='train2017',
-    #                       use_mosaic=True,
-    #                       transform=data_transform['train'])
+    # voc_root_dir = voc_root_dir2
+    # dataset = VOCDataset(root_dir=voc_root_dir,
+    #                      transform=data_transform['train'],
+    #                      resize=640,
+    #                      use_mosaic=True)
+    #
+    # for i, p in enumerate(dataset):
+    #     print(i, p['img'].shape)
+    #     if i == 10:
+    #         break
+
+    # -----------------------------------
+
+    # -----------------------------------
+    data_set_root1 = '/workshop/weihule/data/dl/COCO2017'
+    data_set_root2 = 'D:\\workspace\\data\\dl\\COCO2017'
+    data_set_roots = [data_set_root1, data_set_root2]
+    data_set_root = data_set_root2
+
+    dataset_path = os.path.join(data_set_root, 'images', 'val2017')
+    dataset_annot_path = os.path.join(data_set_root, 'annotations')
+    dataset = COCODataset(image_root_dir=dataset_path,
+                          annotation_root_dir=dataset_annot_path,
+                          set_name='val2017',
+                          use_mosaic=True,
+                          transform=data_transform['train'])
     # -----------------------------------
     # VOC
     mean = [0.485, 0.456, 0.406]
@@ -89,8 +80,8 @@ def test_make_grid():
     # std = torch.tensor([[[[0.234, 0.239, 0.242]]]], dtype=torch.float32)
 
     # -----------------------------------
-    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pascal_voc_classes.json')
-    # file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'coco_classes.json')
+    # file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pascal_voc_classes.json')
+    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'coco_classes.json')
 
     with open(file_path, 'r', encoding='utf-8') as fr:
         infos = json.load(fr)
@@ -101,6 +92,13 @@ def test_make_grid():
         colors = infos['colors']
     lable_to_category_name = {v: k for k, v in category_name_to_lable.items()}
     # -----------------------------------
+
+    save_root1 = 'images_show'
+    save_root2 = 'D:\\Desktop\\infer_shows'
+
+    save_root = save_root2
+    if not os.path.exists(save_root):
+        os.mkdir(save_root)
 
     b_mean = torch.tensor(mean, dtype=torch.float32).tile(1, 1, 1, 1)
     b_std = torch.tensor(std, dtype=torch.float32).tile(1, 1, 1, 1)

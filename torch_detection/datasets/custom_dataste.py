@@ -228,72 +228,68 @@ class COCODataset(Dataset):
         return len(self.image_ids)
 
     def __getitem__(self, index):
-        if self.use_mosaic and index % 5 == 0:
-            x_ctr, y_ctr = [
-                int(random.uniform(self.resize * self.mosaic_center_range[0],
-                                   self.resize * self.mosaic_center_range[1]))
-                for _ in range(2)
-            ]
+        if self.use_mosaic and index % 2 == 0:
+            x_ctr, y_ctr = [int(random.uniform(self.resize*0.8,
+                                               self.resize*1.2))
+                            for _ in range(2)]
             # all 4 image indices
             imgs_indices = [index] + [
                 random.randint(0, len(self.image_ids) - 1) for _ in range(3)
             ]
 
             annot = []
-            # combined image by 4 images
-            img = np.full((self.resize * 2, self.resize * 2, 3), 111, dtype=np.uint8)
+
+            # combine image by 4 images
+            img = np.full((self.resize*2, self.resize*2, 3), 111, dtype=np.uint8)
 
             for i, img_idx in enumerate(imgs_indices):
                 sub_img = self.load_image(img_idx)
-                sub_annot = self.load_annotations(img_idx)  # (N, 5)
-
+                sub_annot = self.load_annotations(img_idx)
                 origin_h, origin_w, _ = sub_img.shape
-                resize_factor = self.resize * 1.5 / max(origin_h, origin_w)     # 这里的 *1.5 是自己添加的
-                resize_h, resize_w = int(resize_factor * origin_h), int(resize_factor * origin_w)
-                sub_img = cv2.resize(sub_img, (resize_w, resize_h))
-                sub_annot[:, :4] *= resize_factor
 
+                # 四张子图resize
+                scale = self.resize * 1.2 / max(origin_h, origin_w)
+                origin_h, origin_w = int(round(scale * origin_h)), int(round(scale * origin_w))
+                sub_img = cv2.resize(sub_img, (origin_w, origin_h))
+                sub_annot[:, :4] *= scale
                 # top left
                 if i == 0:
-                    # combined image coordinates
-                    x1a, y1a = max(x_ctr - resize_w, 0), max(y_ctr - resize_h, 0)
+                    x1a, y1a = max(x_ctr - origin_w, 0), max(y_ctr - origin_h, 0)
                     x2a, y2a = x_ctr, y_ctr
 
-                    # single img choose area
-                    x1b, y1b = max(resize_w - x_ctr, 0), max(resize_h - y_ctr, 0)
-                    x2b, y2b = resize_w, resize_h
+                    x1b, y1b = max(origin_w - x_ctr, 0), max(origin_h - y_ctr, 0)
+                    x2b, y2b = origin_w, origin_h
+
                 # top right
                 elif i == 1:
-                    x1a, y1a = x_ctr, max(y_ctr - resize_h, 0)
-                    x2a, y2a = min(self.resize * 2, x_ctr + resize_w), y_ctr
+                    x1a, y1a = x_ctr, max(y_ctr - origin_h, 0)
+                    x2a, y2a = min(self.resize * 2, x_ctr + origin_w), y_ctr
 
-                    x1b, y1b = 0, max(resize_h - y_ctr, 0)
-                    x2b, y2b = min(resize_w, self.resize * 2 - x_ctr), resize_h
+                    x1b, y1b = 0, max(origin_h - y_ctr, 0)
+                    x2b, y2b = min(origin_w, self.resize * 2 - x_ctr), origin_h
                 # bottom left img
                 elif i == 2:
-                    x1a, y1a = max(x_ctr - resize_w, 0), y_ctr
-                    x2a, y2a = x_ctr, min(self.resize * 2, y_ctr + resize_h)
+                    x1a, y1a = max(x_ctr - origin_w, 0), y_ctr
+                    x2a, y2a = x_ctr, min(self.resize * 2, y_ctr + origin_h)
 
-                    x1b, y1b = max(resize_w - x_ctr, 0), 0
-                    x2b, y2b = resize_w, min(resize_h, self.resize * 2 - y_ctr)
+                    x1b, y1b = max(origin_w - x_ctr, 0), 0
+                    x2b, y2b = origin_w, min(origin_h, self.resize * 2 - y_ctr)
                 # bottom right img
                 else:
                     x1a, y1a = x_ctr, y_ctr
-                    x2a, y2a = min(self.resize * 2, x_ctr + resize_w), min(self.resize * 2, y_ctr + resize_h)
+                    x2a, y2a = min(self.resize * 2, x_ctr + origin_w), min(self.resize * 2, y_ctr + origin_h)
 
                     x1b, y1b = 0, 0
-                    x2b, y2b = min(resize_w, self.resize * 2 - x_ctr), min(resize_h, self.resize * 2 - y_ctr)
+                    x2b, y2b = min(origin_w, self.resize * 2 - x_ctr), min(origin_h, self.resize * 2 - y_ctr)
 
-                img[y1a: y2a, x1a: x2a] = sub_img[y1b: y2b, x1b: x2b]
+                img[y1a:y2a, x1a:x2a] = sub_img[y1b:y2b, x1b:x2b]
                 pad_w, pad_h = x1a - x1b, y1a - y1b
                 if sub_annot.shape[0] > 0:
                     sub_annot[:, [0, 2]] += pad_w
                     sub_annot[:, [1, 3]] += pad_h
-
                 annot.append(sub_annot)
-
             annot = np.concatenate(annot, axis=0)
-            annot[:, :4] = np.clip(annot[:, :4], a_min=0, a_max=self.resize * 2)
+            annot[:, :4] = np.clip(annot[:, :4], a_min=5, a_max=self.resize*2)
 
             annot = annot[annot[:, 2] - annot[:, 0] > 1]
             annot = annot[annot[:, 3] - annot[:, 1] > 1]
@@ -301,7 +297,11 @@ class COCODataset(Dataset):
             img = self.load_image(index)
             annot = self.load_annotations(index)
 
-        sample = {'img': img, 'annot': annot, 'scale': 1}
+        size = np.array([img.shape[0], img.shape[1]]).astype(np.float32)
+        sample = {'img': img,
+                  'annot': annot,
+                  'scale': np.array(1.).astype(np.float32),
+                  'size': size}
         if self.transform:
             sample = self.transform(sample)
 
@@ -311,8 +311,11 @@ class COCODataset(Dataset):
         # coco.loadImgs 返回一个list, 这里只有一张图片, 所以取索引为0
         img_info = self.coco.loadImgs(self.image_ids[image_index])[0]
         path = os.path.join(self.image_root_dir, img_info['file_name'])
-        img = cv2.imread(path)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if os.path.exists(path):
+            img = cv2.imread(path)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        else:
+            raise ValueError(f'{path} not exists')
 
         # opencv读取的图片转成RGB
         return img.astype(np.float32)

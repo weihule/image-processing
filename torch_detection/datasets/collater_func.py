@@ -2,7 +2,7 @@ import os
 import torch
 import cv2
 import random
-from .data_transfrom import Normalize
+from data_transfrom import Normalize
 
 __all__ = [
     'collater',
@@ -82,6 +82,7 @@ class MultiScaleCollater():
             max_resize = int(
                 ((self.resize + self.stride) * self.multi_scale_range[1]) //
                 self.stride * self.stride)
+            print(range(min_resize, max_resize, self.stride))
             final_resize = random.choice(range(min_resize, max_resize, self.stride))
         else:
             final_resize = self.resize
