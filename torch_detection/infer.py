@@ -217,8 +217,13 @@ if __name__ == "__main__":
     mode_type = 'local'  # company    autodl
     # infer_folder(mode=mode_type)
 
-    ious = np.array([0.05, 0.1, 0.06, 0.3, 0.21, 0.09])
-    print(np.where(ious < 0.1))
+    # arr = np.array([[1, 5, 5, 2], [9, -6, 2, 8], [-3, 7, -9, 1]])
+    # res = np.argmax(arr, axis=1)
+
+    per_image_preds = np.random.random((5, 4))
+    print(per_image_preds)
+    per_image_cls_classes = np.array([0, 3, 2, 0, 1])
+    res = per_image_preds[np.arange(per_image_preds.shape[0]), per_image_cls_classes]
 
     # main_video()
     # show_func()

@@ -203,7 +203,7 @@ class COCODataset(Dataset):
         self.resize = resize
         self.use_mosaic = use_mosaic
         if mosaic_center_range is None:
-            self.mosaic_center_range = [0.5, 1.5]
+            self.mosaic_center_range = [0.5, 2.0]
         self.transform = transform
 
         self.coco = COCO(
@@ -310,7 +310,7 @@ class COCODataset(Dataset):
     def load_image(self, image_index):
         # coco.loadImgs 返回一个list, 这里只有一张图片, 所以取索引为0
         img_info = self.coco.loadImgs(self.image_ids[image_index])[0]
-        path = os.path.join(self.image_root_dir, img_info['file_name'])
+        path = os.path.join(self.image_root_dir, self.set_name, img_info['file_name'])
         if os.path.exists(path):
             img = cv2.imread(path)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)

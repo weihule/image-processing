@@ -50,7 +50,7 @@ def test_make_grid():
     data_set_roots = [data_set_root1, data_set_root2]
     data_set_root = data_set_root2
 
-    dataset_path = os.path.join(data_set_root, 'images', 'val2017')
+    dataset_path = os.path.join(data_set_root, 'images')
     dataset_annot_path = os.path.join(data_set_root, 'annotations')
     dataset = COCODataset(image_root_dir=dataset_path,
                           annotation_root_dir=dataset_annot_path,
@@ -64,7 +64,7 @@ def test_make_grid():
 
     detec_collater = MultiScaleCollater(mean=mean,
                                         std=std,
-                                        resize=560,
+                                        resize=640,
                                         stride=32,
                                         use_multi_scale=True,
                                         normalize=True)
@@ -103,7 +103,6 @@ def test_make_grid():
     b_mean = torch.tensor(mean, dtype=torch.float32).tile(1, 1, 1, 1)
     b_std = torch.tensor(std, dtype=torch.float32).tile(1, 1, 1, 1)
     for index, datas in enumerate(data_loader):
-        print(index)
         batch_images, batch_annots = datas['img'], datas['annot']
         batch_images = batch_images.permute(0, 2, 3, 1).contiguous()
         batch_images = (batch_images * b_std + b_mean) * 255.

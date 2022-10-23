@@ -6,8 +6,6 @@ import time
 from tqdm import tqdm
 
 import torch
-import torch.nn.functional as F
-from pycocotools.cocoeval import COCOeval
 
 sys.path.append(os.path.dirname(
     os.path.dirname(

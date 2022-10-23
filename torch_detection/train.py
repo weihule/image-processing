@@ -111,29 +111,46 @@ def main(args):
         'test': None
     }
 
-    train_dataset = datasets.init_dataset(args.dataset_name,
-                                          root_dir=args.root_dir,
-                                          image_root_dir=args.image_root_dir,
-                                          annotation_root_dir=args.annotation_root_dir,
-                                          resize=args.resize,
-                                          use_mosaic=args.use_mosaic,
-                                          transform=data_transform['train'])
+    if args.dataset_name == 'voc':
+        train_dataset = datasets.init_dataset(args.dataset_name,
+                                              root_dir=args.root_dir,
+                                              image_sets=[('2007', 'trainval'), ('2012', 'trainval')],
+                                              resize=args.resize,
+                                              use_mosaic=args.use_mosaic,
+                                              transform=data_transform['train'])
 
-    test_dataset = datasets.init_dataset(args.dataset_name,
-                                         root_dir=args.root_dir,
-                                         image_sets=[('2007', 'test')],
-                                         image_root_dir=args.image_root_dir,
-                                         annotation_root_dir=args.annotation_root_dir,
-                                         resize=args.resize,
-                                         use_mosaic=False,
-                                         transform=data_transform['test'])
-    # VOC
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
+        test_dataset = datasets.init_dataset(args.dataset_name,
+                                             root_dir=args.root_dir,
+                                             image_sets=[('2007', 'test')],
+                                             resize=args.resize,
+                                             use_mosaic=False,
+                                             transform=data_transform['test'])
+        # VOC
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
 
-    # COCO
-    # mean = [0.471, 0.448, 0.408]
-    # std = [0.234, 0.239, 0.242]
+    elif args.dataset_name == 'coco2017':
+        train_dataset = datasets.init_dataset(args.dataset_name,
+                                              image_root_dir=args.image_root_dir,
+                                              annotation_root_dir=args.annotation_root_dir,
+                                              set_name='train2017',
+                                              resize=args.resize,
+                                              use_mosaic=args.use_mosaic,
+                                              transform=data_transform['train'])
+
+        test_dataset = datasets.init_dataset(args.dataset_name,
+                                             image_root_dir=args.image_root_dir,
+                                             annotation_root_dir=args.annotation_root_dir,
+                                             set_name='val2017',
+                                             resize=args.resize,
+                                             use_mosaic=False,
+                                             transform=data_transform['test'])
+        # COCO
+        mean = [0.471, 0.448, 0.408]
+        std = [0.234, 0.239, 0.242]
+    else:
+        raise ValueError(f'Unsupported {args.dataset_name} dataset')
+
     collate_fn = MultiScaleCollater(mean=mean,
                                     std=std,
                                     resize=args.resize,
@@ -266,27 +283,8 @@ def main(args):
                              save_dir=args.save_dir,
                              checkpoint_name='checkpoint_ep' + str(epoch + 1) + '.pth')
 
-        # save_states = {
-        #         'model_state_dict': model.state_dict(),
-        #         'optimizer_model_state_dict': optimizer.state_dict(),
-        #         'scheduler_state_dict': scheduler.state_dict(),
-        #         'epoch': epoch,
-        #         'best_metric': best_metric
-        #     }
-        # save_checkpoints(save_states,
-        #                  isbest=True,
-        #                  save_dir=args.save_dir,
-        #                  checkpoint_name='checkpoint_ep' + str(epoch + 1) + '.pth')
-        #
-        # res_dict = test(args.dataset_name,
-        #                 test_loader=test_loader,
-        #                 model=model,
-        #                 criterion=criterion,
-        #                 decoder=decoder,
-        #                 args=args)
-
-    train_time = round((time.time() - start_time) / 60, 2)
-    print(f'Finnished training. train time: {train_time} mins')
+    train_time = round((time.time() - start_time) / 3600, 2)
+    print(f'Finnished training. train time: {train_time} hours')
 
 
 def train(epoch, model, criterion, optimizer, trainloader, use_gpu, args):
@@ -321,7 +319,7 @@ def train(epoch, model, criterion, optimizer, trainloader, use_gpu, args):
                 cls_loss, reg_loss = loss_value['cls_loss'], loss_value['reg_loss']
                 loss = sum(loss_value.values())
             scaler.scale(loss).backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             scaler.step(optimizer)
             scaler.update()
 
@@ -356,6 +354,12 @@ def train(epoch, model, criterion, optimizer, trainloader, use_gpu, args):
 def test(eval_type, test_loader, model, criterion, decoder, args):
     if eval_type == 'voc':
         res_dict = metrics.evaluate_voc_detection(test_loader=test_loader,
+                                                  model=model,
+                                                  criterion=criterion,
+                                                  decoder=decoder,
+                                                  args=args)
+    elif eval_type == 'coco2017':
+        res_dict = metrics.evaluate_coco_detection(test_loader=test_loader,
                                                   model=model,
                                                   criterion=criterion,
                                                   decoder=decoder,

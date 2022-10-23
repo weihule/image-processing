@@ -172,43 +172,44 @@ class RetinaDecoder:
             nms_threshold=nms_threshold)
 
     def __call__(self, preds):
+        # if input size:[B,3,640,640]
+        # features shape:[[B, 256, 80, 80],[B, 256, 40, 40],[B, 256, 20, 20],[B, 256, 10, 10],[B, 256, 5, 5]]
+        # cls_heads shape:[[B, 80, 80, 9, 80],[B, 40, 40, 9, 80],[B, 20, 20, 9, 80],[B, 10, 10, 9, 80],[B, 5, 5, 9, 80]]
+        # reg_heads shape:[[B, 80, 80, 9, 4],[B, 40, 40, 9, 4],[B, 20, 20, 9, 4],[B, 10, 10, 9, 4],[B, 5, 5, 9, 4]]
         cls_preds, reg_preds = preds
         feature_size = [[
             per_level_cls_pred.shape[2], per_level_cls_pred.shape[1]
         ] for per_level_cls_pred in cls_preds]
         one_image_anchors = self.anchors(feature_size)
 
+        # cls_preds shape is [batch_size, 80*80*9+40*40*9+..., 80]
         cls_preds = np.concatenate([
             per_cls_pred.cpu().detach().numpy().reshape(
                 per_cls_pred.shape[0], -1, per_cls_pred.shape[-1])
-            for per_cls_pred in cls_preds
-        ],
-                                   axis=1)
+            for per_cls_pred in cls_preds], axis=1)
+
+        # reg_preds shape is [batch_size, 80*80*9+40*40*9+..., 4]
         reg_preds = np.concatenate([
             per_reg_pred.cpu().detach().numpy().reshape(
                 per_reg_pred.shape[0], -1, per_reg_pred.shape[-1])
-            for per_reg_pred in reg_preds
-        ],
-                                   axis=1)
+            for per_reg_pred in reg_preds], axis=1)
 
         one_image_anchors = np.concatenate([
             per_level_anchor.reshape(-1, per_level_anchor.shape[-1])
-            for per_level_anchor in one_image_anchors
-        ],
-                                           axis=0)
+            for per_level_anchor in one_image_anchors], axis=0)
         batch_anchors = np.repeat(np.expand_dims(one_image_anchors, axis=0),
-                                  cls_preds.shape[0],
-                                  axis=0)
+                                  cls_preds.shape[0], axis=0)
 
+        # [batch_size, 80*80*9+40*40*9+...]
         cls_classes = np.argmax(cls_preds, axis=2)
+
+        # [batch_size, 80*80*9+40*40*9+...]
+
+        # per_image_preds[np.arange(per_image_preds.shape[0]), per_image_cls_classes]
+        # 相当于二维mask
         cls_scores = np.concatenate([
-            np.expand_dims(per_image_preds[np.arange(per_image_preds.shape[0]),
-                                           per_image_cls_classes],
-                           axis=0)
-            for per_image_preds, per_image_cls_classes in zip(
-                cls_preds, cls_classes)
-        ],
-                                    axis=0)
+            np.expand_dims(per_image_preds[np.arange(per_image_preds.shape[0]), per_image_cls_classes], axis=0)
+            for per_image_preds, per_image_cls_classes in zip(cls_preds, cls_classes)], axis=0)
 
         pred_bboxes = self.snap_txtytwth_to_x1y1x2y2(reg_preds, batch_anchors)
 

@@ -1,1 +1,2 @@
 from .voc_evaluate import evaluate_voc_detection
+from .coco_evaluate import evaluate_coco_detection

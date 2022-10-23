@@ -1,5 +1,5 @@
-python train.py  --dataset_name 'voc' \
---num_classes 20 \
+python train.py  --dataset_name 'coco2017' \
+--num_classes 80 \
 --root_dir '/ssd/weihule/data/dl/VOCdataset' \
 --image_root_dir '/workshop/weihule/data/dl/COCO2017/images' \
 --annotation_root_dir '/workshop/weihule/data/dl/COCO2017/annotations' \
@@ -14,10 +14,12 @@ python train.py  --dataset_name 'voc' \
 --pre_train_load_dir '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50-acc76.322.pth' \
 --num_workers 8 \
 --step_size 5 \
+--print_freq 80 \
 --resume 'checkpoint_ep1.pth' \
---eval_step 5 \
+--eval_step 1 \
 --use_mosaic \
---save_dir '/workshop/weihule/data/detection_data/retinanet_1022'
+--save_dir '/workshop/weihule/data/detection_data/retinanet_coco1024' \
+--apex
 
 
 #python train.py  --dataset_name 'voc' \
