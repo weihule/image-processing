@@ -2,6 +2,7 @@ import os
 import sys
 import glob
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 from tqdm import tqdm
@@ -65,7 +66,7 @@ def infer_folder(mode):
     voc_id2name = {v: k for k, v in voc_name2id.items()}
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    infer_resizer = InferResizer(resize=640)
+    infer_resizer = InferResizer(resize=420)
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
     mean = torch.tensor(mean, dtype=torch.float32, device=device).tile(1, 1, 1, 1)
@@ -90,13 +91,28 @@ def infer_folder(mode):
     model.load_state_dict(checkpoint)
     model.eval()
 
+    decoder = RetinaDecoder(min_score_threshold=0.21,
+                            nms_type='diou_python_nms')
+    img_lists = glob.glob(img_root)
+    img_spilt_lists = [img_lists[start: start + infer_batch] for start in range(0, len(img_lists), infer_batch)]
+    print(len(img_spilt_lists))
+
+    # 预热, GPU 平时可能为了节能而处于休眠状态, 因此需要预热
+    dummy_input = torch.rand(1, 3, 256, 256).to(device)
+    print('warm up ...\n')
     with torch.no_grad():
-        decoder = RetinaDecoder(min_score_threshold=0.15,
-                                nms_type='python_nms')
-        img_lists = glob.glob(img_root)
-        img_spilt_lists = [img_lists[start: start + infer_batch] for start in range(0, len(img_lists), infer_batch)]
-        print(len(img_spilt_lists))
-        for img_spilt_list in tqdm(img_spilt_lists):
+        for _ in range(100):
+            _ = model(dummy_input)
+
+    # synchronize 等待所有 GPU 任务处理完才返回 CPU 主线程
+    torch.cuda.synchronize()
+
+    starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+
+    times = torch.zeros(len(img_spilt_lists))   # # 存储每轮的时间
+
+    with torch.no_grad():
+        for idx, img_spilt_list in enumerate(tqdm(img_spilt_lists)):
             images_src = [cv2.imread(p) for p in img_spilt_list]
             images_src = [cv2.cvtColor(p, cv2.COLOR_BGR2RGB) for p in images_src]
             images_name = [p.split(os.sep)[-1] for p in img_spilt_list]
@@ -114,7 +130,14 @@ def infer_folder(mode):
             images_tensor = images_tensor.permute(0, 3, 1, 2).contiguous()
             if use_gpu:
                 images_tensor = images_tensor.cuda()
+
+            starter.record()
             outs_tuple = model(images_tensor)
+            ender.record()
+            # 同步GPU时间
+            torch.cuda.synchronize()
+            curr_time = starter.elapsed_time(ender)  # 计算时间
+            times[idx] = curr_time
 
             batch_scores, batch_classes, batch_pred_bboxes = decoder(outs_tuple)
 
@@ -150,6 +173,8 @@ def infer_folder(mode):
                 save_path = os.path.join(save_root, img_name)
                 image.save(save_path)
             # break
+    mean_time = times.mean().item()
+    print("Inference time: {:.2f} ms, FPS: {:.2f} ".format(mean_time, 1000 / mean_time))
 
 
 def main_video():
@@ -176,8 +201,24 @@ def main_video():
     cv2.destroyAllWindows()
 
 
+def show_func():
+    import torch.nn.functional as F
+    x = torch.arange(start=-15, end=15)
+    y = F.sigmoid(x)
+    # y = F.tanh(x)
+
+    plt.plot(x.detach(), y.detach())
+    # plt.imshow()
+    plt.grid()
+    plt.show()
+
+
 if __name__ == "__main__":
     mode_type = 'local'  # company    autodl
-    infer_folder(mode=mode_type)
+    # infer_folder(mode=mode_type)
+
+    ious = np.array([0.05, 0.1, 0.06, 0.3, 0.21, 0.09])
+    print(np.where(ious < 0.1))
 
     # main_video()
+    # show_func()

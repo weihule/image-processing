@@ -177,14 +177,15 @@ def main(args):
                                lr=args.lr,
                                weight_decay=args.weight_decay)
 
-    scheduler = init_scheduler('cosine_annealing_lr',
+    scheduler = init_scheduler('step_lr',
                                optimizer=optimizer,
                                step_size=args.step_size,
                                gamma=args.gamma,
                                args=args)
 
     decoder = RetinaDecoder(nms_type='python_nms',
-                            nms_threshold=0.5)
+                            nms_threshold=0.5,
+                            min_score_threshold=0.1)
     start_epoch = args.start_epoch
 
     start_time = time.time()
@@ -217,14 +218,14 @@ def main(args):
     print('===> Start training')
     for epoch in range(start_epoch, args.max_epoch):
         start_train_time = time.time()
-        # 使用warm up加余弦退火学习率调整
-        adjust_learning_rate(optimizer,
-                             current_epoch=epoch,
-                             max_epoch=args.max_epoch,
-                             lr_min=1e-12,
-                             lr_max=args.lr,
-                             warmup_epoch=0,
-                             warmup=False)
+        # # 使用warm up加余弦退火学习率调整
+        # adjust_learning_rate(optimizer,
+        #                      current_epoch=epoch,
+        #                      max_epoch=args.max_epoch,
+        #                      lr_min=1e-12,
+        #                      lr_max=args.lr,
+        #                      warmup_epoch=0,
+        #                      warmup=False)
         train(epoch=epoch,
               model=model,
               criterion=criterion,

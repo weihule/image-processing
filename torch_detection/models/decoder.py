@@ -22,23 +22,21 @@ class DetNMSMethod:
         self.nms_threshold = nms_threshold
 
     def __call__(self, sorted_bboxes, sorted_scores):
-        '''
+        """
         sorted_bboxes:[anchor_nums,4],4:x_min,y_min,x_max,y_max
         sorted_scores:[anchor_nums],classification predict scores
-        '''
+        """
         if self.nms_type == 'torch_nms':
-            sorted_bboxes, sorted_scores = torch.tensor(sorted_bboxes).cpu(
-            ).detach(), torch.tensor(sorted_scores).cpu().detach()
+            sorted_bboxes = torch.tensor(sorted_bboxes).cpu().detach()
+            sorted_scores = torch.tensor(sorted_scores).cpu().detach()
             keep = nms(sorted_bboxes, sorted_scores, self.nms_threshold)
             keep = keep.cpu().detach().numpy()
         else:
             sorted_bboxes_wh = sorted_bboxes[:, 2:4] - sorted_bboxes[:, 0:2]
-            sorted_bboxes_areas = sorted_bboxes_wh[:, 0] * sorted_bboxes_wh[:,
-                                                                            1]
+            sorted_bboxes_areas = sorted_bboxes_wh[:, 0] * sorted_bboxes_wh[:, 1]
             sorted_bboxes_areas = np.maximum(sorted_bboxes_areas, 0)
 
-            indexes = np.array([i for i in range(sorted_scores.shape[0])],
-                               dtype=np.int32)
+            indexes = np.array([i for i in range(sorted_scores.shape[0])], dtype=np.int32)
 
             keep = []
             while indexes.shape[0] > 0:
@@ -50,28 +48,21 @@ class DetNMSMethod:
 
                 keep_box_area = sorted_bboxes_areas[keep_idx]
 
-                overlap_area_top_left = np.maximum(
-                    sorted_bboxes[keep_idx, 0:2], sorted_bboxes[indexes, 0:2])
-                overlap_area_bot_right = np.minimum(
-                    sorted_bboxes[keep_idx, 2:4], sorted_bboxes[indexes, 2:4])
-                overlap_area_sizes = np.maximum(
-                    overlap_area_bot_right - overlap_area_top_left, 0)
-                overlap_area = overlap_area_sizes[:, 0] * overlap_area_sizes[:,
-                                                                             1]
+                overlap_area_top_left = np.maximum(sorted_bboxes[keep_idx, 0:2], sorted_bboxes[indexes, 0:2])
+                overlap_area_bot_right = np.minimum(sorted_bboxes[keep_idx, 2:4], sorted_bboxes[indexes, 2:4])
+                overlap_area_sizes = np.maximum(overlap_area_bot_right - overlap_area_top_left, 0)
+                overlap_area = overlap_area_sizes[:, 0] * overlap_area_sizes[:, 1]
 
                 # compute ious for top1 pred_bbox and the other pred_bboxes
-                union_area = keep_box_area + sorted_bboxes_areas[
-                    indexes] - overlap_area
+                union_area = keep_box_area + sorted_bboxes_areas[indexes] - overlap_area
                 union_area = np.maximum(union_area, 1e-4)
                 ious = overlap_area / union_area
 
                 if self.nms_type == 'diou_python_nms':
                     enclose_area_top_left = np.minimum(
-                        sorted_bboxes[keep_idx, 0:2], sorted_bboxes[indexes,
-                                                                    0:2])
+                        sorted_bboxes[keep_idx, 0:2], sorted_bboxes[indexes, 0:2])
                     enclose_area_bot_right = np.maximum(
-                        sorted_bboxes[keep_idx, 2:4], sorted_bboxes[indexes,
-                                                                    2:4])
+                        sorted_bboxes[keep_idx, 2:4], sorted_bboxes[indexes, 2:4])
                     enclose_area_sizes = np.maximum(
                         enclose_area_bot_right - enclose_area_top_left, 0)
                     # c2:convex diagonal squared
@@ -110,22 +101,15 @@ class DecodeMethod:
 
     def __call__(self, cls_scores, cls_classes, pred_bboxes):
         batch_size = cls_scores.shape[0]
-        batch_scores = np.ones(
-            (batch_size, self.max_object_num), dtype=np.float32) * (-1)
-        batch_classes = np.ones(
-            (batch_size, self.max_object_num), dtype=np.float32) * (-1)
-        batch_bboxes = np.zeros((batch_size, self.max_object_num, 4),
-                                dtype=np.float32)
+        batch_scores = np.ones((batch_size, self.max_object_num), dtype=np.float32) * (-1)
+        batch_classes = np.ones((batch_size, self.max_object_num), dtype=np.float32) * (-1)
+        batch_bboxes = np.zeros((batch_size, self.max_object_num, 4), dtype=np.float32)
 
-        for i, (per_image_scores, per_image_score_classes,
-                per_image_pred_bboxes) in enumerate(
+        for i, (per_image_scores, per_image_score_classes, per_image_pred_bboxes) in enumerate(
                     zip(cls_scores, cls_classes, pred_bboxes)):
-            score_classes = per_image_score_classes[
-                per_image_scores > self.min_score_threshold].astype(np.float32)
-            bboxes = per_image_pred_bboxes[
-                per_image_scores > self.min_score_threshold].astype(np.float32)
-            scores = per_image_scores[
-                per_image_scores > self.min_score_threshold].astype(np.float32)
+            score_classes = per_image_score_classes[per_image_scores > self.min_score_threshold].astype(np.float32)
+            bboxes = per_image_pred_bboxes[per_image_scores > self.min_score_threshold].astype(np.float32)
+            scores = per_image_scores[per_image_scores > self.min_score_threshold].astype(np.float32)
 
             if scores.shape[0] != 0:
                 # descending sort
@@ -228,9 +212,7 @@ class RetinaDecoder:
 
         pred_bboxes = self.snap_txtytwth_to_x1y1x2y2(reg_preds, batch_anchors)
 
-        [batch_scores, batch_classes,
-         batch_bboxes] = self.decode_function(cls_scores, cls_classes,
-                                              pred_bboxes)
+        [batch_scores, batch_classes, batch_bboxes] = self.decode_function(cls_scores, cls_classes, pred_bboxes)
 
         # batch_scores shape:[batch_size,max_object_num]
         # batch_classes shape:[batch_size,max_object_num]

@@ -7,17 +7,17 @@ python train.py  --dataset_name 'voc' \
 --max_epoch 30 \
 --train_batch 16 \
 --test_batch 16 \
---gpu_devices '5' \
+--gpu_devices '6' \
 --optim 'adam' \
---lr 0.0002 \
+--lr 0.0001 \
 --arch 'resnet50_retinanet' \
 --pre_train_load_dir '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50-acc76.322.pth' \
 --num_workers 8 \
---step_size 50 \
---resume '/root/autodl-nas/detection_data/new_retinanet/checkpoint_ep1.pth' \
+--step_size 5 \
+--resume 'checkpoint_ep1.pth' \
 --eval_step 5 \
 --use_mosaic \
---save_dir '/workshop/weihule/data/detection_data/new_retinanet'
+--save_dir '/workshop/weihule/data/detection_data/retinanet_1022'
 
 
 #python train.py  --dataset_name 'voc' \
