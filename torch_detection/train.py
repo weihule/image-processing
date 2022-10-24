@@ -255,6 +255,19 @@ def main(args):
         scheduler.step()
 
         if (epoch + 1) > args.start_eval and (epoch + 1) % args.eval_step == 0 or (epoch + 1) == args.max_epoch:
+            save_states = {
+                'model_state_dict': model.state_dict(),
+                'optimizer_model_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'epoch': epoch,
+                'best_metric': best_metric,
+                'best_epoch': best_epoch
+            }
+            save_checkpoints(save_states,
+                             save_state=True,
+                             isbest=False,
+                             save_dir=args.save_dir,
+                             checkpoint_name='checkpoint_ep' + str(epoch + 1) + '.pth')
             res_dict = test(args.dataset_name,
                             test_loader=test_loader,
                             model=model,
@@ -270,15 +283,9 @@ def main(args):
             if is_best:
                 best_metric = max_map
                 best_epoch = epoch + 1
-            save_states = {
-                'model_state_dict': model.state_dict(),
-                'optimizer_model_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict(),
-                'epoch': epoch,
-                'best_metric': best_metric,
-                'best_epoch': best_epoch
-            }
+
             save_checkpoints(save_states,
+                             save_state=False,
                              isbest=True,
                              save_dir=args.save_dir,
                              checkpoint_name='checkpoint_ep' + str(epoch + 1) + '.pth')

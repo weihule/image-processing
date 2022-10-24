@@ -42,7 +42,7 @@ def evaluate_coco_detection(test_loader, model, criterion, decoder, args):
 
             outs_tuple = model(images)
             loss_value = criterion(outs_tuple, annots)
-            loss = sum(loss_value.value())
+            loss = sum(loss_value.values())
             losses.update(loss, images.shape[0])
 
             # scores shape:[batch_size,max_object_num]

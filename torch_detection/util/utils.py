@@ -74,9 +74,10 @@ def load_pretrained_weights(model, weight_path=None):
     model.load_state_dict(model_dict)
 
 
-def save_checkpoints(states, isbest, save_dir, checkpoint_name):
+def save_checkpoints(states, save_state, isbest, save_dir, checkpoint_name):
     mkdir_if_missing(save_dir)
-    torch.save(states, os.path.join(save_dir, checkpoint_name))
+    if save_state:
+        torch.save(states, os.path.join(save_dir, checkpoint_name))
     if isbest:
         torch.save(states['model_state_dict'], os.path.join(save_dir, 'best_model.pth'))
 

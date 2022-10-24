@@ -10,6 +10,8 @@ from PIL import Image, ImageDraw, ImageFont
 import torch
 from torch.backends import cudnn
 import json
+import onnx
+import onnxruntime
 
 import models
 from models.decoder import RetinaDecoder
@@ -41,7 +43,7 @@ def infer_folder(mode):
     img_root2 = 'D:\\workspace\\data\\dl\\test_images\\*.jpg'
 
     model_path1 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50_retinanet-metric80.558.pth'
-    model_path2 = 'D:\\Desktop\\best_model.pth'
+    model_path2 = 'D:\\Desktop\\tempfile\\best_model.pth'
     model_path3 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/latest.pth'
 
     save_root1 = 'D:\\Desktop\\shows'
@@ -59,16 +61,29 @@ def infer_folder(mode):
         raise 'wrong value'
     mkdir_if_missing(save_root)
 
-    with open('./utils/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
-        infos = json.load(fr)
-        voc_name2id = infos['classes']
-        voc_colors = infos['colors']
-    voc_id2name = {v: k for k, v in voc_name2id.items()}
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    infer_resizer = InferResizer(resize=420)
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
+    infer_resizer = InferResizer(resize=400)
+    dataset_name = 'coco2017'
+    if dataset_name == 'voc':
+        with open('./datasets/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
+            infos = json.load(fr)
+            name2id = infos['classes']
+            colors = infos['colors']
+        id2name = {v: k for k, v in name2id.items()}
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
+        num_classes = 20
+    elif dataset_name == 'coco2017':
+        with open('./datasets/coco_classes.json', 'r', encoding='utf-8') as fr:
+            infos = json.load(fr)
+            name2id = infos['COCO_CLASSES']
+            colors = infos['colors']
+        id2name = {v: k for k, v in name2id.items()}
+        mean = [0.471, 0.448, 0.408]
+        std = [0.234, 0.239, 0.242]
+        num_classes = 80
+    else:
+        raise ValueError(f'Unsuppoerted {dataset_name} type')
     mean = torch.tensor(mean, dtype=torch.float32, device=device).tile(1, 1, 1, 1)
     std = torch.tensor(std, dtype=torch.float32, device=device).tile(1, 1, 1, 1)
 
@@ -79,7 +94,7 @@ def infer_folder(mode):
     use_gpu = True
 
     model = models.init_model(name='resnet50_retinanet',
-                              num_classes=20,
+                              num_classes=num_classes,
                               pre_train_load_dir=None
                               )
     if use_gpu:
@@ -162,10 +177,10 @@ def infer_folder(mode):
                 for class_id, bbox, score in zip(classes, pred_bboxes, scores):
                     bbox = bbox / scale
                     score = round(score, 3)
-                    category_name = voc_id2name[int(class_id)]
+                    category_name = id2name[int(class_id)]
                     text = category_name + ' ' + str(score)
                     chars_w, chars_h = font.getsize(text)
-                    category_color = tuple(voc_colors[int(class_id)])
+                    category_color = tuple(colors[int(class_id)])
                     draw.rectangle(bbox[:4], outline=category_color, width=2)  # 绘制预测框
                     draw.rectangle((bbox[0], bbox[1] - chars_h, bbox[0] + chars_w, bbox[1]),
                                    fill=category_color)  # 文本填充框
@@ -215,15 +230,6 @@ def show_func():
 
 if __name__ == "__main__":
     mode_type = 'local'  # company    autodl
-    # infer_folder(mode=mode_type)
+    infer_folder(mode=mode_type)
 
-    # arr = np.array([[1, 5, 5, 2], [9, -6, 2, 8], [-3, 7, -9, 1]])
-    # res = np.argmax(arr, axis=1)
 
-    per_image_preds = np.random.random((5, 4))
-    print(per_image_preds)
-    per_image_cls_classes = np.array([0, 3, 2, 0, 1])
-    res = per_image_preds[np.arange(per_image_preds.shape[0]), per_image_cls_classes]
-
-    # main_video()
-    # show_func()
