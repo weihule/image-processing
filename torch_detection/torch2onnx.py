@@ -38,16 +38,16 @@ def convert_torch_model_to_onnx_model(model,
                       do_constant_folding=True,
                       dynamic_axes={
                           input_name: {0: 'batch_size', 2: 'in_height', 3: 'int_width'},
-                          output_name0: {0: 'batch_size', 2: 'in_height', 3: 'int_width'},
-                          output_name1: {0: 'batch_size', 2: 'in_height', 3: 'int_width'},
-                          output_name2: {0: 'batch_size', 2: 'in_height', 3: 'int_width'},
-                          output_name3: {0: 'batch_size', 2: 'in_height', 3: 'int_width'},
-                          output_name4: {0: 'batch_size', 2: 'in_height', 3: 'int_width'},
-                          output_name5: {0: 'batch_size', 2: 'in_height', 3: 'int_width'},
-                          output_name6: {0: 'batch_size', 2: 'in_height', 3: 'int_width'},
-                          output_name7: {0: 'batch_size', 2: 'in_height', 3: 'int_width'},
-                          output_name8: {0: 'batch_size', 2: 'in_height', 3: 'int_width'},
-                          output_name9: {0: 'batch_size', 2: 'in_height', 3: 'int_width'}}
+                          output_name0: {0: 'batch_size', 1: 'in_height', 2: 'int_width'},
+                          output_name1: {0: 'batch_size', 1: 'in_height', 2: 'int_width'},
+                          output_name2: {0: 'batch_size', 1: 'in_height', 2: 'int_width'},
+                          output_name3: {0: 'batch_size', 1: 'in_height', 2: 'int_width'},
+                          output_name4: {0: 'batch_size', 1: 'in_height', 2: 'int_width'},
+                          output_name5: {0: 'batch_size', 1: 'in_height', 2: 'int_width'},
+                          output_name6: {0: 'batch_size', 1: 'in_height', 2: 'int_width'},
+                          output_name7: {0: 'batch_size', 1: 'in_height', 2: 'int_width'},
+                          output_name8: {0: 'batch_size', 1: 'in_height', 2: 'int_width'},
+                          output_name9: {0: 'batch_size', 1: 'in_height', 2: 'int_width'}}
                       )
     # load and check onnx model
     onnx_model = onnx.load(save_file_path)

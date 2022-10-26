@@ -5,12 +5,13 @@ import json
 from PIL import Image, ImageFont, ImageDraw
 import cv2
 from tqdm import tqdm
-
-from anchors import RetinaAnchors
 from onnx_decoder import RetinaDecoder
+import warnings
+warnings.filterwarnings('ignore')
+
 
 class InferResizer:
-    def __init__(self, resize=640):
+    def __init__(self, resize=420):
         self.resize = resize
 
     def __call__(self, image):
@@ -42,7 +43,7 @@ class ONNXModel:
         self.batch_infer = 2
         self.infer_resizer = InferResizer(resize=resize)
         if self.dataset_name == 'voc':
-            with open('./datasets/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
+            with open('../datasets/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
                 infos = json.load(fr)
                 name2id = infos['classes']
                 self.colors = infos['colors']
@@ -50,7 +51,7 @@ class ONNXModel:
             self.mean = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape((1, 1, 1, -1))
             self.std = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape((1, 1, 1, -1))
         elif self.dataset_name == 'coco2017':
-            with open('./datasets/coco_classes.json', 'r', encoding='utf-8') as fr:
+            with open('../datasets/coco_classes.json', 'r', encoding='utf-8') as fr:
                 infos = json.load(fr)
                 name2id = infos['COCO_CLASSES']
                 self.colors = infos['colors']
@@ -60,7 +61,7 @@ class ONNXModel:
         else:
             raise ValueError(f'Unsuppoerted {self.dataset_name} type')
 
-        self.save_root = ''
+        self.save_root = 'D:\\Desktop\\tempfile\\shows'
 
     def get_output_name(self, onnx_session):
         """
@@ -129,19 +130,21 @@ class ONNXModel:
 
     def process(self, prepares):
         all_images_src, all_images_numpy, all_images_name, all_images_scale, all_images_size = prepares
-        for images_numpy, images_name, images_scale, images_size in zip(
-                all_images_numpy, all_images_name, all_images_scale, all_images_size):
+        for images_src, images_numpy, images_name, images_scale, images_size in zip(
+                all_images_src, all_images_numpy, all_images_name, all_images_scale, all_images_size):
             input_feed = self.get_input_feed(self.input_name, images_numpy)
             output_value = self.onnx_session.run(self.output_name, input_feed=input_feed)
+            # for i in output_value:
+            #     print('===', i.shape)
             batch_scores, batch_classes, batch_pred_bboxes = self.decoder(output_value)
 
             # 处理每张图片
             for img, scores, classes, pred_bboxes, img_name, scale, size in zip(
-                    all_images_src, batch_scores, batch_classes, batch_pred_bboxes, images_name, images_scale, images_size):
+                    images_src, batch_scores, batch_classes, batch_pred_bboxes, images_name, images_scale, images_size):
                 image = Image.fromarray(img)
                 draw = ImageDraw.Draw(image)
                 font_size = 16
-                font = ImageFont.truetype("./utils/simhei.ttf", size=font_size)
+                font = ImageFont.truetype("../utils/simhei.ttf", size=font_size)
 
                 mask = classes >= 0
                 scores, classes, pred_bboxes = scores[mask], classes[mask], pred_bboxes[mask]
@@ -172,18 +175,10 @@ class ONNXModel:
 
 
 if __name__ == '__main__':
+    import glob
     onnx_model = 'D:\\Desktop\\tempfile\\best_model.onnx'
-    om = ONNXModel(onnx_model, resize=400)
-    # batched_img = np.random.random((4, 3, 640, 640)).astype(np.float32)
-    # res = om(batched_img)
-    # print(len(res))
-    #
-    # for i in res:
-    #     print(type(i), i.shape)
-
-    arr = (0, 1, 2, 3)
-    for i in arr:
-        print(i)
-
-    print('--', arr[2])
+    img_root = 'D:\\workspace\data\\dl\\test_images\\*.jpg'
+    img_paths = glob.glob(img_root)
+    om = ONNXModel(onnx_model, resize=420)
+    om(img_paths)
 

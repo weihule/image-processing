@@ -10,8 +10,6 @@ from PIL import Image, ImageDraw, ImageFont
 import torch
 from torch.backends import cudnn
 import json
-import onnx
-import onnxruntime
 
 import models
 from models.decoder import RetinaDecoder
@@ -219,8 +217,9 @@ def main_video():
 def show_func():
     import torch.nn.functional as F
     x = torch.arange(start=-15, end=15)
-    y = F.sigmoid(x)
+    # y = F.sigmoid(x)
     # y = F.tanh(x)
+    y = F.relu(x)
 
     plt.plot(x.detach(), y.detach())
     # plt.imshow()
@@ -230,6 +229,8 @@ def show_func():
 
 if __name__ == "__main__":
     mode_type = 'local'  # company    autodl
-    infer_folder(mode=mode_type)
+    # infer_folder(mode=mode_type)
+
+    show_func()
 
 

@@ -4,19 +4,34 @@ import numpy as np
 
 class RetinaAnchors:
     def __init__(self,
-                 areas=([32, 32], [64, 64], [128, 128], [256, 256], [512, 512]),
-                 ratios=(0.5, 1, 2),
-                 scales=(2**0, 2**(1.0 / 3.0), 2**(2.0 / 3.0)),
-                 strides=(8, 16, 32, 64, 128)):
-        self.areas = np.array(areas, dtype=np.float32)
-        self.ratios = np.array(ratios, dtype=np.float32)
-        self.scales = np.array(scales, dtype=np.float32)
-        self.strides = np.array(strides, dtype=np.float32)
+                 areas=None,
+                 ratios=None,
+                 scales=None,
+                 strides=None):
+        if areas is None:
+            self.areas = np.array([[32, 32], [64, 64], [128, 128], [256, 256], [512, 512]], dtype=np.float32)
+        else:
+            self.areas = np.array(areas, dtype=np.float32)
+
+        if ratios is None:
+            self.ratios = np.array([0.5, 1, 2], dtype=np.float32)
+        else:
+            self.ratios = ratios
+
+        if scales is None:
+            self.scales = np.array([2**0, 2**(1.0 / 3.0), 2**(2.0 / 3.0)], dtype=np.float32)
+        else:
+            self.scales = scales
+
+        if strides is None:
+            self.strides = np.array([8, 16, 32, 64, 128], dtype=np.float32)
+        else:
+            self.strides = strides
 
     def __call__(self, fpn_feature_sizes):
-        '''
+        """
         generate one image anchors
-        '''
+        """
         one_image_anchors = []
         for index, area in enumerate(self.areas):
             base_anchors = self.generate_base_anchors(area, self.scales,
