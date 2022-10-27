@@ -95,19 +95,96 @@ class Darknet(nn.Module):
 
 class CSPDarknet(nn.Module):
     def __init__(self,
-                 dep_num,
-                 wid_num,
+                 dep_mul=1,
+                 wid_mul=1,
                  out_features=('dark3', 'dark4', 'dark5'),
                  depthwise=False,
                  act='silu'):
         super(CSPDarknet, self).__init__()
+        assert out_features, 'Please provide output features of darknet'
+        self.out_features = out_features
+        Conv = DWConv if depthwise else BaseConv
+
+        base_channels = int(wid_mul * 64)   # 64
+        base_depth = max(round(dep_mul * 3), 1)  # 3
+
+        # stem
+        self.stem = Focus(in_channels=3,
+                          out_channels=base_channels,
+                          ksize=3,
+                          act=act)
+
+        # dark2
+        self.dark2 = nn.Sequential(
+            Conv(base_channels, base_channels * 2, ksize=3, stride=2, act=act),
+            CSPLayer(base_channels * 2,
+                     base_channels * 2,
+                     n=base_depth,
+                     depthwise=depthwise,
+                     act=act)
+        )
+
+        # dark3
+        self.dark3 = nn.Sequential(
+            Conv(base_channels * 2, base_channels * 4, ksize=3, stride=2, act=act),
+            CSPLayer(base_channels * 4,
+                     base_channels * 4,
+                     n=base_depth * 3,
+                     depthwise=depthwise,
+                     act=act)
+        )
+
+        # dark4
+        self.dark4 = nn.Sequential(
+            Conv(base_channels * 4, base_channels * 8, ksize=3, stride=2, act=act),
+            CSPLayer(base_channels * 8,
+                     base_channels * 8,
+                     n=base_depth * 3,
+                     depthwise=depthwise,
+                     act=act)
+        )
+
+        # dark5
+        self.dark5 = nn.Sequential(
+            Conv(base_channels * 8, base_channels * 16, ksize=3, stride=2, act=act),
+            CSPLayer(base_channels * 16,
+                     base_channels * 16,
+                     n=base_depth,
+                     shortcut=False,
+                     depthwise=depthwise,
+                     act=act)
+        )
+
+    def forward(self, x):
+        outputs = {}
+        x = self.stem(x)        # [b, 64, h/2, w/2]
+        outputs['stem'] = x
+
+        x = self.dark2(x)       # [b, 128, h/4, w/4]
+        outputs['dark2'] = x
+
+        x = self.dark3(x)       # [b, 256, h/8, w/8]
+        outputs['dark3'] = x
+
+        x = self.dark4(x)       # [b, 512, h/16, w/16]
+        outputs['dark4'] = x
+
+        x = self.dark5(x)       # [b, 1024, h/32, w/32]
+        outputs['dark5'] = x
+
+        return {k: v for k, v in outputs.items() if k in self.out_features}
 
 
 if __name__ == "__main__":
     import torch
     dark = Darknet(depth=53)
+    cspdark = CSPDarknet(depthwise=True)
     ins = torch.randn(4, 3, 640, 640)
     outs = dark(ins)
-    for k, v in outs.items():
-        print(k, v.shape)
+    outs2 = cspdark(ins)
+    for name, feature in outs.items():
+        print(name, feature.shape)
+
+    for name, feature in outs2.items():
+        print(name, feature.shape)
 

@@ -45,13 +45,12 @@ class DWConv(nn.Module):
     """
     Depthwise Conv + Conv
     """
-
     def __init__(self, in_channels, out_channels, ksize, stride=1, act='silu'):
         super(DWConv, self).__init__()
         self.dconv = BaseConv(in_channels=in_channels,
-                              out_channels=out_channels,
+                              out_channels=in_channels,
                               ksize=ksize,
-                              groups=out_channels,
+                              groups=in_channels,
                               stride=stride,
                               act=act)
         self.pconv = BaseConv(in_channels=in_channels,
@@ -76,14 +75,14 @@ class Bottleneck(nn.Module):
                  act="silu", ):
         super(Bottleneck, self).__init__()
         hidden_channels = int(out_channels * expansion)
-        conv = DWConv if depthwise else BaseConv
+        Conv = DWConv if depthwise else BaseConv
         self.conv1 = BaseConv(in_channels=in_channels,
                               out_channels=hidden_channels,
                               ksize=1,
                               groups=1,
                               stride=1,
                               act=act)
-        self.conv2 = conv(hidden_channels, out_channels, 3, stride=1, act=act)
+        self.conv2 = Conv(hidden_channels, out_channels, 3, stride=1, act=act)
         self.use_add = shortcut and in_channels == out_channels
 
     def forward(self, x):
@@ -201,7 +200,6 @@ class Focus(nn.Module):
         Args:
             x: [b, c, h, w]
         Returns:
-            [b, 4c, w/2, h/2]
         """
         patch_top_left = x[..., ::2, ::2]
         patch_top_right = x[..., ::2, 1::2]
@@ -214,6 +212,9 @@ class Focus(nn.Module):
 
 if __name__ == "__main__":
     focus = Focus(12, 24, ksize=3, stride=2)
+    dwconv = DWConv(12, 12, ksize=3, stride=2)
     inputs = torch.randn(4, 12, 56, 56)
     outs = focus(inputs)
-    print(outs.shape)
+    outs2 = dwconv(inputs)
+    # print(outs.shape)
+    print(outs2.shape)
