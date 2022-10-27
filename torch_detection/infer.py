@@ -63,7 +63,7 @@ def infer_folder(mode):
     infer_resizer = InferResizer(resize=400)
     dataset_name = 'coco2017'
     if dataset_name == 'voc':
-        with open('./datasets/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
+        with open('datasets/others/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
             infos = json.load(fr)
             name2id = infos['classes']
             colors = infos['colors']
@@ -72,7 +72,7 @@ def infer_folder(mode):
         std = [0.229, 0.224, 0.225]
         num_classes = 20
     elif dataset_name == 'coco2017':
-        with open('./datasets/coco_classes.json', 'r', encoding='utf-8') as fr:
+        with open('datasets/others/coco_classes.json', 'r', encoding='utf-8') as fr:
             infos = json.load(fr)
             name2id = infos['COCO_CLASSES']
             colors = infos['colors']
@@ -214,14 +214,19 @@ def main_video():
     cv2.destroyAllWindows()
 
 
+from models.backbones.darknet import SiLU
 def show_func():
     import torch.nn.functional as F
-    x = torch.arange(start=-15, end=15)
+    x = torch.range(start=-15, end=15, step=0.25)
     # y = F.sigmoid(x)
     # y = F.tanh(x)
-    y = F.relu(x)
+    y1 = F.relu(x)
 
-    plt.plot(x.detach(), y.detach())
+    f = SiLU()
+    y = f(x)
+
+    plt.plot(x.detach(), y.detach(), color='r')
+    plt.plot(x.detach(), y1.detach(), color='b')
     # plt.imshow()
     plt.grid()
     plt.show()

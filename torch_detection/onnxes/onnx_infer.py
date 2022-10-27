@@ -43,7 +43,7 @@ class ONNXModel:
         self.batch_infer = 2
         self.infer_resizer = InferResizer(resize=resize)
         if self.dataset_name == 'voc':
-            with open('../datasets/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
+            with open('../datasets/others/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
                 infos = json.load(fr)
                 name2id = infos['classes']
                 self.colors = infos['colors']
@@ -51,7 +51,7 @@ class ONNXModel:
             self.mean = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape((1, 1, 1, -1))
             self.std = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape((1, 1, 1, -1))
         elif self.dataset_name == 'coco2017':
-            with open('../datasets/coco_classes.json', 'r', encoding='utf-8') as fr:
+            with open('../datasets/others/coco_classes.json', 'r', encoding='utf-8') as fr:
                 infos = json.load(fr)
                 name2id = infos['COCO_CLASSES']
                 self.colors = infos['colors']

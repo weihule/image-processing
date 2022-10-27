@@ -39,7 +39,7 @@ class VOCDataset(Dataset):
         self.categories = None
 
         self.category_name_to_voc_label = dict()
-        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pascal_voc_classes.json')
+        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'others/pascal_voc_classes.json')
 
         with open(file_path, 'r', encoding='utf-8') as fr:
             self.category_name_to_voc_label = json.load(fr)['classes']

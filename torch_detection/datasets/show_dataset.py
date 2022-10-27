@@ -81,7 +81,7 @@ def test_make_grid():
 
     # -----------------------------------
     # file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pascal_voc_classes.json')
-    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'coco_classes.json')
+    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'others/coco_classes.json')
 
     with open(file_path, 'r', encoding='utf-8') as fr:
         infos = json.load(fr)
