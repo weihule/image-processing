@@ -1,5 +1,21 @@
+import os
+import sys
 import torch.nn as nn
 from network_blocks import BaseConv, CSPLayer, SPPBottleneck, DWConv, Focus, ResLayer
+
+sys.path.append(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+))
+print(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+))
+from util.utils import load_pretrained_weights
+
+
+__all__ = [
+    'dark53backbone',
+    'cspdark53backbone'
+]
 
 
 class Darknet(nn.Module):
@@ -173,6 +189,18 @@ class CSPDarknet(nn.Module):
         outputs['dark5'] = x
 
         return {k: v for k, v in outputs.items() if k in self.out_features}
+
+
+def dark53backbone(weight_path=None):
+    model = Darknet(depth=53)
+    load_pretrained_weights(model, weight_path=weight_path)
+    return model
+
+
+def cspdark53backbone(weight_path=None, depthwise=False):
+    model = CSPDarknet(depthwise=depthwise)
+    load_pretrained_weights(model, weight_path=weight_path)
+    return model
 
 
 if __name__ == "__main__":
