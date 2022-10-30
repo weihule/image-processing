@@ -214,7 +214,7 @@ def main_video():
     cv2.destroyAllWindows()
 
 
-from models.backbones.darknet import SiLU
+from models.backbones.network_blocks import SiLU
 def show_func():
     import torch.nn.functional as F
     x = torch.range(start=-15, end=15, step=0.25)
@@ -236,6 +236,10 @@ if __name__ == "__main__":
     mode_type = 'local'  # company    autodl
     # infer_folder(mode=mode_type)
 
-    show_func()
+    # show_func()
+    arr1 = torch.randn(3, 4)
+    arr2 = torch.randn(3, 4)
+    print(torch.stack([arr1, arr2], dim=0).shape)
+    print(torch.cat([arr1, arr2], dim=0).shape)
 
 

@@ -219,15 +219,16 @@ class Focus(nn.Module):
         patch_bot_left = x[..., 1::2, ::2]
         patch_bot_right = x[..., 1::2, 1::2]
         x = torch.cat([patch_top_left, patch_bot_left, patch_top_right, patch_bot_right], dim=1)
+        # print('====', x.shape)
 
         return self.conv(x)
 
 
 if __name__ == "__main__":
-    focus = Focus(12, 24, ksize=3, stride=2)
-    dwconv = DWConv(12, 12, ksize=3, stride=2)
-    inputs = torch.randn(4, 12, 56, 56)
+    focus = Focus(3, 32, ksize=3, stride=1)
+    dwconv = DWConv(3, 32, ksize=3, stride=1)
+    inputs = torch.randn(4, 3, 640, 640)
     outs = focus(inputs)
     outs2 = dwconv(inputs)
-    # print(outs.shape)
+    print(outs.shape)
     print(outs2.shape)

@@ -1,16 +1,14 @@
 import os
 import sys
 import torch.nn as nn
-from network_blocks import BaseConv, CSPLayer, SPPBottleneck, DWConv, Focus, ResLayer
+from .network_blocks import BaseConv, CSPLayer, SPPBottleneck, DWConv, Focus, ResLayer
 
 sys.path.append(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))
-))
-print(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))
-))
-from util.utils import load_pretrained_weights
+    os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))
+    )))
 
+from util.utils import load_pretrained_weights
 
 __all__ = [
     'dark53backbone',
@@ -20,6 +18,7 @@ __all__ = [
 
 class Darknet(nn.Module):
     depth2blocks = {21: [1, 2, 2, 1], 53: [2, 8, 8, 4]}
+
     def __init__(self,
                  depth,
                  in_channels=3,
@@ -39,22 +38,22 @@ class Darknet(nn.Module):
             BaseConv(in_channels, stem_out_channels, ksize=3, stride=1, act='lrelu'),
             *self.make_group_layer(stem_out_channels, num_blocks=1, stride=2)
         )
-        in_channels = stem_out_channels * 2    # 64
+        in_channels = stem_out_channels * 2  # 64
         num_blocks = Darknet.depth2blocks[depth]
         # create darknet with 'stem_out_channels' and 'num_blocks' layers
         # to make model structure more clear, we don't use 'for' statement in python
         self.dark2 = nn.Sequential(
             *self.make_group_layer(in_channels, num_blocks[0], stride=2)
         )
-        in_channels *= 2    # 128
+        in_channels *= 2  # 128
         self.dark3 = nn.Sequential(
             *self.make_group_layer(in_channels, num_blocks[1], stride=2)
         )
-        in_channels *= 2    # 256
+        in_channels *= 2  # 256
         self.dark4 = nn.Sequential(
             *self.make_group_layer(in_channels, num_blocks[2], stride=2)
         )
-        in_channels *= 2    # 512
+        in_channels *= 2  # 512
 
         self.dark5 = nn.Sequential(
             *self.make_group_layer(in_channels, num_blocks[1], stride=2),
@@ -91,7 +90,7 @@ class Darknet(nn.Module):
 
     def forward(self, x):
         outputs = {}
-        x = self.stem(x)   # [b, 64, h/2, w/2]
+        x = self.stem(x)  # [b, 64, h/2, w/2]
         outputs['stem'] = x
 
         x = self.dark2(x)  # [b, 128, h/4, w/4]
@@ -121,7 +120,7 @@ class CSPDarknet(nn.Module):
         self.out_features = out_features
         Conv = DWConv if depthwise else BaseConv
 
-        base_channels = int(wid_mul * 64)   # 64
+        base_channels = int(wid_mul * 64)  # 64
         base_depth = max(round(dep_mul * 3), 1)  # 3
 
         # stem
@@ -173,46 +172,52 @@ class CSPDarknet(nn.Module):
 
     def forward(self, x):
         outputs = {}
-        x = self.stem(x)        # [b, 64, h/2, w/2]
+        x = self.stem(x)  # [b, 64, h/2, w/2]
         outputs['stem'] = x
 
-        x = self.dark2(x)       # [b, 128, h/4, w/4]
+        x = self.dark2(x)  # [b, 128, h/4, w/4]
         outputs['dark2'] = x
 
-        x = self.dark3(x)       # [b, 256, h/8, w/8]
+        x = self.dark3(x)  # [b, 256, h/8, w/8]
         outputs['dark3'] = x
 
-        x = self.dark4(x)       # [b, 512, h/16, w/16]
+        x = self.dark4(x)  # [b, 512, h/16, w/16]
         outputs['dark4'] = x
 
-        x = self.dark5(x)       # [b, 1024, h/32, w/32]
+        x = self.dark5(x)  # [b, 1024, h/32, w/32]
         outputs['dark5'] = x
 
         return {k: v for k, v in outputs.items() if k in self.out_features}
 
 
-def dark53backbone(weight_path=None):
-    model = Darknet(depth=53)
-    load_pretrained_weights(model, weight_path=weight_path)
+def dark21backbone(pre_train_load_dir=None, **kwargs):
+    model = Darknet(depth=21)
+    load_pretrained_weights(model, weight_path=pre_train_load_dir)
     return model
 
 
-def cspdark53backbone(weight_path=None, depthwise=False):
+def dark53backbone(pre_train_load_dir=None, **kwargs):
+    model = Darknet(depth=53)
+    load_pretrained_weights(model, weight_path=pre_train_load_dir)
+    return model
+
+
+def cspdark53backbone(pre_train_load_dir=None, depthwise=False, **kwargs):
     model = CSPDarknet(depthwise=depthwise)
-    load_pretrained_weights(model, weight_path=weight_path)
+    load_pretrained_weights(model, weight_path=pre_train_load_dir)
     return model
 
 
 if __name__ == "__main__":
     import torch
-    dark = Darknet(depth=53)
-    cspdark = CSPDarknet(depthwise=True)
+
+    dark = dark53backbone(pre_train_load_dir='D:\\workspace\\data\\detection_data\\yolox\\yolox_m_model_weights.pth')
+    cspdark = cspdark53backbone(pre_train_load_dir='D:\\workspace\\data\\detection_data\\yolox\\yolox_m_model_weights.pth')
     ins = torch.randn(4, 3, 640, 640)
     outs = dark(ins)
     outs2 = cspdark(ins)
-    for name, feature in outs.items():
-        print(name, feature.shape)
-
-    for name, feature in outs2.items():
-        print(name, feature.shape)
-
+    # p1 = [feature.shape for name, feature in outs.items()]
+    # print(p1)
+    #
+    # p2 = [feature.shape for name, feature in outs2.items()]
+    # print(p2)

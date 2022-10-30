@@ -1,10 +1,9 @@
-import os
-import sys
 import torch
 import torch.nn as nn
 from . import backbones
 from .fpn import RetinaFPN
-from .heads.retinahead import RetinaClsHead, RetinaRegHead
+from .head import RetinaClsHead, RetinaRegHead
+
 
 __all__ = [
     'resnet18_retinanet',

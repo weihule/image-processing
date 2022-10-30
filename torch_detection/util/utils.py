@@ -64,6 +64,9 @@ def load_pretrained_weights(model, weight_path=None):
         return
     pretrain_dict = torch.load(weight_path)
     model_dict = model.state_dict()
+    # print(pretrain_dict.keys())
+    # print('++++++')
+    # print(model_dict.keys())
 
     valid_pretrain_dict = {
         k: v for k, v in pretrain_dict.items()
@@ -80,4 +83,16 @@ def save_checkpoints(states, save_state, isbest, save_dir, checkpoint_name):
         torch.save(states, os.path.join(save_dir, checkpoint_name))
     if isbest:
         torch.save(states['model_state_dict'], os.path.join(save_dir, 'best_model.pth'))
+
+
+def process_checkpoints():
+    weight_path = 'D:\\workspace\\data\\detection_data\\yolox\\yolox_m.pth'
+    save_path = 'D:\\workspace\\data\\detection_data\\yolox\\yolox_m_model_weights.pth'
+    checkpoints = torch.load(weight_path)
+    model_weight = checkpoints['model']
+    torch.save(model_weight, save_path)
+
+
+if __name__ == "__main__":
+    process_checkpoints()
 
