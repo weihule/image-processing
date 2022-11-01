@@ -5,6 +5,7 @@ from math import log
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def createDataset():
     dataset = [[0, 0, 0, 0, 'no'],
                [0, 0, 0, 1, 'no'],
@@ -132,6 +133,7 @@ def calculate_entropy(dataset):
         entropy -= prob * log(prob, 2)
         
     return entropy
+
 
 if __name__ == "__main__":
     dataset, features = createDataset()
