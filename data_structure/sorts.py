@@ -7,6 +7,10 @@ import numpy as np
 "https://www.cnblogs.com/Mufasa/p/10527387.html"
 
 def bubble(arr):
+    """
+    冒泡排序
+    平均时间复杂度 O(n**2)
+    """
     for i in range(0, len(arr)-1):
         for j in range(0, len(arr)-i-1):
             if arr[j] > arr[j+1]:
@@ -42,10 +46,9 @@ if __name__ == "__main__":
     arr = list(np.random.randint(1, 15, size=10))
     print(arr)
 
-    # arr_new = bubble(arr)
+    arr_new = bubble(arr)
     # arr_new = selection(arr)
-    
-    arr_new = insertion(arr)
+    # arr_new = insertion(arr)
     print(arr_new)
     # print(sorted(arr))
     
