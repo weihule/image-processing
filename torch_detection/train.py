@@ -367,10 +367,10 @@ def test(eval_type, test_loader, model, criterion, decoder, args):
                                                   args=args)
     elif eval_type == 'coco2017':
         res_dict = metrics.evaluate_coco_detection(test_loader=test_loader,
-                                                  model=model,
-                                                  criterion=criterion,
-                                                  decoder=decoder,
-                                                  args=args)
+                                                   model=model,
+                                                   criterion=criterion,
+                                                   decoder=decoder,
+                                                   args=args)
     else:
         raise KeyError(f'Unsupported {eval_type} type')
 

@@ -86,6 +86,7 @@ def re_ranking(prob_feature, gal_feature, k1, k2, lambda_value, local_distmat=No
                 k_reciprocal_expansion_index = np.append(k_reciprocal_expansion_index, candidate_k_reciprocal_index)
 
 
+# https://blog.csdn.net/u014453898/article/details/98790860
 def re_ranking2(q_g_dist, q_q_dist, g_g_dist, k1=20, k2=6, lambda_value=0.3):
     # The following naming, e.g. gallery_num, is different from outer scope.
     # Don't care about it.

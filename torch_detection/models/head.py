@@ -8,7 +8,8 @@ from .backbones.network_blocks import DWConv, BaseConv
 
 __all__ = [
     'RetinaClsHead',
-    'RetinaRegHead'
+    'RetinaRegHead',
+    'YOLOXHead'
 ]
 
 
@@ -150,6 +151,13 @@ class YOLOXHead(nn.Module):
             conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
     def forward(self, xin):
+        """
+        if   YOLOFPN
+        Args:
+            xin: [b, 256, h/8, w/8], [b, 512, h/16, w/16], [b, 1024, h/32, w/32]
+        Returns:
+
+        """
         outputs = []
         for k, (cls_conv, reg_conv, stride_this_level, x) in enumerate(
             zip(self.cls_convs, self.reg_convs, self.strides, xin)

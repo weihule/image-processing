@@ -18,6 +18,9 @@ def bubble(arr):
     return arr
 
 def selection(arr):
+    """
+    选择排序
+    """
     for i in range(0, len(arr)-1):
         # 记录最小值的索引
         minIndex = i
@@ -29,27 +32,41 @@ def selection(arr):
     return arr
 
 def insertion(arr):
-
+    """
+    插入排序
+    平均时间复杂度 O(n**2)
+    """
     for i in range(len(arr)):
-        preIndex = i-1       
+        pre_index = i-1       
         current = arr[i]
-        # 需要注意的是，这里是从preIndex倒数往前进行遍历的
-        while preIndex >= 0 and arr[preIndex] > current:    
-            arr[preIndex+1] = arr[preIndex]
-            preIndex -= 1
-        arr[preIndex+1] = current
+        # 需要注意的是，这里是从pre_index倒数往前进行遍历的
+        while pre_index >= 0 and arr[pre_index] > current:    
+            arr[pre_index+1] = arr[pre_index]
+            pre_index -= 1
+        arr[pre_index+1] = current
+    return arr
+
+
+def insertion2(arr):
+    for i in range(len(arr)):
+        for j in range(i, 0, -1):
+            if arr[j] < arr[j-1]:
+                arr[j], arr[j-1] =  arr[j-1], arr[j]
+            else:
+                break
     return arr
 
 
 if __name__ == "__main__":
     random.seed(0)
-    arr = list(np.random.randint(1, 15, size=10))
+    arr = [5, 12, 11, 10, 6, 8, 0, 5, 9]
     print(arr)
 
-    arr_new = bubble(arr)
+    # arr_new = bubble(arr)
     # arr_new = selection(arr)
-    # arr_new = insertion(arr)
+    arr_new = insertion2(arr)
     print(arr_new)
     # print(sorted(arr))
+
     
 
