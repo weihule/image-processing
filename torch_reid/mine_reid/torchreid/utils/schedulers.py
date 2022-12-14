@@ -70,8 +70,8 @@ def de_bug_main():
     model = DeBugModel(num_classes=3)
     model = model.cuda()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, weight_decay=5e-04, momentum=0.9)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
 
     lr_list = []
 
@@ -91,11 +91,16 @@ def de_bug_main():
             loss = torch.tensor(0.8, requires_grad=True)
             loss.backward()
             optimizer.step()
-        print(len(optimizer.param_groups))
-        print('[', epoch, ']', optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_lr())
+        # print(len(optimizer.param_groups))
+        # print('[', epoch, ']', optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_lr())
         # print(optimizer.state_dict())
         # print(scheduler.state_dict())
         scheduler.step()
         lr_list.append(optimizer.state_dict()['param_groups'][0]['lr'])
-    plt.plot(range(epochs), lr_list, color='r')
+    plt.plot(range(epochs), lr_list, color='b')
+    plt.grid(True)
     plt.show()
+
+
+if __name__ == "__main__":
+    de_bug_main()

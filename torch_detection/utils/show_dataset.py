@@ -43,6 +43,8 @@ def test_make_grid():
     save_root2 = 'D:\\Desktop\\infer_shows'
 
     save_root = save_root2
+    if not os.path.exists(save_root):
+        os.mkdir(save_root)
     # -----------------------------------
 
     # -----------------------------------

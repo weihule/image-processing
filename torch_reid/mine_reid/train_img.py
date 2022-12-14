@@ -259,7 +259,7 @@ def main(args):
         scheduler.step()
 
         if (epoch + 1) > args.start_eval and (epoch + 1) % args.eval_step == 0 or (epoch + 1) == args.max_epoch:
-            reranking = True if epoch+1 == args.max_epoch else False
+            reranking = True if epoch + 1 == args.max_epoch else False
             rank1 = test(model, query_loader, gallery_loader, use_gpu, args, reranking=reranking)
             is_best = rank1 >= best_rank1
             if is_best:
@@ -382,9 +382,9 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
             lqf.append(local_feature)
             q_pids.extend(pids)
             q_camids.extend(camids)
-        qf = torch.cat(qf, 0)            # [query_num, 2048]
-        lqf = torch.cat(lqf, 0)          # [query_num, 128, 8]
-        q_pids = np.asarray(q_pids)      # [query_num]
+        qf = torch.cat(qf, 0)  # [query_num, 2048]
+        lqf = torch.cat(lqf, 0)  # [query_num, 128, 8]
+        q_pids = np.asarray(q_pids)  # [query_num]
         q_camids = np.asarray(q_camids)  # [query_num]
 
         print("Extracted features for query set, obtained {}-by-{} matrix".format(qf.shape[0], qf.shape[1]))
@@ -403,9 +403,9 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
             lgf.append(local_feature)
             g_pids.extend(pids)
             g_camids.extend(camids)
-        gf = torch.cat(gf, 0)            # [gallery_num, 2048]
-        lgf = torch.cat(lgf, 0)          # [gallery_num, 128, 8]
-        g_pids = np.asarray(g_pids)      # [gallery_num]
+        gf = torch.cat(gf, 0)  # [gallery_num, 2048]
+        lgf = torch.cat(lgf, 0)  # [gallery_num, 128, 8]
+        g_pids = np.asarray(g_pids)  # [gallery_num]
         g_camids = np.asarray(g_camids)  # [gallery_num]
 
         print("Extracted features for gallery set, obtained {}-by-{} matrix".format(gf.shape[0], gf.shape[1]))
@@ -442,9 +442,9 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
             # g_g_dist = euclidean_dist(g_fs, g_fs)   # [15913, 15913]
 
             # 余弦距离矩阵
-            q_q_dist = np.dot(qf, qf.T)   # [3368, 3368]
-            q_g_dist = np.dot(qf, gf.T)   # [3368, 15913]
-            g_g_dist = np.dot(gf, gf.T)   # [15913, 15913]
+            q_q_dist = np.dot(qf, qf.T)  # [3368, 3368]
+            q_g_dist = np.dot(qf, gf.T)  # [3368, 15913]
+            g_g_dist = np.dot(gf, gf.T)  # [15913, 15913]
             dismat = re_ranking3(q_g_dist, q_q_dist, g_g_dist, k1=20, k2=6)
             print('Compute CMC and mAP for re_ranking')
             cmc, mAP, _ = evaluate(dismat, q_pids, g_pids, q_camids, g_camids)
@@ -458,7 +458,13 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
 
 if __name__ == "__main__":
     arg_infos = parse_args()
-    main(arg_infos)
-    # de_bug_main()
+    # main(arg_infos)
+    arr = torch.tensor([[-0.0259, -0.8373],
+                        [-0.2543, -1.4197],
+                        [1.9638, -1.2965],
+                        [-0.2446, -1.2835]], dtype=torch.float32)
 
-
+    out1 = 1. * arr / (torch.norm(arr, p=2, dim=-1, keepdim=True) + 1e-12)
+    out2 = arr / (torch.norm(arr, p=2, dim=-1, keepdim=True) + 1e-12)
+    print(out1)
+    print(out2)

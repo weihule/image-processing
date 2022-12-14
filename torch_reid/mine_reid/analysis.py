@@ -66,7 +66,8 @@ def main(config):
     test_distance = config['test_distance']
     visualize = config['visualize']
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = gpu_devices
+    # os.environ['CUDA_VISIBLE_DEVICES'] = gpu_devices
+    device = torch.device('cuda')
     use_gpu = torch.cuda.is_available()
 
     # sys.stdout = Logger(os.path.join(config['save_dir'], 'test.log'))
@@ -111,12 +112,14 @@ def main(config):
                               aligned=aligned,
                               act_func='prelu',
                               attention=None)
-    load_dicts = torch.load(pth_path)
-    # for k, v in list(load_dicts.items()):
-    #     if k not in model.state_dict().keys():
-    #         del load_dicts[k]
+    load_dicts = torch.load(pth_path, map_location='cpu')
+
     model.load_state_dict(load_dicts)
-    model = model.cuda()
+    # model = model.cuda()
+    model = model.to(device)
+
+    # 测试状态
+    model.eval()
 
     ranks = [1, 5, 10, 20]
     batch_time = AverageMeter()
@@ -266,10 +269,10 @@ def visualization(dataset, g_pids_indices, save_dir, re_rank=False):
 
 if __name__ == "__main__":
     configs = {
-        'gpu_devices': '5',
-        'save_dir': '/workshop/weihule/data/reid_data/show_res',
+        'gpu_devices': '0',
+        'save_dir': 'D:\\Desktop\\reid_infer',
         'dataset': 'market1501',
-        'root': '/workshop/weihule/data/dl/reid',
+        'root': 'D:\\workspace\\data\\dl\\reid',
         'split_id': 0,
         'cuhk03_labeled': False,
         'cuhk03_classic_split': False,
@@ -278,30 +281,12 @@ if __name__ == "__main__":
         'loss_type': 'softmax_trip',
         'height': 256,
         'width': 128,
-        'test_batch': 32,
-        'pth_path': '/workshop/weihule/data/reid_data/osnet_x1_0_1005/triplet_9344.pth',
-        'aligned': False,
+        'test_batch': 4,
+        'pth_path': 'D:\\workspace\\data\\reid_data\\osnet_softmax_epoch50_9273\\best_model.pth',
+        'aligned': True,
         'reranking': True,
         'test_distance': 'global',
         'visualize': True
     }
 
-    # main(configs)
-
-    ress = [1, 1, 0, 1, 0, 1, 1]
-    res = 0
-    cur = []
-    for i in range(len(ress)):
-        if ress[i] == 1:
-            ress[i] = 0
-            cur.append(i)
-            while cur:
-                cur_i = cur.pop(0)
-                if cur_i + 1 < len(ress):
-                    temp = cur_i + 1
-                    if ress[temp] == 1:
-                        ress[temp] = 0
-                        cur.append(temp)
-                
-            res += 1
-    print(res)
+    main(configs)

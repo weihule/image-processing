@@ -1,7 +1,7 @@
-from email import header
 import os
-from urllib import response
+import re
 import requests
+from lxml import etree
 
 """
 查询数据时, 如果输入查询词条(或者点击回车)之后,页面上方的url不变, 说明这个页面是有
@@ -106,10 +106,40 @@ def medical():
     print(response.json())
 
 
+def test():
+    headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+                    AppleWebKit/537.36 (KHTML, like Gecko) \
+                    Chrome/102.0.0.0 Safari/537.36'
+    }
+    pages = 10
+    'http://www.yinfamuye.com/news/2/#c_portalResNews_list-15958438803860104-4'
+    'http://www.yinfamuye.com/news/2/#c_portalResNews_list-15958438803860104-4.html'
+    url_sub = "http://www.yinfamuye.com/news/2/#c_portalResNews_list-15958438803860104-"
+    for i in range(1, pages+1):
+        url = url_sub + str(i)
+        print(url)
+        res = requests.get(url=url, headers=headers)
+        page_text = res.text
+        html_info = etree.HTML(page_text)
+        ul = html_info.xpath("//div[@class='p_news']/div")
+
+        for idx, li in enumerate(ul):   
+            data_time = li.xpath(".//span[@class='newTime']/text()")[0]
+            title = li.xpath(".//h3[@class='newTitle']/a/text()")[0]
+            print(idx, title, data_time)
+        #     with open('info.txt', 'a', encoding='utf-8') as f:
+        #         strings = 'page_' + str(i) + '\t' + str(idx+1) + '\t' + title + '\t' + data_time + '\n'
+        #         f.write(strings)
+
+
 if __name__ == '__main__':
     # main()
     # requests_get()
     # requests_post()
     # douban()
     # kfc()
-    medical()
+    # medical()
+    
+
+    test()

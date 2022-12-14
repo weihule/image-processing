@@ -22,6 +22,9 @@ class YOLOX(nn.Module):
     def forward(self, x):
         # out_features content features of [dark3, dark4, dark5]
         out_features = self.backbone(x)
+
+        # darknet53: [b, 256, h/8, w/8], [b, 512, h/16, w/16], [b, 512, h/32, w/32]
+        # cspdarknet53: [b, 256, h/8, w/8], [b, 512, h/16, w/16], [b, 1024, h/32, w/32]
         features = [out_features[f] for f in self.in_features]
 
         # [b, 256, h/8, w/8], [b, 512, h/16, w/16], [b, 1024, h/32, w/32]

@@ -1,7 +1,7 @@
 import os
 import sys
 import torch.nn as nn
-from .network_blocks import BaseConv, CSPLayer, SPPBottleneck, DWConv, Focus, ResLayer
+from network_blocks import BaseConv, CSPLayer, SPPBottleneck, DWConv, Focus, ResLayer
 
 sys.path.append(os.path.dirname(
     os.path.dirname(
@@ -211,13 +211,13 @@ def cspdark53backbone(pre_train_load_dir=None, depthwise=False, **kwargs):
 if __name__ == "__main__":
     import torch
 
-    dark = dark53backbone(pre_train_load_dir='D:\\workspace\\data\\detection_data\\yolox\\yolox_m_model_weights.pth')
-    cspdark = cspdark53backbone(pre_train_load_dir='D:\\workspace\\data\\detection_data\\yolox\\yolox_m_model_weights.pth')
+    dark53 = dark53backbone(pre_train_load_dir='D:\\workspace\\data\\detection_data\\yolox\\yolox_m_model_weights.pth')
+    cspdark53 = cspdark53backbone(pre_train_load_dir='D:\\workspace\\data\\detection_data\\yolox\\yolox_m_model_weights.pth')
     ins = torch.randn(4, 3, 640, 640)
-    outs = dark(ins)
-    outs2 = cspdark(ins)
-    # p1 = [feature.shape for name, feature in outs.items()]
-    # print(p1)
-    #
-    # p2 = [feature.shape for name, feature in outs2.items()]
-    # print(p2)
+    outs = dark53(ins)
+    outs2 = cspdark53(ins)
+    p1 = [feature.shape for name, feature in outs.items()]
+    print(p1)
+
+    p2 = [feature.shape for name, feature in outs2.items()]
+    print(p2)

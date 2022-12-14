@@ -363,7 +363,7 @@ class OSNet(nn.Module):
         x = self.featuremaps(x)  # [b, 512, 16, 8]
 
         if not self.training:
-            lf = self.horizontal_pool(x)
+            lf = self.horizontal_pool(x)  # [b, 512, 16, 1]
 
         if self.aligned and self.training:
             lf = self.aligned_bn(x)
@@ -392,7 +392,8 @@ class OSNet(nn.Module):
         if self.loss not in ['softmax', 'softmax_cent', 'softmax_trip', 'softmax_trip_cent']:
             raise KeyError(f'Unsupported {self.loss} loss type')
 
-        if self.aligned:
+        # 训练阶段并且使用aligned
+        if self.aligned and self.training:
             return y, f, lf
         else:
             return y, f
@@ -401,7 +402,7 @@ class OSNet(nn.Module):
         """
 
         Args:
-            fc_dims: (int) 512
+            fc_dims: 512
             input_dim: channels[-1]
             dropout_p: (float)
 

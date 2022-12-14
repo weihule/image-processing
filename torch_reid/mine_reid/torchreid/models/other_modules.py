@@ -225,16 +225,14 @@ if __name__ == "__main__":
     se = SEAttention(channel=512)
     trip = TripletAttention(no_spatial=True)
     nam = attention_module('nam_attention', channel=512)
-    outs_cbam = cbam(arr)
-    outs_se = se(arr)
-    outs_trip = trip(arr)
-    outs_nam = nam(arr)
-    print(outs_nam.shape)
 
-    a = torch.arange(16).reshape(2, 2, 2, 2)
-    b = torch.tensor([3, 4])
-    ab = torch.mul(a, b)
-    print(a)
-    print(ab)
+    horizontal_pool = HorizontalPooling()       # 水平池化操作
+    output_horizontal = horizontal_pool(arr)
+    print(output_horizontal.shape)
+
+    arr = torch.randn(4, 3, 16, 16)
+    arr_out = F.max_pool2d(arr, kernel_size=(1, 16))
+    print(arr_out.shape)
+
 
 
