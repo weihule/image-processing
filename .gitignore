@@ -20,3 +20,5 @@ torch_reID/deep-person-reid/reid-data/*/*/
 */*/*.log
 */*/*/*.log
 py_other/py/*.txt
+py_other/py/*.xlsx
+py_other/py/*.xls
