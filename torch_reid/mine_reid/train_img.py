@@ -373,6 +373,7 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
                 imgs = imgs.cuda()
 
             end = time.time()
+
             # features: [batch_size, 2048], local_feature: [batch_size, 128, 8]
             features, local_feature = model(imgs)
             batch_time.update(time.time() - end)

@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .other_modules import activate_function, HorizontalPooling
-from .other_modules import attention_module
+from other_modules import activate_function, HorizontalPooling
+from other_modules import attention_module
 
 __all__ = [
     'osnet_x1_0',
@@ -107,7 +107,7 @@ class LightConv3x3(nn.Module):
     1x1 (linear) + dw 3x3 (nolinear)
     """
 
-    def __init__(self, in_channels, out_channels, act_func):
+    def __init__(self, in_channels, out_channels, act_func=None):
         super(LightConv3x3, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=in_channels,
                                out_channels=out_channels,
@@ -173,7 +173,8 @@ class ChannelGate(nn.Module):
         if gate_activation == 'sigmoid':
             self.gate_activation = nn.Sigmoid()
         elif gate_activation == 'relu':
-            self.gate_activation = nn.ReLU(inplace=True)
+            self.gate_activation = activate_function(act_name='relu',
+                                                     channels=num_gates)
         elif gate_activation == 'linear':
             self.gate_activation = None
         elif gate_activation == 'frelu':
@@ -212,24 +213,24 @@ class OSBlock(nn.Module):
                  **kwargs):
         super(OSBlock, self).__init__()
         mid_channels = out_channels // bottleneck_reduction
-        self.conv1 = Conv1x1(in_channels, mid_channels, act_func=act_func)
-        self.conv2a = LightConv3x3(mid_channels, mid_channels, act_func=act_func)
+        self.conv1 = Conv1x1(in_channels, mid_channels, act_func='relu')
+        self.conv2a = LightConv3x3(mid_channels, mid_channels, act_func='relu')
         self.conv2b = nn.Sequential(
-            LightConv3x3(mid_channels, mid_channels, act_func),
-            LightConv3x3(mid_channels, mid_channels, act_func)
+            LightConv3x3(mid_channels, mid_channels, act_func='relu'),
+            LightConv3x3(mid_channels, mid_channels, act_func='relu')
         )
         self.conv2c = nn.Sequential(
-            LightConv3x3(mid_channels, mid_channels, act_func),
-            LightConv3x3(mid_channels, mid_channels, act_func),
-            LightConv3x3(mid_channels, mid_channels, act_func)
+            LightConv3x3(mid_channels, mid_channels, act_func='relu'),
+            LightConv3x3(mid_channels, mid_channels, act_func='relu'),
+            LightConv3x3(mid_channels, mid_channels, act_func='relu')
         )
         self.conv2d = nn.Sequential(
-            LightConv3x3(mid_channels, mid_channels, act_func),
-            LightConv3x3(mid_channels, mid_channels, act_func),
-            LightConv3x3(mid_channels, mid_channels, act_func),
-            LightConv3x3(mid_channels, mid_channels, act_func)
+            LightConv3x3(mid_channels, mid_channels, act_func='relu'),
+            LightConv3x3(mid_channels, mid_channels, act_func='relu'),
+            LightConv3x3(mid_channels, mid_channels, act_func='relu'),
+            LightConv3x3(mid_channels, mid_channels, act_func='relu')
         )
-        self.gate = ChannelGate(mid_channels, act_func=act_func)
+        self.gate = ChannelGate(mid_channels, act_func='relu')
         self.conv3 = Conv1x1Linear(mid_channels, out_channels)
         self.downsample = None
         if in_channels != out_channels:
@@ -366,6 +367,7 @@ class OSNet(nn.Module):
             lf = self.horizontal_pool(x)  # [b, 512, 16, 1]
 
         if self.aligned and self.training:
+            print('---', x.shape)
             lf = self.aligned_bn(x)
             lf = self.aligned_relu(lf)
             lf = self.horizontal_pool(lf)  # [b, 512, 16, 1]
@@ -380,8 +382,8 @@ class OSNet(nn.Module):
         if self.fc is not None:
             f = self.fc(f)
 
-        # 不使用 grad_cam 的测试阶段
-        if not self.training and self.loss != 'grad_cam':
+        # 测试阶段使用 f 和 lf
+        if not self.training:
             return f, lf
         y = self.classifier(f)  # [b, num_classes]
 
@@ -396,6 +398,7 @@ class OSNet(nn.Module):
         if self.aligned and self.training:
             return y, f, lf
         else:
+            print('执行这里')
             return y, f
 
     def _construct_fc_layer(self, fc_dims, input_dim, dropout_p=None):
@@ -502,7 +505,7 @@ def osnet_x0_75(num_classes=1000, act_func='relu', loss='softmax', aligned=False
                   feature_dim=512,
                   act_func=act_func,
                   loss=loss,
-                  aligned=False,
+                  aligned=aligned,
                   **kwargs)
 
     return model
@@ -510,6 +513,10 @@ def osnet_x0_75(num_classes=1000, act_func='relu', loss='softmax', aligned=False
 
 if __name__ == "__main__":
     arr = torch.randn(4, 3, 256, 128)
-    model = osnet_x0_75(num_classes=751, act_func='relu', loss='softmax_trip')
-    outs, features = model(arr)
-    print(outs.shape, features.shape, model.feature_dim)
+    flag_align = True
+    model = osnet_x0_75(num_classes=751, act_func='relu', loss='softmax_trip', aligned=flag_align)
+
+    if flag_align:
+        outs, local_features = model(arr)
+    else:
+        outs, features, local_feature = model(arr)
