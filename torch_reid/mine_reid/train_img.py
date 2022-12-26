@@ -100,12 +100,11 @@ def main(args):
     if args.use_cpu:
         use_gpu = False
 
-    if args.evaluate is False:
-        sys.stdout = Logger(os.path.join(args.save_dir, 'train.log'))
+    # if args.evaluate is False:
+    #     sys.stdout = Logger(os.path.join(args.save_dir, 'train.log'))
     # else:
     #     sys.stdout = Logger(os.path.join(args.save_dir, 'test.log'))
     print(f'==============\nArgs:{args}\n==============')
-    print('****************mine_reid****************')
     cur_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(args.loss_type, '--------', cur_time)
 
@@ -459,13 +458,13 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
 
 if __name__ == "__main__":
     arg_infos = parse_args()
-    # main(arg_infos)
-    arr = torch.tensor([[-0.0259, -0.8373],
-                        [-0.2543, -1.4197],
-                        [1.9638, -1.2965],
-                        [-0.2446, -1.2835]], dtype=torch.float32)
-
-    out1 = 1. * arr / (torch.norm(arr, p=2, dim=-1, keepdim=True) + 1e-12)
-    out2 = arr / (torch.norm(arr, p=2, dim=-1, keepdim=True) + 1e-12)
-    print(out1)
-    print(out2)
+    main(arg_infos)
+    # arr = torch.tensor([[-0.0259, -0.8373],
+    #                     [-0.2543, -1.4197],
+    #                     [1.9638, -1.2965],
+    #                     [-0.2446, -1.2835]], dtype=torch.float32)
+    #
+    # out1 = 1. * arr / (torch.norm(arr, p=2, dim=-1, keepdim=True) + 1e-12)
+    # out2 = arr / (torch.norm(arr, p=2, dim=-1, keepdim=True) + 1e-12)
+    # print(out1)
+    # print(out2)

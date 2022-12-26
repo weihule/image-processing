@@ -13,6 +13,7 @@ __factory = {
     'resnet50': resnet50,
     'osnet_x1_0': osnet_x1_0,
     'osnet_x0_75': osnet_x0_75,
+    'osnet_x0_5': osnet_x0_5
 }
 
 

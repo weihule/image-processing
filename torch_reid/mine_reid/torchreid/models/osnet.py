@@ -3,12 +3,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from other_modules import activate_function, HorizontalPooling
-from other_modules import attention_module
+from .other_modules import activate_function, HorizontalPooling
+from .other_modules import attention_module
 
 __all__ = [
     'osnet_x1_0',
-    'osnet_x0_75'
+    'osnet_x0_75',
+    'osnet_x0_5'
 ]
 
 
@@ -235,10 +236,13 @@ class OSBlock(nn.Module):
         self.downsample = None
         if in_channels != out_channels:
             self.downsample = Conv1x1Linear(in_channels, out_channels)
+
         self.IN = None
         if IN:
             self.IN = nn.InstanceNorm2d(out_channels, affine=True)
         self.act_fun = activate_function(act_func, out_channels)
+
+        # 注意力模块(只在stage的最后一个block中使用)
         if attention:
             self.attention = attention_module(attention, channel=out_channels)
         else:
@@ -253,14 +257,19 @@ class OSBlock(nn.Module):
         x2d = self.conv2d(x1)
         x2 = self.gate(x2a) + self.gate(x2b) + self.gate(x2c) + self.gate(x2d)
         x3 = self.conv3(x2)
+
+        # 注意力模块的添加位置
         if self.attention is not None:
-            x3 = self.attention(x3)
+            attention_x3 = self.attention(x3)
+            x3 = attention_x3 + x3
 
         if self.downsample is not None:
             identity = self.downsample(identity)
+
         out = x3 + identity
         if self.IN is not None:
             out = self.IN(out)
+
         out = self.act_fun(out)
 
         return out
@@ -343,9 +352,9 @@ class OSNet(nn.Module):
         self.classifier = nn.Linear(self.feature_dim, num_classes)
 
         if self.aligned:
-            self.aligned_bn = nn.BatchNorm2d(self.feature_dim)
+            self.aligned_bn = nn.BatchNorm2d(channels[3])
             self.aligned_relu = nn.ReLU(inplace=True)
-            self.aligned_conv1 = nn.Conv2d(self.feature_dim, 128, kernel_size=1, stride=1, padding=0, bias=True)
+            self.aligned_conv1 = nn.Conv2d(channels[3], 128, kernel_size=1, stride=1, padding=0, bias=True)
 
         self._init_params()
 
@@ -361,13 +370,12 @@ class OSNet(nn.Module):
         return x
 
     def forward(self, x):
-        x = self.featuremaps(x)  # [b, 512, 16, 8]
+        x = self.featuremaps(x)  # [b, channels[3], 16, 8]
 
         if not self.training:
-            lf = self.horizontal_pool(x)  # [b, 512, 16, 1]
+            lf = self.horizontal_pool(x)  # [b, channels[3], 16, 1]
 
         if self.aligned and self.training:
-            print('---', x.shape)
             lf = self.aligned_bn(x)
             lf = self.aligned_relu(lf)
             lf = self.horizontal_pool(lf)  # [b, 512, 16, 1]
@@ -377,8 +385,8 @@ class OSNet(nn.Module):
             lf = lf.view(lf.shape[:3])  # [b, 128, 16]
             lf = lf / torch.pow(lf, 2).sum(dim=1, keepdim=True).clamp(min=1e-12).sqrt()
 
-        f = F.avg_pool2d(x, x.shape[2:])  # [b, 512, 1, 1]
-        f = f.reshape(f.shape[0], -1)  # [b, 512]
+        f = F.avg_pool2d(x, x.shape[2:])  # [b, channels[3], 1, 1]
+        f = f.reshape(f.shape[0], -1)  # [b, channels[3]]
         if self.fc is not None:
             f = self.fc(f)
 
@@ -398,7 +406,6 @@ class OSNet(nn.Module):
         if self.aligned and self.training:
             return y, f, lf
         else:
-            print('执行这里')
             return y, f
 
     def _construct_fc_layer(self, fc_dims, input_dim, dropout_p=None):
@@ -464,12 +471,13 @@ class OSNet(nn.Module):
                      attention=None,
                      IN=False):
         """
-        layer 是 block 的重复次数
+        layer 是 block 的重复次数, 在osnet中block都是重复堆叠两次
         """
         layers = []
-        layers.append(block(in_channels, out_channels, act_func=act_func, attention=attention, IN=IN))
-        for i in range(1, layer):
-            layers.append(block(out_channels, out_channels, act_func=act_func, attention=attention, IN=IN))
+        layers.append(block(in_channels, out_channels, act_func=act_func, attention=None, IN=IN))
+
+        # TODO: block的堆叠次数都是2, 所以就不用for循环添加了, 在每个stage的最后一个block中添加注意力机制
+        layers.append(block(out_channels, out_channels, act_func=act_func, attention=attention, IN=IN))
 
         # 宽高减半
         if reduce_spatial_size:
@@ -483,13 +491,14 @@ class OSNet(nn.Module):
         return nn.Sequential(*layers)
 
 
-def osnet_x1_0(num_classes=1000, act_func='relu', loss='softmax', aligned=False, **kwargs):
+def osnet_x1_0(num_classes=1000, act_func='relu', attention=None, loss='softmax', aligned=False, **kwargs):
     model = OSNet(num_classes,
                   blocks=[OSBlock, OSBlock, OSBlock],
                   layers=[2, 2, 2],
                   channels=[64, 256, 384, 512],
                   feature_dim=512,
                   act_func=act_func,
+                  attention=attention,
                   loss=loss,
                   aligned=aligned,
                   **kwargs)
@@ -497,13 +506,29 @@ def osnet_x1_0(num_classes=1000, act_func='relu', loss='softmax', aligned=False,
     return model
 
 
-def osnet_x0_75(num_classes=1000, act_func='relu', loss='softmax', aligned=False, **kwargs):
+def osnet_x0_75(num_classes=1000, act_func='relu', attention=None, loss='softmax', aligned=False, **kwargs):
     model = OSNet(num_classes,
                   blocks=[OSBlock, OSBlock, OSBlock],
                   layers=[2, 2, 2],
                   channels=[48, 192, 288, 384],
                   feature_dim=512,
                   act_func=act_func,
+                  attention=attention,
+                  loss=loss,
+                  aligned=aligned,
+                  **kwargs)
+
+    return model
+
+
+def osnet_x0_5(num_classes=1000, act_func='relu', attention=None, loss='softmax', aligned=False, **kwargs):
+    model = OSNet(num_classes,
+                  blocks=[OSBlock, OSBlock, OSBlock],
+                  layers=[2, 2, 2],
+                  channels=[32, 128, 192, 256],
+                  feature_dim=512,
+                  act_func=act_func,
+                  attention=attention,
                   loss=loss,
                   aligned=aligned,
                   **kwargs)
@@ -514,9 +539,14 @@ def osnet_x0_75(num_classes=1000, act_func='relu', loss='softmax', aligned=False
 if __name__ == "__main__":
     arr = torch.randn(4, 3, 256, 128)
     flag_align = True
-    model = osnet_x0_75(num_classes=751, act_func='relu', loss='softmax_trip', aligned=flag_align)
+    model = osnet_x1_0(num_classes=751, act_func='relu', loss='softmax_trip', aligned=flag_align)
 
     if flag_align:
-        outs, local_features = model(arr)
+        outs, features, local_features = model(arr)
     else:
         outs, features, local_feature = model(arr)
+
+    ins = torch.randn(4, 3, 16, 16)
+    conv = nn.Conv2d(3, 10, kernel_size=3, padding=1, stride=2)
+    ous = conv(ins)
+    print(ous.shape)
