@@ -6,6 +6,7 @@ from .resnet import *
 from .mobilenet import *
 from .resnet import resnet50
 from .osnet import osnet_x1_0, osnet_x0_75
+from .od_osnet import odosnet_x1_0, odosnet_x0_75, odosnet_x0_5
 
 
 __factory = {
@@ -13,7 +14,10 @@ __factory = {
     'resnet50': resnet50,
     'osnet_x1_0': osnet_x1_0,
     'osnet_x0_75': osnet_x0_75,
-    'osnet_x0_5': osnet_x0_5
+    'osnet_x0_5': osnet_x0_5,
+    'odosnet_x1_0': odosnet_x1_0,
+    'odosnet_x0_75': odosnet_x0_75,
+    'odosnet_x0_5': odosnet_x0_5
 }
 
 

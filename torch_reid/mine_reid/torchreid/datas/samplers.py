@@ -53,6 +53,8 @@ class RandomIdentitySampler(Sampler):
         num_instances (int): number of instances per identity.
     """
     def __init__(self, data_source, num_instances=4):
+        # super(RandomIdentitySampler, self).__init__()
+        super().__init__(data_source)
         self.data_source = data_source
         self.num_instances = num_instances
         self.index_dic = defaultdict(list)

@@ -4,17 +4,17 @@
 python train_img.py --root '/root/autodl-tmp' \
 --dataset 'market1501' \
 --optim 'adam' \
---max_epoch 180 \
---train_batch 64 \
+--max_epoch 150 \
+--train_batch 80 \
 --step_size 50 \
 --test_batch 64 \
---arch 'osnet_x1_0' \
---pre_train_load_dir '/root/autodl-nas/classification_data/osnet/osnet_x1_0_imagenet.pth' \
---loss_type 'softmax_trip' \
+--lr 0.0005 \
+--arch 'osnet_x0_75' \
+--pre_train_load_dir '/root/autodl-nas/classification_data/osnet/pre_weights/osnet_x0_75_imagenet.pth' \
+--loss_type 'softmax' \
 --resume 'checkpoint.pth' \
 --eval_step 25 \
---save_dir '/root/autodl-nas/reid_data/osnet_1014_epoch0' \
---aligned
+--save_dir '/root/autodl-nas/reid_train_data/odosnet_x0_5_raw' \
 
 
 # 128.55

@@ -77,12 +77,13 @@ def init_pretrained_weights(model, load_dir):
         return
     pretrain_dict = torch.load(load_dir)
     model_dict = model.state_dict()
+    print(f"all {len(model_dict)} layers")
     pretrain_dict = {
         k: v for k, v in pretrain_dict.items()
         if k in model_dict and model_dict[k].shape == v.shape}
 
     model_dict.update(pretrain_dict)
-    print('load {} layers params , all {} layers'.format(len(pretrain_dict), len(model_dict)))
+    print('load {} layers params'.format(len(pretrain_dict)))
     model.load_state_dict(model_dict)
 
 

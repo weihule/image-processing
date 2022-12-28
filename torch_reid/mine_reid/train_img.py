@@ -50,7 +50,7 @@ def parse_args():
     parser.add_argument('--start_epoch', default=0, type=int, help="manual epoch number (useful on restarts)")
     parser.add_argument('--train_batch', default=16, type=int, help="train batch size")
     parser.add_argument('--test_batch', default=32, type=int, help="test batch size")
-    parser.add_argument('--lr', '--learning_rate', default=0.0003, type=float, help="initial learning rate")
+    parser.add_argument('--lr', '--learning_rate', default=0.0004, type=float, help="initial learning rate")
     parser.add_argument('--step_size', default=20, type=int,
                         help="stepsize to decay learning rate (>0 means this is enabled)")
     parser.add_argument('--gamma', default=0.1, type=float, help="learning rate decay")
@@ -106,7 +106,7 @@ def main(args):
     #     sys.stdout = Logger(os.path.join(args.save_dir, 'test.log'))
     print(f'==============\nArgs:{args}\n==============')
     cur_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(args.loss_type, '--------', cur_time)
+    print('--------', cur_time, '--------')
 
     if use_gpu:
         print(f'Currently using GPU {args.gpu_devices}')
@@ -180,7 +180,7 @@ def main(args):
                               loss=args.loss_type,
                               aligned=args.aligned,
                               act_func='prelu',
-                              attention='nam_attention')
+                              attention=None)
     # model = ResNet50(num_classes=dataset.num_train_pids)
     init_pretrained_weights(model, args.pre_train_load_dir)
     if use_gpu and args.use_ddp is False:
@@ -258,6 +258,7 @@ def main(args):
         scheduler.step()
 
         if (epoch + 1) > args.start_eval and (epoch + 1) % args.eval_step == 0 or (epoch + 1) == args.max_epoch:
+            # 在最后一次测试时进行re_ranking
             reranking = True if epoch + 1 == args.max_epoch else False
             rank1 = test(model, query_loader, gallery_loader, use_gpu, args, reranking=reranking)
             is_best = rank1 >= best_rank1
@@ -351,9 +352,8 @@ def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimize
             lr_value = optimizer_model.state_dict()['param_groups'][0]['lr']
             print(f'Epoch: [{epoch + 1}][{batch_idx + 1}/{len(trainloader)}]\t'
                   f'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  f'Data {batch_time.val:.3f} ({data_time.avg:.3f})\t'
                   f'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
-                  f'xent_loss {xent_loss.item():.3f}'
+                  f'xent_loss {xent_loss.item():.3f}\t'
                   f'Lr {lr_value}')
 
 

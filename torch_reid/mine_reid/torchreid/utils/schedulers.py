@@ -82,7 +82,7 @@ def de_bug_main():
                              max_epoch=epochs,
                              lr_min=1e-12,
                              lr_max=0.0001,
-                             warmup_epoch=10,
+                             warmup_epoch=5,
                              warmup=True)
         for p in datasets:
             p = p.cuda()

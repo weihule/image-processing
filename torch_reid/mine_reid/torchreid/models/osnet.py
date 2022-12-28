@@ -231,7 +231,7 @@ class OSBlock(nn.Module):
             LightConv3x3(mid_channels, mid_channels, act_func='relu'),
             LightConv3x3(mid_channels, mid_channels, act_func='relu')
         )
-        self.gate = ChannelGate(mid_channels, act_func='relu')
+        # self.gate = ChannelGate(mid_channels, act_func='relu')
         self.conv3 = Conv1x1Linear(mid_channels, out_channels)
         self.downsample = None
         if in_channels != out_channels:
@@ -255,7 +255,8 @@ class OSBlock(nn.Module):
         x2b = self.conv2b(x1)
         x2c = self.conv2c(x1)
         x2d = self.conv2d(x1)
-        x2 = self.gate(x2a) + self.gate(x2b) + self.gate(x2c) + self.gate(x2d)
+        # x2 = self.gate(x2a) + self.gate(x2b) + self.gate(x2c) + self.gate(x2d)
+        x2 = x2a + x2b + x2c + x2d
         x3 = self.conv3(x2)
 
         # 注意力模块的添加位置
