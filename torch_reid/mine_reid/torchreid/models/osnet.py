@@ -153,7 +153,7 @@ class ChannelGate(nn.Module):
         if num_gates is None:
             num_gates = in_channels
         self.return_gates = return_gates
-        self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        # self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
         # 降维
         self.fc1 = nn.Conv2d(in_channels,
                              in_channels // reduction,
@@ -186,7 +186,8 @@ class ChannelGate(nn.Module):
 
     def forward(self, x):
         inputs = x
-        x = self.global_avgpool(x)
+        # x = self.global_avgpool(x)
+        x = F.avg_pool2d(x, kernel_size=[x.shape[2], x.shape[3]])
         x = self.fc1(x)
         if self.norm1 is not None:
             x = self.norm1(x)
@@ -231,7 +232,7 @@ class OSBlock(nn.Module):
             LightConv3x3(mid_channels, mid_channels, act_func='relu'),
             LightConv3x3(mid_channels, mid_channels, act_func='relu')
         )
-        # self.gate = ChannelGate(mid_channels, act_func='relu')
+        self.gate = ChannelGate(mid_channels, act_func='relu')
         self.conv3 = Conv1x1Linear(mid_channels, out_channels)
         self.downsample = None
         if in_channels != out_channels:
@@ -255,8 +256,8 @@ class OSBlock(nn.Module):
         x2b = self.conv2b(x1)
         x2c = self.conv2c(x1)
         x2d = self.conv2d(x1)
-        # x2 = self.gate(x2a) + self.gate(x2b) + self.gate(x2c) + self.gate(x2d)
-        x2 = x2a + x2b + x2c + x2d
+        x2 = self.gate(x2a) + self.gate(x2b) + self.gate(x2c) + self.gate(x2d)
+        # x2 = x2a + x2b + x2c + x2d
         x3 = self.conv3(x2)
 
         # 注意力模块的添加位置
@@ -308,7 +309,7 @@ class OSNet(nn.Module):
                                stride=2,
                                padding=3,
                                IN=IN)
-        self.max_pool = nn.MaxPool2d(3, stride=2, padding=1)
+        # self.max_pool = nn.MaxPool2d(3, stride=2, padding=1)
         # [conv2, transition]
         self.conv2 = self._make_layers(
             blocks[0],
@@ -345,7 +346,7 @@ class OSNet(nn.Module):
             self.conv5_atten = attention_module(attention, channel=channels[3])
         else:
             self.conv5_atten = None
-        self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        # self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
         # fully connected layer
         self.fc = self._construct_fc_layer(fc_dims=self.feature_dim,
                                            input_dim=channels[3],
@@ -361,7 +362,8 @@ class OSNet(nn.Module):
 
     def featuremaps(self, x):
         x = self.conv1(x)
-        x = self.max_pool(x)
+        # x = self.max_pool(x)
+        x = F.max_pool2d(x, kernel_size=[3, 3], padding=[1, 1], stride=2)
         x = self.conv2(x)
         x = self.conv3(x)
         x = self.conv4(x)
@@ -386,7 +388,8 @@ class OSNet(nn.Module):
             lf = lf.view(lf.shape[:3])  # [b, 128, 16]
             lf = lf / torch.pow(lf, 2).sum(dim=1, keepdim=True).clamp(min=1e-12).sqrt()
 
-        f = F.avg_pool2d(x, x.shape[2:])  # [b, channels[3], 1, 1]
+        # f = F.avg_pool2d(x, x.shape[2:])  # [b, channels[3], 1, 1]
+        f = F.avg_pool2d(x, kernel_size=[x.shape[2], x.shape[3]])  # [b, channels[3], 1, 1]
         f = f.reshape(f.shape[0], -1)  # [b, channels[3]]
         if self.fc is not None:
             f = self.fc(f)

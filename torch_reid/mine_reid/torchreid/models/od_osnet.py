@@ -53,7 +53,7 @@ class ConvLayer(nn.Module):
 # basic layers
 class ODConvLayer(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1,
-                 padding=0, groups=1, IN=False):
+                 padding=0, groups=1, IN=False, kernel_num=1):
         super(ODConvLayer, self).__init__()
         self.odconv = ODConv2d(in_planes=in_channels,
                                out_planes=out_channels,
@@ -63,7 +63,7 @@ class ODConvLayer(nn.Module):
                                dilation=1,
                                groups=groups,
                                reduction=0.0625,
-                               kernel_num=4)
+                               kernel_num=kernel_num)
         if IN:
             self.bn = nn.InstanceNorm2d(out_channels, affine=True)
         else:
@@ -103,7 +103,7 @@ class Conv1x1(nn.Module):
 
 
 class ODConv1x1(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, groups=1):
+    def __init__(self, in_channels, out_channels, stride=1, groups=1, kernel_num=1):
         super(ODConv1x1, self).__init__()
         self.odconv = ODConv2d(in_planes=in_channels,
                                out_planes=out_channels,
@@ -113,7 +113,7 @@ class ODConv1x1(nn.Module):
                                dilation=1,
                                groups=groups,
                                reduction=0.0625,
-                               kernel_num=4)
+                               kernel_num=kernel_num)
         self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
 
@@ -143,7 +143,7 @@ class Conv1x1Linear(nn.Module):
 class ODConv1x1Linear(nn.Module):
     """1x1 convolution + bn (w/o non-linearity)."""
 
-    def __init__(self, in_channels, out_channels, stride=1):
+    def __init__(self, in_channels, out_channels, stride=1, kernel_num=1):
         super(ODConv1x1Linear, self).__init__()
         self.odconv = ODConv2d(in_planes=in_channels,
                                out_planes=out_channels,
@@ -153,7 +153,7 @@ class ODConv1x1Linear(nn.Module):
                                dilation=1,
                                groups=1,
                                reduction=0.0625,
-                               kernel_num=4)
+                               kernel_num=kernel_num)
         self.bn = nn.BatchNorm2d(out_channels)
 
     def forward(self, x):
@@ -168,7 +168,7 @@ class ODLightConv3x3(nn.Module):
     1x1 (linear) + dw 3x3 (no_linear)
     """
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, kernel_num=1):
         super(ODLightConv3x3, self).__init__()
         self.conv1 = ODConv2d(in_planes=in_channels,
                               out_planes=out_channels,
@@ -178,7 +178,7 @@ class ODLightConv3x3(nn.Module):
                               dilation=1,
                               groups=1,
                               reduction=0.0625,
-                              kernel_num=4)
+                              kernel_num=kernel_num)
         self.conv2 = ODConv2d(in_planes=out_channels,
                               out_planes=out_channels,
                               kernel_size=3,
@@ -194,7 +194,8 @@ class ODLightConv3x3(nn.Module):
     def forward(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
-        x = self.relu(self.bn(x))
+        x = self.bn(x)
+        x = self.relu(x)
 
         return x
 
@@ -286,7 +287,7 @@ class ODOSBlock(nn.Module):
     ):
         super(ODOSBlock, self).__init__()
         mid_channels = out_channels // bottleneck_reduction
-        self.conv1 = ODConv1x1(in_channels, mid_channels)
+        self.conv1 = Conv1x1(in_channels, mid_channels)
         self.conv2a = ODLightConv3x3(mid_channels, mid_channels)
         self.conv2b = nn.Sequential(
             ODLightConv3x3(mid_channels, mid_channels),
@@ -304,10 +305,10 @@ class ODOSBlock(nn.Module):
             ODLightConv3x3(mid_channels, mid_channels),
         )
         # self.gate = ChannelGate(mid_channels)
-        self.conv3 = ODConv1x1Linear(mid_channels, out_channels)
+        self.conv3 = Conv1x1Linear(mid_channels, out_channels)
         self.downsample = None
         if in_channels != out_channels:
-            self.downsample = ODConv1x1Linear(in_channels, out_channels)
+            self.downsample = Conv1x1Linear(in_channels, out_channels)
         self.IN = None
         if IN:
             self.IN = nn.InstanceNorm2d(out_channels, affine=True)
@@ -389,7 +390,7 @@ class ODOSNet(nn.Module):
             reduce_spatial_size=False
         )
         self.conv5 = ODConv1x1(channels[3], channels[3])
-        self.global_avgpool = nn.AdaptiveAvgPool2d(1)
+        self.global_avgpool = nn.AdaptiveAvgPool2d((1, 1))
         # fully connected layer
         self.fc = self._construct_fc_layer(
             self.feature_dim, channels[3], dropout_p=None
@@ -402,7 +403,7 @@ class ODOSNet(nn.Module):
             self.aligned_relu = nn.ReLU(inplace=True)
             self.aligned_conv1 = nn.Conv2d(channels[3], 128, kernel_size=1, stride=1, padding=0, bias=True)
 
-        self._init_params()
+        # self._init_params()
 
     def _make_layer(
             self,
@@ -496,7 +497,8 @@ class ODOSNet(nn.Module):
             lf = lf.view(lf.shape[:3])  # [b, 128, 16]
             lf = lf / torch.pow(lf, 2).sum(dim=1, keepdim=True).clamp(min=1e-12).sqrt()
 
-        f = F.avg_pool2d(x, x.shape[2:])  # [b, channels[3], 1, 1]
+        # f = F.avg_pool2d(x, x.shape[2:])  # [b, channels[3], 1, 1]
+        f = F.avg_pool2d(x, kernel_size=(x.shape[2], x.shape[3]))  # [b, channels[3], 1, 1]
         f = f.reshape(f.shape[0], -1)  # [b, channels[3]]
         if self.fc is not None:
             f = self.fc(f)

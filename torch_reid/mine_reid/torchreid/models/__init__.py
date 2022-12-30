@@ -8,6 +8,8 @@ from .resnet import resnet50
 from .osnet import osnet_x1_0, osnet_x0_75
 from .od_osnet import odosnet_x1_0, odosnet_x0_75, odosnet_x0_5
 
+from .osnet_origin import osnet_x1_0_origin, osnet_ibn_x1_0_origin
+
 
 __factory = {
     # image classification models
@@ -17,7 +19,9 @@ __factory = {
     'osnet_x0_5': osnet_x0_5,
     'odosnet_x1_0': odosnet_x1_0,
     'odosnet_x0_75': odosnet_x0_75,
-    'odosnet_x0_5': odosnet_x0_5
+    'odosnet_x0_5': odosnet_x0_5,
+    'osnet_x1_0_origin': osnet_x1_0_origin,
+    'osnet_ibn_x1_0_origin': osnet_ibn_x1_0_origin
 }
 
 

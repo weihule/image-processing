@@ -100,8 +100,8 @@ def main(args):
     if args.use_cpu:
         use_gpu = False
 
-    # if args.evaluate is False:
-    #     sys.stdout = Logger(os.path.join(args.save_dir, 'train.log'))
+    if args.evaluate is False:
+        sys.stdout = Logger(os.path.join(args.save_dir, 'train.log'))
     # else:
     #     sys.stdout = Logger(os.path.join(args.save_dir, 'test.log'))
     print(f'==============\nArgs:{args}\n==============')
