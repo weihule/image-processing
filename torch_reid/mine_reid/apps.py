@@ -1,12 +1,15 @@
 import os
+import cv2
+import numpy as np
 from tkinter.filedialog import askopenfilename
 import tkinter as tk
 from tkinter import messagebox, ttk
 import json
 from PIL import Image, ImageTk
+import onnxruntime
 
 
-class LoginPage:
+class LoginPage(object):
     def __init__(self, master: tk.Tk):
         # super().__init__(master=master)
         self.master = master
@@ -18,7 +21,6 @@ class LoginPage:
 
         self.v1 = tk.StringVar()
         self.v2 = tk.StringVar()
-        self.master = master
 
         self.create_login()
 
@@ -91,7 +93,7 @@ class LoginPage:
         pass
 
 
-class DataBase:
+class DataBase(object):
     def __init__(self):
         with open('users.json', 'r', encoding='utf-8') as fr:
             self.users = json.load(fr)
@@ -106,7 +108,7 @@ class DataBase:
             return False, "用户名不存在!"
 
 
-class MainPage:
+class MainPage(object):
     def __init__(self, master: tk.Tk):
         self.master = master
         self.master.title("Re-ID system")
@@ -115,19 +117,19 @@ class MainPage:
         self.login_page = tk.Frame(self.master, width=1000, height=600)  # 创建Frame
         self.login_page.pack()
 
-        # self.weights = tk.StringVar()
-        # self.src_pic = tk.StringVar()
         self.weights = tk.StringVar()
         self.src_pic = tk.StringVar()
+
+        self.cv2_img = ''
 
         self.create_page()
 
     def create_page(self):
         ttk.Button(self.login_page, text="选择模型", command=self.open_file).place(x=50, y=50)
         ttk.Button(self.login_page, text="选择图片", command=self.open_image).place(x=200, y=50)
-        ttk.Button(self.login_page, text="开始重识别").place(x=350, y=50)
+        ttk.Button(self.login_page, text="开始重识别", command=self.start_infer).place(x=350, y=50)
 
-        ttk.Label(self.login_page, text="模型名称: ").place(x=50, y=100)
+        ttk.Label(self.login_page, text="模型路径: ").place(x=50, y=100)
         ttk.Entry(self.login_page, textvariable=self.weights, width=40).place(x=120, y=100)
 
         # 图片排列控件
@@ -141,9 +143,9 @@ class MainPage:
     def open_file(self):
         file = askopenfilename(title="请选择权重文件",
                                initialdir=r"D:",
-                               filetypes=[("pth文件", ".pth"),
-                                          ("onnx文件", ".onnx")])
-        self.weights.set(file.split("/")[-1])
+                               filetypes=[("onnx文件", ".onnx"),
+                                          ("pth文件", ".pth")])
+        self.weights.set(file)
 
     def open_image(self):
         # paned = tk.PanedWindow(self.login_page)
@@ -156,15 +158,88 @@ class MainPage:
                                           ("图片文件", ".JPEG"),
                                           ("图片文件", ".PNG")])
         img = Image.open(file)
-        print(img.size)
+        self.cv2_img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
+        print('--------', type(self.cv2_img), type(img))
         self.login_page.photo = ImageTk.PhotoImage(img.resize((128, 256)))
         tk.Label(self.login_page, image=self.login_page.photo).place(x=10, y=200)
+
+    def start_infer(self):
+        file = self.weights.get()
+        onnx_infer = OnnxInfer(file)
+        outs = onnx_infer.forward(self.cv2_img)
+        print(outs[0].shape)
+
+
+class OnnxInfer(object):
+    def __init__(self, onnx_file, resized_w=128, resized_h=256, batch_size=1):
+        self.onnx_file = onnx_file
+        self.resized_w = resized_w
+        self.resized_h = resized_h
+        self.batch_size = batch_size
+
+        self.onnx_session = onnxruntime.InferenceSession(onnx_file, providers=['CPUExecutionProvider'])
+        self.input_name = self.get_input_name()
+        self.output_name = self.get_output_name()
+    
+    def forward(self, image_numpy):
+        # batched_img = np.random.random(size=(1, 3, 256, 128)).astype(np.float32)
+        img = self.resize_img(image_numpy, resized_w=self.resized_w, resized_h=self.resized_h)
+        batched_img = np.expand_dims(img.transpose((2, 0, 1)), axis=0)   # [h, w, c] -> [1, c, h, w]
+        input_feed = self.get_input_feed(self.input_name, batched_img)
+        output_value = self.onnx_session.run(self.output_name, input_feed=input_feed)
+
+        return output_value
+
+    def post_process(self, output_values):
+        pass
+
+    @staticmethod
+    def resize_img(img, resized_w, resized_h):
+        h, w, _ = img.shape
+        img = cv2.resize(img, (resized_w, resized_h))       # (width, height)
+        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)       # BGR -> RGB
+
+        return img.astype(np.float32)
+
+    @staticmethod
+    def normalize_img(batch_img, mean, std):
+        mean = np.array(mean, dtype=np.float32).reshape((1, 1, 1, -1))
+        std = np.array(std, dtype=np.float32).reshape((1, 1, 1, -1))
+
+        normalize_img = (batch_img.astype(np.float32) / 255. - mean) / std
+
+        return normalize_img
+
+    @staticmethod
+    def get_input_feed(input_name, image_numpy):
+        input_feed = {}
+        for name in input_name:
+            input_feed[name] = image_numpy
+        return input_feed
+
+    def get_output_name(self):
+        """
+        output_name = onnx_session.get_outputs()[0].name
+        """
+        output_name = []
+        for node in self.onnx_session.get_outputs():
+            output_name.append(node.name)
+        return output_name
+
+    def get_input_name(self):
+        """
+        input_name = onnx_session.get_inputs()[0].name
+        """
+        input_name = []
+        for node in self.onnx_session.get_inputs():
+            input_name.append(node.name)
+        return input_name
 
 
 def run():
     root = tk.Tk()
-    # LoginPage(root)
-    MainPage(root)
+    LoginPage(root)
+    # MainPage(root)
 
     root.mainloop()
 
