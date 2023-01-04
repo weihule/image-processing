@@ -1,12 +1,13 @@
 import os
 import cv2
 import numpy as np
-from tkinter.filedialog import askopenfilename
+from tkinter.filedialog import askopenfilename, askdirectory
 import tkinter as tk
 from tkinter import messagebox, ttk
 import json
 from PIL import Image, ImageTk
 import onnxruntime
+from analysis import SimpleInfer
 
 
 class LoginPage(object):
@@ -14,7 +15,7 @@ class LoginPage(object):
         # super().__init__(master=master)
         self.master = master
         self.master.geometry("690x350")
-        self.master.title("登录页")
+        self.master.title("欢迎登录")
 
         self.login_page = tk.Frame(self.master, width=690, height=350)  # 创建Frame
         self.login_page.pack()
@@ -59,7 +60,7 @@ class LoginPage(object):
 
         if flag:
             # messagebox.showinfo("登录成功", message=message)
-            self.login_page.destroy()   # 销毁当前登录页面
+            self.login_page.destroy()  # 销毁当前登录页面
             MainPage(self.master)
         else:
             messagebox.showerror("登录失败", message=message)
@@ -97,7 +98,7 @@ class DataBase(object):
     def __init__(self):
         with open('users.json', 'r', encoding='utf-8') as fr:
             self.users = json.load(fr)
-    
+
     def check_login(self, user_name, user_pwd):
         if user_name in self.users:
             if user_pwd == self.users[user_name]:
@@ -112,40 +113,55 @@ class MainPage(object):
     def __init__(self, master: tk.Tk):
         self.master = master
         self.master.title("Re-ID system")
-        self.master.geometry("1000x600")        # W x H
+        self.master.geometry("1000x600")  # W x H
 
         self.login_page = tk.Frame(self.master, width=1000, height=600)  # 创建Frame
         self.login_page.pack()
 
-        self.weights = tk.StringVar()
-        self.src_pic = tk.StringVar()
-
+        self.weights = tk.StringVar()       # 权重文件
+        self.src_pic = tk.StringVar()       # probe图片
+        self.model_name = tk.StringVar()    # 模型名称
+        self.gallery_dir = tk.StringVar()   # 搜索文件夹
         self.cv2_img = ''
 
         self.create_page()
 
     def create_page(self):
-        ttk.Button(self.login_page, text="选择模型", command=self.open_file).place(x=50, y=50)
-        ttk.Button(self.login_page, text="选择图片", command=self.open_image).place(x=200, y=50)
-        ttk.Button(self.login_page, text="开始重识别", command=self.start_infer).place(x=350, y=50)
+        ttk.Label(self.login_page, text="输入模型名称: ").place(x=50, y=50)
+        ttk.Entry(self.login_page, textvariable=self.model_name, width=40).place(x=135, y=50)
+        ttk.Button(self.login_page, text="点击确定", command=self.confirm_model).place(x=440, y=48)
 
-        ttk.Label(self.login_page, text="模型路径: ").place(x=50, y=100)
-        ttk.Entry(self.login_page, textvariable=self.weights, width=40).place(x=120, y=100)
+        ttk.Label(self.login_page, text="权重文件路径: ").place(x=50, y=80)
+        ttk.Entry(self.login_page, textvariable=self.weights, width=40).place(x=135, y=80)
+        ttk.Button(self.login_page, text="选择路径", command=self.open_file).place(x=440, y=78)
+
+        ttk.Label(self.login_page, text="图片库: ").place(x=50, y=110)
+        ttk.Entry(self.login_page, textvariable=self.gallery_dir, width=40).place(x=135, y=110)
+        ttk.Button(self.login_page, text="选择文件夹", command=self.open_dir).place(x=440, y=108)
+
+        ttk.Button(self.login_page, text="选择图片", command=self.open_image).place(x=50, y=145)
+        ttk.Button(self.login_page, text="开始重识别", command=self.start_infer).place(x=150, y=145)
 
         # 图片排列控件
-        ttk.Label(self.login_page, text="src", font=("宋体", 25)).place(x=50, y=150)
-        ttk.Label(self.login_page, text="1", font=("宋体", 25)).place(x=200, y=150)
-        ttk.Label(self.login_page, text="2", font=("宋体", 25)).place(x=350, y=150)
-        ttk.Label(self.login_page, text="3", font=("宋体", 25)).place(x=500, y=150)
-        ttk.Label(self.login_page, text="4", font=("宋体", 25)).place(x=650, y=150)
-        ttk.Label(self.login_page, text="5", font=("宋体", 25)).place(x=800, y=150)
+        ttk.Label(self.login_page, text="src", font=("宋体", 25)).place(x=50, y=180)
+        ttk.Label(self.login_page, text="1", font=("宋体", 25)).place(x=200, y=180)
+        ttk.Label(self.login_page, text="2", font=("宋体", 25)).place(x=350, y=180)
+        ttk.Label(self.login_page, text="3", font=("宋体", 25)).place(x=500, y=180)
+        ttk.Label(self.login_page, text="4", font=("宋体", 25)).place(x=650, y=180)
+        ttk.Label(self.login_page, text="5", font=("宋体", 25)).place(x=800, y=180)
 
     def open_file(self):
         file = askopenfilename(title="请选择权重文件",
                                initialdir=r"D:",
-                               filetypes=[("onnx文件", ".onnx"),
-                                          ("pth文件", ".pth")])
+                               filetypes=[("pth文件", ".pth")])
+        # 将file赋值给self.weights
         self.weights.set(file)
+
+    def open_dir(self):
+        file = askdirectory(title="请选择图片库文件夹",
+                            initialdir=r"D:")
+        # 将file赋值给self.gallery_dir
+        self.gallery_dir.set(file)
 
     def open_image(self):
         # paned = tk.PanedWindow(self.login_page)
@@ -157,11 +173,15 @@ class MainPage(object):
                                           ("图片文件", ".png"),
                                           ("图片文件", ".JPEG"),
                                           ("图片文件", ".PNG")])
+        self.src_pic.set(file)
         img = Image.open(file)
         self.cv2_img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
-        print('--------', type(self.cv2_img), type(img))
         self.login_page.photo = ImageTk.PhotoImage(img.resize((128, 256)))
-        tk.Label(self.login_page, image=self.login_page.photo).place(x=10, y=200)
+        tk.Label(self.login_page, image=self.login_page.photo).place(x=10, y=220)
+
+    def confirm_model(self):
+        # 获取entry输入的内容
+        model_name = self.model_name.get()
 
     def start_infer(self):
         file = self.weights.get()
@@ -181,7 +201,7 @@ class OnnxInfer(object):
         self.input_name = self.get_input_name()
         self.output_name = self.get_output_name()
     
-    def forward(self, image_numpy):
+    def forward(self, image_numpy, gallery_dir, gallery_data_name):
         # batched_img = np.random.random(size=(1, 3, 256, 128)).astype(np.float32)
         img = self.resize_img(image_numpy, resized_w=self.resized_w, resized_h=self.resized_h)
         batched_img = np.expand_dims(img.transpose((2, 0, 1)), axis=0)   # [h, w, c] -> [1, c, h, w]
@@ -238,12 +258,11 @@ class OnnxInfer(object):
 
 def run():
     root = tk.Tk()
-    LoginPage(root)
-    # MainPage(root)
+    # LoginPage(root)
+    MainPage(root)
 
     root.mainloop()
 
 
 if __name__ == "__main__":
     run()
-

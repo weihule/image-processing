@@ -12,6 +12,7 @@ __all__ = [
 
 class ConvLayer(nn.Module):
     """Convolution layer (conv + bn + relu)."""
+
     def __init__(
             self,
             in_channels,
@@ -412,6 +413,8 @@ class OSNet(nn.Module):
 
         if self.fc is not None:
             v = self.fc(v)
+
+        # TODO: 这里lf还没有得到，只是随机设定了一个值
         lf = torch.randn(4, 512)
         if not self.training:
             return v, lf
@@ -441,7 +444,8 @@ def osnet_x1_0_origin(num_classes=1000, act_func='relu', attention=None, loss='s
     return model
 
 
-def osnet_ibn_x1_0_origin(num_classes=1000, act_func='relu', attention=None, loss='softmax_trip', aligned=False, **kwargs):
+def osnet_ibn_x1_0_origin(num_classes=1000, act_func='relu', attention=None, loss='softmax_trip', aligned=False,
+                          **kwargs):
     model = OSNet(num_classes,
                   blocks=[OSBlock, OSBlock, OSBlock],
                   layers=[2, 2, 2],
@@ -457,11 +461,198 @@ def osnet_ibn_x1_0_origin(num_classes=1000, act_func='relu', attention=None, los
     return model
 
 
+class OSNetOnnx(nn.Module):
+    """Omni-Scale Network.
+
+    Reference:
+        - Zhou et al. Omni-Scale Feature Learning for Person Re-Identification. ICCV, 2019.
+        - Zhou et al. Learning Generalisable Omni-Scale Representations
+          for Person Re-Identification. TPAMI, 2021.
+    """
+
+    def __init__(
+            self,
+            num_classes,
+            blocks,
+            layers,
+            channels,
+            feature_dim=512,
+            loss='softmax',
+            IN=False,
+            **kwargs
+    ):
+        super(OSNetOnnx, self).__init__()
+        num_blocks = len(blocks)
+        assert num_blocks == len(layers)
+        assert num_blocks == len(channels) - 1
+        self.loss = loss
+        self.feature_dim = feature_dim
+
+        # convolutional backbone
+        self.conv1 = ConvLayer(3, channels[0], 7, stride=2, padding=3, IN=IN)
+        self.maxpool = nn.MaxPool2d(3, stride=2, padding=1)
+        self.conv2 = self._make_layer(
+            blocks[0],
+            layers[0],
+            channels[0],
+            channels[1],
+            reduce_spatial_size=True,
+            IN=IN
+        )
+        self.conv3 = self._make_layer(
+            blocks[1],
+            layers[1],
+            channels[1],
+            channels[2],
+            reduce_spatial_size=True
+        )
+        self.conv4 = self._make_layer(
+            blocks[2],
+            layers[2],
+            channels[2],
+            channels[3],
+            reduce_spatial_size=False
+        )
+        self.conv5 = Conv1x1(channels[3], channels[3])
+        self.global_avgpool = nn.AdaptiveAvgPool2d(1)
+        # fully connected layer
+        self.fc = self._construct_fc_layer(
+            self.feature_dim, channels[3], dropout_p=None
+        )
+        # identity classification layer
+        self.classifier = nn.Linear(self.feature_dim, num_classes)
+
+        self._init_params()
+
+    def _make_layer(
+            self,
+            block,
+            layer,
+            in_channels,
+            out_channels,
+            reduce_spatial_size,
+            IN=False
+    ):
+        layers = []
+
+        layers.append(block(in_channels, out_channels, IN=IN))
+        for i in range(1, layer):
+            layers.append(block(out_channels, out_channels, IN=IN))
+
+        if reduce_spatial_size:
+            layers.append(
+                nn.Sequential(
+                    Conv1x1(out_channels, out_channels),
+                    nn.AvgPool2d(2, stride=2)
+                )
+            )
+
+        return nn.Sequential(*layers)
+
+    def _construct_fc_layer(self, fc_dims, input_dim, dropout_p=None):
+        if fc_dims is None or fc_dims < 0:
+            self.feature_dim = input_dim
+            return None
+
+        if isinstance(fc_dims, int):
+            fc_dims = [fc_dims]
+
+        layers = []
+        for dim in fc_dims:
+            layers.append(nn.Linear(input_dim, dim))
+            layers.append(nn.BatchNorm1d(dim))
+            layers.append(nn.ReLU(inplace=True))
+            if dropout_p is not None:
+                layers.append(nn.Dropout(p=dropout_p))
+            input_dim = dim
+
+        self.feature_dim = fc_dims[-1]
+
+        return nn.Sequential(*layers)
+
+    def _init_params(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(
+                    m.weight, mode='fan_out', nonlinearity='relu'
+                )
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+    def featuremaps(self, x):
+        x = self.conv1(x)
+        x = self.maxpool(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.conv5(x)
+        return x
+
+    def forward(self, x, return_featuremaps=False):
+        x = self.featuremaps(x)
+        if return_featuremaps:
+            return x
+        v = self.global_avgpool(x)
+        v = v.view(v.size(0), -1)
+
+        if self.fc is not None:
+            v = self.fc(v)
+
+        # TODO: onnx推理时只返回全局特征
+        if not self.training:
+            return v
+
+
+def osnet_x1_0_onnx(num_classes=1000, act_func='relu', attention=None, loss='softmax_trip', aligned=False, **kwargs):
+    model = OSNetOnnx(num_classes,
+                      blocks=[OSBlock, OSBlock, OSBlock],
+                      layers=[2, 2, 2],
+                      channels=[64, 256, 384, 512],
+                      feature_dim=512,
+                      act_func=act_func,
+                      attention=attention,
+                      loss=loss,
+                      aligned=aligned,
+                      **kwargs)
+
+    return model
+
+
+def osnet_ibn_x1_0_onnx(num_classes=1000, act_func='relu', attention=None, loss='softmax_trip', aligned=False,
+                        **kwargs):
+    model = OSNetOnnx(num_classes,
+                      blocks=[OSBlock, OSBlock, OSBlock],
+                      layers=[2, 2, 2],
+                      channels=[64, 256, 384, 512],
+                      feature_dim=512,
+                      act_func=act_func,
+                      attention=attention,
+                      loss=loss,
+                      aligned=aligned,
+                      IN=True,
+                      **kwargs)
+
+    return model
+
+
 if __name__ == "__main__":
     arr = torch.randn(4, 3, 256, 128)
     flag_align = True
     model = osnet_x1_0_origin(num_classes=751)
+    model.eval()
 
-    y, v = model(arr)
-    print(y.shape, v.shape)
-
+    y = model(arr)
+    print(y.shape)

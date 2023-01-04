@@ -392,7 +392,7 @@ class OSNet(nn.Module):
         f = F.avg_pool2d(x, kernel_size=[x.shape[2], x.shape[3]])  # [b, channels[3], 1, 1]
         f = f.reshape(f.shape[0], -1)  # [b, channels[3]]
         if self.fc is not None:
-            f = self.fc(f)
+            f = self.fc(f)             # [b, 512]
 
         # 测试阶段使用 f 和 lf
         if not self.training:

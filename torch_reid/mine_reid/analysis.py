@@ -134,7 +134,7 @@ def main(config):
             end = time.time()
             # if resnet50
             # outputs: [b, num_classes], features: [b, 2048], local_feature: [b, 128, 8]
-            outputs, features, local_feature = model(imgs)
+            features, local_feature = model(imgs)
             batch_time.update(time.time() - end)
 
             features = features.detach().cpu()
@@ -239,7 +239,7 @@ def visualization(dataset, g_pids_indices, save_dir, re_rank=False):
         fig = plt.figure(figsize=(16, 4))
         ax = plt.subplot(1, 11, 1)
         ax.axis('off')
-        imshow(q_path, 'query')
+        # imshow(q_path, 'query')
 
         # 没有在gallery中找到匹配的行人
         if (g_pids_indices[idx] == -1).all():
@@ -251,7 +251,7 @@ def visualization(dataset, g_pids_indices, save_dir, re_rank=False):
             ax.axis('off')
             g_path = dataset.gallery[int(g_pid_idx)][0]
             g_pid = dataset.gallery[int(g_pid_idx)][1]
-            imshow(g_path)
+            # imshow(g_path)
 
             # print(q_label, g_label, gids[i])
             if g_pid == q_pid:
@@ -267,6 +267,65 @@ def visualization(dataset, g_pids_indices, save_dir, re_rank=False):
             break
 
 
+class SimpleInfer(object):
+    def __init__(self, probe_path, model_name, pth_file, datasets):
+        self.probe_path = probe_path
+        self.model_name = model_name
+        self.pth_file = pth_file
+        self.datasets = datasets        # D:\workspace\data\dl\reid\market1501
+
+    def forward_torch(self, image):
+        device = torch.device("cuda")
+        use_gpu = True
+        dataset = data_manager.init_img_dataset(name=self.datasets.split('\\')[-1],
+                                                root=os.path.dirname(self.datasets),
+                                                split_id=0,
+                                                cuhk03_labeled=False,
+                                                cuhk03_classic_split=False)
+        transform_test = transforms.Compose([
+            transforms.Resize((256, 128)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+        gallery_loader = DataLoader(ImageDataset(dataset.gallery, transform_test),
+                                    batch_size=4,
+                                    shuffle=False,
+                                    num_workers=4,
+                                    drop_last=False)
+        print(f"Initializing model: {self.model_name}")
+        model = models.init_model(name=self.model_name,
+                                  num_classes=dataset.num_train_pids,
+                                  loss="softmax_trip",
+                                  aligned=False,
+                                  act_func='relu',
+                                  attention=None)
+        model.load_state_dict(torch.load(self.pth_file, map_location="cpu"))
+        model = model.to(device)
+
+        model.eval()
+
+        with torch.no_grad():
+            q_fs, q_pids, q_camids = [], [], []
+            if use_gpu:
+                imgs = image.cuda()
+            imgs = transform_test(imgs)
+
+            pids, camids = 0, 0
+
+            # if resnet50
+            # outputs: [b, num_classes], features: [b, 2048], local_feature: [b, 128, 8]
+            features, local_feature = model(imgs)
+
+            features = features.detach().cpu()
+            q_fs.append(features)
+            q_pids.append(pids)
+            q_camids.append(camids)
+            q_fs = torch.cat(q_fs, dim=0)  # if resnet50, shape is [num_query, 2048]
+            q_pids = np.array(q_pids)
+            q_camids = np.array(q_camids)
+            print(f'Extracted features for query set, obtained {q_fs.shape[0]}-by-{q_fs.shape[1]} matrix')
+
+
 if __name__ == "__main__":
     configs = {
         'gpu_devices': '0',
@@ -277,16 +336,25 @@ if __name__ == "__main__":
         'cuhk03_labeled': False,
         'cuhk03_classic_split': False,
         'use_metric_cuhk03': False,
-        'arch': 'osnet_x1_0',
+        'arch': 'osnet_ibn_x1_0_origin',
         'loss_type': 'softmax_trip',
         'height': 256,
         'width': 128,
         'test_batch': 4,
-        'pth_path': 'D:\\workspace\\data\\reid_data\\osnet_softmax_epoch50_9273\\best_model.pth',
+        'pth_path': r'D:\Desktop\best_model.pth',
         'aligned': True,
         'reranking': True,
         'test_distance': 'global',
         'visualize': True
     }
+    # main(configs)
 
-    main(configs)
+    transform_test = transforms.Compose([
+        transforms.Resize((256, 128)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+    arrs = np.random.random((300, 300, 3))
+    arrs = transform_test(arrs)
+    print(arrs.shape)
+
