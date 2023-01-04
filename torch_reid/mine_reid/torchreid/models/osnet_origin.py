@@ -6,7 +6,8 @@ from torch.nn import functional as F
 
 __all__ = [
     'osnet_x1_0_origin',
-    'osnet_ibn_x1_0_origin'
+    'osnet_ibn_x1_0_origin',
+    'osnet_ibn_x1_0_onnx'
 ]
 
 
@@ -611,9 +612,7 @@ class OSNetOnnx(nn.Module):
         if self.fc is not None:
             v = self.fc(v)
 
-        # TODO: onnx推理时只返回全局特征
-        if not self.training:
-            return v
+        return v
 
 
 def osnet_x1_0_onnx(num_classes=1000, act_func='relu', attention=None, loss='softmax_trip', aligned=False, **kwargs):
@@ -651,7 +650,8 @@ def osnet_ibn_x1_0_onnx(num_classes=1000, act_func='relu', attention=None, loss=
 if __name__ == "__main__":
     arr = torch.randn(4, 3, 256, 128)
     flag_align = True
-    model = osnet_x1_0_origin(num_classes=751)
+    model = osnet_ibn_x1_0_onnx(num_classes=751)
+    model.load_state_dict(torch.load(r"D:\Desktop\tempfile\best_model.pth", map_location="cpu"))
     model.eval()
 
     y = model(arr)

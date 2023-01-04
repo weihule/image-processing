@@ -6,8 +6,9 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import json
 from PIL import Image, ImageTk
+import matplotlib.pyplot as plt
 import onnxruntime
-from analysis import SimpleInfer
+import glob
 
 
 class LoginPage(object):
@@ -118,10 +119,10 @@ class MainPage(object):
         self.login_page = tk.Frame(self.master, width=1000, height=600)  # 创建Frame
         self.login_page.pack()
 
-        self.weights = tk.StringVar()       # 权重文件
-        self.src_pic = tk.StringVar()       # probe图片
-        self.model_name = tk.StringVar()    # 模型名称
-        self.gallery_dir = tk.StringVar()   # 搜索文件夹
+        self.weights = tk.StringVar()  # 权重文件
+        self.src_pic = tk.StringVar()  # probe图片
+        self.model_name = tk.StringVar()  # 模型名称
+        self.gallery_dir = tk.StringVar()  # 搜索文件夹
         self.cv2_img = ''
 
         self.create_page()
@@ -186,49 +187,214 @@ class MainPage(object):
     def start_infer(self):
         file = self.weights.get()
         onnx_infer = OnnxInfer(file)
-        outs = onnx_infer.forward(self.cv2_img)
-        print(outs[0].shape)
 
 
 class OnnxInfer(object):
-    def __init__(self, onnx_file, resized_w=128, resized_h=256, batch_size=1):
+    def __init__(self, onnx_file, resized_w=128, resized_h=256, batch_size=6):
         self.onnx_file = onnx_file
         self.resized_w = resized_w
         self.resized_h = resized_h
         self.batch_size = batch_size
 
-        self.onnx_session = onnxruntime.InferenceSession(onnx_file, providers=['CPUExecutionProvider'])
+        self.onnx_session = onnxruntime.InferenceSession(onnx_file, providers=['CUDAExecutionProvider'])
         self.input_name = self.get_input_name()
         self.output_name = self.get_output_name()
-    
-    def forward(self, image_numpy, gallery_dir, gallery_data_name):
-        # batched_img = np.random.random(size=(1, 3, 256, 128)).astype(np.float32)
-        img = self.resize_img(image_numpy, resized_w=self.resized_w, resized_h=self.resized_h)
-        batched_img = np.expand_dims(img.transpose((2, 0, 1)), axis=0)   # [h, w, c] -> [1, c, h, w]
-        input_feed = self.get_input_feed(self.input_name, batched_img)
-        output_value = self.onnx_session.run(self.output_name, input_feed=input_feed)
 
-        return output_value
+    def infer(self, probe_path, gallery_dir, gallery_data_name):
+        probe_path, dist_mat, q_pid, g_pids, q_camid, g_camids = self.prepare(probe_path,
+                                                                              gallery_dir,
+                                                                              gallery_data_name)
+        self.post_process(probe_path=probe_path,
+                          dist_mat=dist_mat,
+                          q_pids=q_pid,
+                          g_pids=g_pids,
+                          q_camids=q_camid,
+                          g_camids=g_camids)
+        print("保存完毕！")
 
-    def post_process(self, output_values):
-        pass
+    def prepare(self, probe_path, gallery_dir, gallery_data_name):
+        q_img, q_pid, q_camid = self._process_probe(probe_path, gallery_data_name)
+        input_feed = self.get_input_feed(self.input_name, q_img)
+        q_fs = self.onnx_session.run(self.output_name, input_feed=input_feed)[0]
+        q_pid = np.array([q_pid])
+        q_camid = np.array([q_camid])
+
+        datasets = self._process_dir(gallery_dir, gallery_data_name)
+        datasets = [datasets[i: i + self.batch_size] for i in range(0, len(datasets), self.batch_size)]
+        g_fs, g_pids, g_camids = [], [], []
+        for batch_info in datasets:
+            batch_img = []
+            # 开始整合一个batch中的数据
+            for per_info in batch_info:
+                g_img_path, g_pid, g_camid = per_info
+                img = self.resize_img(g_img_path)
+                batch_img.append(img)
+                g_pids.append(g_pid)
+                g_camids.append(g_camid)
+            batch_img = np.stack(batch_img, axis=0)  # [B, 256, 128, 3]
+            batch_img = self.normalize_img(batch_img)
+
+            input_feed = self.get_input_feed(self.input_name, batch_img)
+            g_features = self.onnx_session.run(self.output_name, input_feed=input_feed)[0]
+            g_fs.append(g_features)
+        g_fs = np.concatenate(g_fs, axis=0)  # [num_gallery, feature_maps]
+        g_pids = np.asarray(g_pids)
+        g_camids = np.asarray(g_camids)
+
+        q_fs = 1. * q_fs / (np.linalg.norm(q_fs, ord=2, axis=-1, keepdims=True) + 1e-12)
+        g_fs = 1. * g_fs / (np.linalg.norm(g_fs, ord=2, axis=-1, keepdims=True) + 1e-12)
+
+        m, n = q_fs.shape[0], g_fs.shape[0]
+        # dis_mat shape is [m, n]
+        dis_mat = np.power(q_fs, 2).sum(axis=1, keepdims=True).repeat(n, axis=1) + \
+                  np.power(g_fs, 2).sum(axis=1, keepdims=True).repeat(m, axis=1).T
+        dis_mat = dis_mat - 2 * q_fs @ g_fs.T
+
+        return probe_path, dis_mat, q_pid, g_pids, q_camid, g_camids
 
     @staticmethod
-    def resize_img(img, resized_w, resized_h):
+    def post_process(probe_path, dist_mat, q_pids, g_pids, q_camids, g_camids, max_rank=5):
+        save_dir = "D:\\Desktop\\tempfile\\reid_infer\\test"
+        num_q, num_g = dist_mat.shape
+        if num_g < max_rank:
+            max_rank = num_g
+            print(f"Note: number of gallery samples is quite small, got {num_q}")
+        # indices: [num_q, num_g] 输出按行排列的索引 (升序，从小到大)
+        indices = np.argsort(dist_mat, axis=1)
+        # g_pids[indices] shape is [m, n]
+        # g_pids 原来是 [n, ], g_pids[indices]操作之后, 扩展到了 [m, n]
+        # 也就是每一行中的n个元素都按照 indices 中每一行的顺序进行了重排列
+        g_pids_exp_dims, g_camids_exp_dims = g_pids[indices], g_camids[indices]
+        g_pids_indices_sorted = np.ones_like(g_pids_exp_dims, dtype=np.int32) * (-1)
+        q_pids_exp_dims = np.expand_dims(q_pids, axis=1)  # [m, 1]
+
+        # matches中为 1 的表示query中和gallery中的行人id相同, 也就是表示同一个人
+        # matches中的结果就是和后续预测出的结果进行对比的正确label
+        matches = (g_pids_exp_dims == q_pids_exp_dims).astype(np.int32)  # shape is [m, n]
+
+        for q_idx in range(num_q):
+            # q_pid, q_camid 分别都是一个数字
+            q_pid, q_camid = q_pids[q_idx], q_camids[q_idx]
+
+            # remove gallery samples that have the same pid and camid with query
+            # TODO: 这里要用 & ,因为前后都是np.ndarray类型, 如果前后都是list, 则可以使用 and
+            removed = (g_pids_exp_dims[q_idx] == q_pid) & (g_camids_exp_dims[q_idx] == q_camid)  # [n, ]
+
+            # keep中为True的表示gallery中符合查找条件的行人图片，
+            # 这些为True的部分还需要借助matches才能完成正确的查找
+            # 且keep中从左到右就是当前查找图片和每一个gallery中图片的距离距离依次递增的顺序
+            keep = np.where(removed == 0, True, False)  # [n, ]
+
+            # ===== compute cmc curve =====
+            # orig_cmc中为1的位置表示查找的图片匹配正确了
+            orig_cmc = matches[q_idx][keep]
+
+            # orig_cmc中为1即表示匹配正确，为0表示匹配错误, 但是orig_cmc经过keep这个mask之后，数量就发生了变化
+            g_pids_indices_sorted[q_idx][:len(orig_cmc)] = indices[q_idx][keep]
+
+        for idx in range(num_q):
+            q_pid = q_pids[idx]
+            fig = plt.figure(figsize=(16, 4))
+            ax = plt.subplot(1, 11, 1)
+            ax.axis('off')
+            # imshow(q_path, 'query')
+
+            # 没有在gallery中找到匹配的行人
+            if (g_pids_indices_sorted[idx] == -1).all():
+                print('no matched in gallery')
+                continue
+
+            for i, g_pid_idx in enumerate(g_pids_indices_sorted[idx][:10]):
+                ax = plt.subplot(1, 11, i + 2)
+                ax.axis('off')
+                g_pid = g_pids[int(g_pid_idx)]
+
+                if g_pid == q_pid:
+                    ax.set_title('%d' % (i + 1), color='green')
+                else:
+                    ax.set_title('%d' % (i + 1), color='red')
+
+            fig.savefig(os.path.join(save_dir, probe_path.split(os.sep)[-1]))
+            plt.close()
+
+    def _process_probe(self, probe_path, gallery_data_name):
+        img = self.resize_img(probe_path, resized_w=128, resized_h=256)
+        img = np.expand_dims(img, axis=0)  # [1, H, W, C]
+        img = self.normalize_img(img)  # [1, C, H, W]
+        probe_name = probe_path.split(os.sep)[-1]
+        if gallery_data_name == "market1501":
+            pid, camid = int(probe_name.split('_')[0]), int(probe_name.split('_')[1][1]) - 1
+        elif gallery_data_name == "duke":
+            pid, camid = -1, -1
+        elif gallery_data_name == "msmt17":
+            pid, camid = int(probe_name.split('_')[0]), int(probe_name.split('_')[1][1:]) - 1
+        else:
+            pid, camid = -1, -1
+
+        return img, pid, camid
+
+    @staticmethod
+    def _process_dir(gallery_dir, gallery_data_name):
+        datasets = list()
+        img_paths = glob.glob(os.path.join(gallery_dir, '*.jpg'))
+
+        if gallery_data_name == "market1501":
+            for img_path in img_paths:
+                img_name = img_path.split(os.sep)[-1]
+                infos = img_name.split('_')
+                pid, camid = int(infos[0]), int(infos[1][1])
+                # ignore junk image
+                if pid == -1:
+                    continue
+                assert 0 <= pid <= 1501
+                assert 1 <= camid <= 6
+                camid -= 1  # camera id start from 0
+                datasets.append([img_path, pid, camid])
+        elif gallery_data_name == "duke":
+            pass
+        elif gallery_data_name == "msmt17":
+            for img_path in img_paths:
+                img_name = img_path.split(os.sep)[-1]
+                infos = img_name.split('_')
+                pid, camid = int(infos[0]), int(infos[1][1:])
+                # ignore junk image
+                if pid == -1:
+                    continue
+                assert 0 <= pid <= 4101
+                assert 1 <= camid <= 15
+                camid -= 1  # camera id start from 0
+                datasets.append([img_path, pid, camid])
+        else:
+            pass
+        return datasets
+
+    @staticmethod
+    def resize_img(img_path, resized_w=128, resized_h=256):
+        img = cv2.imread(img_path)
         h, w, _ = img.shape
-        img = cv2.resize(img, (resized_w, resized_h))       # (width, height)
-        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)       # BGR -> RGB
+        img = cv2.resize(img, (resized_w, resized_h))  # (width, height)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # BGR -> RGB
 
         return img.astype(np.float32)
 
     @staticmethod
-    def normalize_img(batch_img, mean, std):
+    def normalize_img(img, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+        """
+        标准化
+        Args:
+            img: [B, H, W, C]
+            mean: Tuple or List
+            std: Tuple or List
+        Returns:
+        """
         mean = np.array(mean, dtype=np.float32).reshape((1, 1, 1, -1))
         std = np.array(std, dtype=np.float32).reshape((1, 1, 1, -1))
 
-        normalize_img = (batch_img.astype(np.float32) / 255. - mean) / std
+        img = (img / 255. - mean) / std
 
-        return normalize_img
+        img = img.transpose((0, 3, 1, 2))  # [B, H, W, C] -> [B, C, H, W]
+
+        return img
 
     @staticmethod
     def get_input_feed(input_name, image_numpy):
@@ -265,4 +431,34 @@ def run():
 
 
 if __name__ == "__main__":
-    run()
+    # run()
+    onnx_infer = OnnxInfer(onnx_file="D:\\Desktop\\tempfile\\weights\\osnet_ibn_x1_0_onnx.onnx")
+    p1 = r"D:\workspace\data\dl\reid\market1501\Market-1501-v15.09.15\query\0001_c2s1_000301_00.jpg"
+    p2 = r"D:\workspace\data\dl\reid\market1501\Market-1501-v15.09.15\bounding_box_test"
+    name = "market1501"
+    onnx_infer.infer(probe_path=p1,
+                     gallery_dir=p2,
+                     gallery_data_name=name)
+
+    # import torch
+
+    # q_fs = torch.tensor([[1., 2., 3.], [3., 3., 2.]])  # [2, 3]
+    # g_fs = torch.tensor([[2., 3., 4.], [2., 2., 1.], [3., 1., 2.]])  # [3, 3]
+    # m, n = q_fs.shape[0], g_fs.shape[0]
+    # # dis_mat shape is [m, n]
+    # dis_mat = torch.pow(q_fs, 2).sum(dim=1, keepdim=True).expand(m, n) + \
+    #           torch.pow(g_fs, 2).sum(dim=1, keepdim=True).expand(n, m).T
+    # dis_mat = torch.addmm(dis_mat, mat1=q_fs, mat2=g_fs.T, beta=1, alpha=-2)
+    # dis_mat = dis_mat.numpy()
+    # print(dis_mat, dis_mat.shape)
+    #
+    # print('=' * 20)
+    #
+    # q_fs2 = np.array([[1., 2., 3.], [3., 3., 2.]])
+    # g_fs2 = np.array([[2., 3., 4.], [2., 2., 1.], [3., 1., 2.]])
+    # m, n = q_fs2.shape[0], g_fs2.shape[0]
+    # # print(np.power(q_fs2, 2).sum(axis=1, keepdims=True).repeat(n, axis=1))
+    # dis_mat2 = np.power(q_fs2, 2).sum(axis=1, keepdims=True).repeat(n, axis=1) + \
+    #            np.power(g_fs2, 2).sum(axis=1, keepdims=True).repeat(m, axis=1).T
+    # dis_mat2 = dis_mat2 - 2 * q_fs2 @ g_fs2.T
+    # print(dis_mat2, dis_mat2.shape)

@@ -15,19 +15,20 @@ def convert_torch2onnx_model(model,
                              opset_version=11,
                              use_onnxsim=True):
     print(f'starting export with onnx version {onnx.__version__}...')
+    dynamic_axes = {
+        'input': {0: 'batch_size'},  # 这么写表示第0维可以变化
+        'output': {0: 'batch_size'},
+    }
     torch.onnx.export(model,
                       inputs,
                       save_file_path,
                       export_params=True,
                       verbose=False,
-                      input_names=['inputs'],
-                      output_names=['outputs'],
+                      input_names=['input'],
+                      output_names=['output'],
                       opset_version=opset_version,
                       do_constant_folding=True,
-                      dynamic_axes={
-                          'inputs': {},
-                          'outputs': {}
-                      })
+                      dynamic_axes=dynamic_axes)
     # load and check onnx model
     onnx_model = onnx.load(save_file_path)
     onnx.checker.check_model(onnx_model)
@@ -46,15 +47,14 @@ def convert_torch2onnx_model(model,
 
 if __name__ == "__main__":
     pth_path = r'D:\Desktop\best_model.pth'
-    model = models.init_model(name='osnet_ibn_x1_0_origin',
+    model = models.init_model(name='osnet_ibn_x1_0_onnx',
                               num_classes=751)
     model.eval()
     # model.load_state_dict(torch.load(pth_path))
 
     inputs = torch.randn(1, 3, 256, 128)
-    save_file_path = r'D:\Desktop\best_model.onnx'
+    save_file_path = r'D:\Desktop\tempfile\weights\osnet_ibn_x1_0_onnx.onnx'
     convert_torch2onnx_model(model=model,
                              inputs=inputs,
                              save_file_path=save_file_path,
                              use_onnxsim=False)
-
