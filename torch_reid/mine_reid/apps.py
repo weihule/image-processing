@@ -128,17 +128,17 @@ class MainPage(object):
         self.create_page()
 
     def create_page(self):
-        ttk.Label(self.login_page, text="输入模型名称: ").place(x=50, y=50)
-        ttk.Entry(self.login_page, textvariable=self.model_name, width=40).place(x=135, y=50)
-        ttk.Button(self.login_page, text="点击确定", command=self.confirm_model).place(x=440, y=48)
+        ttk.Label(self.login_page, text="输入模型名称: ").place(x=50, y=20)
+        ttk.Entry(self.login_page, textvariable=self.model_name, width=40).place(x=135, y=20)
+        ttk.Button(self.login_page, text="点击确定", command=self.confirm_model).place(x=440, y=18)
 
-        ttk.Label(self.login_page, text="权重文件路径: ").place(x=50, y=80)
-        ttk.Entry(self.login_page, textvariable=self.weights, width=40).place(x=135, y=80)
-        ttk.Button(self.login_page, text="选择路径", command=self.open_file).place(x=440, y=78)
+        ttk.Label(self.login_page, text="权重文件路径: ").place(x=50, y=60)
+        ttk.Entry(self.login_page, textvariable=self.weights, width=40).place(x=135, y=60)
+        ttk.Button(self.login_page, text="选择路径", command=self.open_file).place(x=440, y=58)
 
-        ttk.Label(self.login_page, text="图片库: ").place(x=50, y=110)
-        ttk.Entry(self.login_page, textvariable=self.gallery_dir, width=40).place(x=135, y=110)
-        ttk.Button(self.login_page, text="选择文件夹", command=self.open_dir).place(x=440, y=108)
+        ttk.Label(self.login_page, text="图片库: ").place(x=50, y=100)
+        ttk.Entry(self.login_page, textvariable=self.gallery_dir, width=40).place(x=135, y=100)
+        ttk.Button(self.login_page, text="选择文件夹", command=self.open_dir).place(x=440, y=98)
 
         ttk.Button(self.login_page, text="选择图片", command=self.open_image).place(x=50, y=145)
         ttk.Button(self.login_page, text="开始重识别", command=self.start_infer).place(x=150, y=145)
@@ -196,15 +196,16 @@ class OnnxInfer(object):
         self.resized_h = resized_h
         self.batch_size = batch_size
 
-        self.onnx_session = onnxruntime.InferenceSession(onnx_file, providers=['CUDAExecutionProvider'])
-        self.input_name = self.get_input_name()
-        self.output_name = self.get_output_name()
+        self.onnx_session = onnxruntime.InferenceSession(onnx_file, providers=['CPUExecutionProvider'])
+        self.input_name = [self.onnx_session.get_inputs()[0].name]
+        self.output_name = [self.onnx_session.get_outputs()[0].name]
 
     def infer(self, probe_path, gallery_dir, gallery_data_name):
-        probe_path, dist_mat, q_pid, g_pids, q_camid, g_camids = self.prepare(probe_path,
-                                                                              gallery_dir,
-                                                                              gallery_data_name)
+        probe_path, dataset, dist_mat, q_pid, g_pids, q_camid, g_camids = self.prepare(probe_path,
+                                                                                       gallery_dir,
+                                                                                       gallery_data_name)
         self.post_process(probe_path=probe_path,
+                          dataset=dataset,
                           dist_mat=dist_mat,
                           q_pids=q_pid,
                           g_pids=g_pids,
@@ -220,9 +221,9 @@ class OnnxInfer(object):
         q_camid = np.array([q_camid])
 
         datasets = self._process_dir(gallery_dir, gallery_data_name)
-        datasets = [datasets[i: i + self.batch_size] for i in range(0, len(datasets), self.batch_size)]
+        datasets_batches = [datasets[i: i + self.batch_size] for i in range(0, len(datasets), self.batch_size)]
         g_fs, g_pids, g_camids = [], [], []
-        for batch_info in datasets:
+        for batch_info in datasets_batches:
             batch_img = []
             # 开始整合一个batch中的数据
             for per_info in batch_info:
@@ -250,11 +251,11 @@ class OnnxInfer(object):
                   np.power(g_fs, 2).sum(axis=1, keepdims=True).repeat(m, axis=1).T
         dis_mat = dis_mat - 2 * q_fs @ g_fs.T
 
-        return probe_path, dis_mat, q_pid, g_pids, q_camid, g_camids
+        return probe_path, datasets, dis_mat, q_pid, g_pids, q_camid, g_camids
 
     @staticmethod
-    def post_process(probe_path, dist_mat, q_pids, g_pids, q_camids, g_camids, max_rank=5):
-        save_dir = "D:\\Desktop\\tempfile\\reid_infer\\test"
+    def post_process(probe_path, dataset, dist_mat, q_pids, g_pids, q_camids, g_camids, max_rank=5):
+        save_dir = r"D:\Desktop\tempfile\some_infer\reid_infer"
         num_q, num_g = dist_mat.shape
         if num_g < max_rank:
             max_rank = num_g
@@ -285,7 +286,6 @@ class OnnxInfer(object):
             # 且keep中从左到右就是当前查找图片和每一个gallery中图片的距离距离依次递增的顺序
             keep = np.where(removed == 0, True, False)  # [n, ]
 
-            # ===== compute cmc curve =====
             # orig_cmc中为1的位置表示查找的图片匹配正确了
             orig_cmc = matches[q_idx][keep]
 
@@ -297,7 +297,9 @@ class OnnxInfer(object):
             fig = plt.figure(figsize=(16, 4))
             ax = plt.subplot(1, 11, 1)
             ax.axis('off')
-            # imshow(q_path, 'query')
+            img = plt.imread(probe_path)
+            plt.title("query")
+            plt.imshow(img)
 
             # 没有在gallery中找到匹配的行人
             if (g_pids_indices_sorted[idx] == -1).all():
@@ -307,7 +309,11 @@ class OnnxInfer(object):
             for i, g_pid_idx in enumerate(g_pids_indices_sorted[idx][:10]):
                 ax = plt.subplot(1, 11, i + 2)
                 ax.axis('off')
-                g_pid = g_pids[int(g_pid_idx)]
+                g_path = dataset[int(g_pid_idx)][0]
+                g_pid = dataset[int(g_pid_idx)][1]
+                img = plt.imread(g_path)
+                plt.title(str(g_pid_idx))
+                plt.imshow(img)
 
                 if g_pid == q_pid:
                     ax.set_title('%d' % (i + 1), color='green')
@@ -318,6 +324,7 @@ class OnnxInfer(object):
             plt.close()
 
     def _process_probe(self, probe_path, gallery_data_name):
+        """处理probe图片信息"""
         img = self.resize_img(probe_path, resized_w=128, resized_h=256)
         img = np.expand_dims(img, axis=0)  # [1, H, W, C]
         img = self.normalize_img(img)  # [1, C, H, W]
@@ -335,6 +342,7 @@ class OnnxInfer(object):
 
     @staticmethod
     def _process_dir(gallery_dir, gallery_data_name):
+        """处理gallery文件夹信息"""
         datasets = list()
         img_paths = glob.glob(os.path.join(gallery_dir, '*.jpg'))
 
@@ -403,24 +411,6 @@ class OnnxInfer(object):
             input_feed[name] = image_numpy
         return input_feed
 
-    def get_output_name(self):
-        """
-        output_name = onnx_session.get_outputs()[0].name
-        """
-        output_name = []
-        for node in self.onnx_session.get_outputs():
-            output_name.append(node.name)
-        return output_name
-
-    def get_input_name(self):
-        """
-        input_name = onnx_session.get_inputs()[0].name
-        """
-        input_name = []
-        for node in self.onnx_session.get_inputs():
-            input_name.append(node.name)
-        return input_name
-
 
 def run():
     root = tk.Tk()
@@ -431,34 +421,11 @@ def run():
 
 
 if __name__ == "__main__":
-    # run()
-    onnx_infer = OnnxInfer(onnx_file="D:\\Desktop\\tempfile\\weights\\osnet_ibn_x1_0_onnx.onnx")
-    p1 = r"D:\workspace\data\dl\reid\market1501\Market-1501-v15.09.15\query\0001_c2s1_000301_00.jpg"
-    p2 = r"D:\workspace\data\dl\reid\market1501\Market-1501-v15.09.15\bounding_box_test"
-    name = "market1501"
-    onnx_infer.infer(probe_path=p1,
-                     gallery_dir=p2,
-                     gallery_data_name=name)
-
-    # import torch
-
-    # q_fs = torch.tensor([[1., 2., 3.], [3., 3., 2.]])  # [2, 3]
-    # g_fs = torch.tensor([[2., 3., 4.], [2., 2., 1.], [3., 1., 2.]])  # [3, 3]
-    # m, n = q_fs.shape[0], g_fs.shape[0]
-    # # dis_mat shape is [m, n]
-    # dis_mat = torch.pow(q_fs, 2).sum(dim=1, keepdim=True).expand(m, n) + \
-    #           torch.pow(g_fs, 2).sum(dim=1, keepdim=True).expand(n, m).T
-    # dis_mat = torch.addmm(dis_mat, mat1=q_fs, mat2=g_fs.T, beta=1, alpha=-2)
-    # dis_mat = dis_mat.numpy()
-    # print(dis_mat, dis_mat.shape)
-    #
-    # print('=' * 20)
-    #
-    # q_fs2 = np.array([[1., 2., 3.], [3., 3., 2.]])
-    # g_fs2 = np.array([[2., 3., 4.], [2., 2., 1.], [3., 1., 2.]])
-    # m, n = q_fs2.shape[0], g_fs2.shape[0]
-    # # print(np.power(q_fs2, 2).sum(axis=1, keepdims=True).repeat(n, axis=1))
-    # dis_mat2 = np.power(q_fs2, 2).sum(axis=1, keepdims=True).repeat(n, axis=1) + \
-    #            np.power(g_fs2, 2).sum(axis=1, keepdims=True).repeat(m, axis=1).T
-    # dis_mat2 = dis_mat2 - 2 * q_fs2 @ g_fs2.T
-    # print(dis_mat2, dis_mat2.shape)
+    run()
+    # onnx_infer = OnnxInfer(onnx_file="D:\\Desktop\\tempfile\\weights\\osnet_ibn_x1_0_onnx.onnx")
+    # p1 = "D:\\workspace\\data\\dl\\reid\\demo\\market1501\\query\\0002_c3s1_000076_01.jpg"
+    # p2 = "D:\\workspace\\data\\dl\\reid\\demo\\market1501\\gallery"
+    # name = "market1501"
+    # onnx_infer.infer(probe_path=p1,
+    #                  gallery_dir=p2,
+    #                  gallery_data_name=name)
