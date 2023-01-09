@@ -1,4 +1,5 @@
 import os
+import sys
 import cv2
 import numpy as np
 from tkinter.filedialog import askopenfilename, askdirectory
@@ -30,7 +31,6 @@ class LoginPage(object):
         """
         登录页面
         """
-
         # 创建 用户名 框
         tk.Label(self.login_page, text="用户名:").place(x=200, y=120)
         entry_usr_name = tk.Entry(self.login_page, textvariable=self.v1)
@@ -119,78 +119,125 @@ class MainPage(object):
         self.login_page = tk.Frame(self.master, width=1000, height=600)  # 创建Frame
         self.login_page.pack()
 
+        self.model_name = tk.StringVar()  # 模型名称
+        self.gallery_name = tk.StringVar()  # 搜索库名称
         self.weights = tk.StringVar()  # 权重文件
         self.src_pic = tk.StringVar()  # probe图片
-        self.model_name = tk.StringVar()  # 模型名称
         self.gallery_dir = tk.StringVar()  # 搜索文件夹
-        self.cv2_img = ''
+        self.save_dir = tk.StringVar()  # 保存路径
 
         self.create_page()
 
     def create_page(self):
-        ttk.Label(self.login_page, text="输入模型名称: ").place(x=50, y=20)
-        ttk.Entry(self.login_page, textvariable=self.model_name, width=40).place(x=135, y=20)
-        ttk.Button(self.login_page, text="点击确定", command=self.confirm_model).place(x=440, y=18)
+        ttk.Label(self.login_page, text="选择模型: ").place(x=50, y=10)
+        # ttk.Entry(self.login_page, textvariable=self.model_name, width=40).place(x=135, y=20)
+        # ttk.Button(self.login_page, text="点击确定", command=self.confirm_model).place(x=440, y=18)
+        com = ttk.Combobox(self.login_page, textvariable=self.model_name,
+                           width=25,
+                           values=("osnet_ibn_x1_0_origin",
+                                   "osnet_x1_0",
+                                   "osnet_x0_75")
+                           )
+        com.place(x=135, y=10)
+        com.current(0)  # 设定下拉菜单的默认值为第0个
 
-        ttk.Label(self.login_page, text="权重文件路径: ").place(x=50, y=60)
-        ttk.Entry(self.login_page, textvariable=self.weights, width=40).place(x=135, y=60)
-        ttk.Button(self.login_page, text="选择路径", command=self.open_file).place(x=440, y=58)
+        ttk.Label(self.login_page, text="搜索库名称: ").place(x=400, y=10)
+        gallery_name_com = ttk.Combobox(self.login_page,
+                                        textvariable=self.gallery_name,
+                                        width=25,
+                                        values=("market1501",
+                                                "duke",
+                                                "msmt17",
+                                                "mine")
+                                        )
+        gallery_name_com.place(x=485, y=10)
+        gallery_name_com.current(0)  # 设定下拉菜单的默认值为第0个
 
-        ttk.Label(self.login_page, text="图片库: ").place(x=50, y=100)
-        ttk.Entry(self.login_page, textvariable=self.gallery_dir, width=40).place(x=135, y=100)
-        ttk.Button(self.login_page, text="选择文件夹", command=self.open_dir).place(x=440, y=98)
+        ttk.Label(self.login_page, text="权重文件路径: ").place(x=50, y=40)
+        ttk.Entry(self.login_page, textvariable=self.weights, width=50).place(x=135, y=40)
+        ttk.Button(self.login_page, text="点击选择", command=self.open_file).place(x=500, y=38)
+
+        ttk.Label(self.login_page, text="搜索库路径: ").place(x=50, y=80)
+        ttk.Entry(self.login_page, textvariable=self.gallery_dir, width=50).place(x=135, y=80)
+        ttk.Button(self.login_page, text="点击选择", command=self.open_dir).place(x=500, y=78)
+
+        ttk.Label(self.login_page, text="保存路径: ").place(x=50, y=120)
+        ttk.Entry(self.login_page, textvariable=self.save_dir, width=50).place(x=135, y=120)
+        ttk.Button(self.login_page, text="点击选择", command=self.save_dir_path).place(x=500, y=118)
 
         ttk.Button(self.login_page, text="选择图片", command=self.open_image).place(x=50, y=145)
         ttk.Button(self.login_page, text="开始重识别", command=self.start_infer).place(x=150, y=145)
+        ttk.Button(self.login_page, text="退出系统", command=self.master.destroy).place(x=250, y=145)
 
         # 图片排列控件
         ttk.Label(self.login_page, text="src", font=("宋体", 25)).place(x=50, y=180)
-        ttk.Label(self.login_page, text="1", font=("宋体", 25)).place(x=200, y=180)
-        ttk.Label(self.login_page, text="2", font=("宋体", 25)).place(x=350, y=180)
-        ttk.Label(self.login_page, text="3", font=("宋体", 25)).place(x=500, y=180)
-        ttk.Label(self.login_page, text="4", font=("宋体", 25)).place(x=650, y=180)
-        ttk.Label(self.login_page, text="5", font=("宋体", 25)).place(x=800, y=180)
+        ttk.Label(self.login_page, text="1", font=("宋体", 25)).place(x=250, y=180)
+        ttk.Label(self.login_page, text="2", font=("宋体", 25)).place(x=400, y=180)
+        ttk.Label(self.login_page, text="3", font=("宋体", 25)).place(x=550, y=180)
+        ttk.Label(self.login_page, text="4", font=("宋体", 25)).place(x=700, y=180)
+        ttk.Label(self.login_page, text="5", font=("宋体", 25)).place(x=850, y=180)
 
     def open_file(self):
         file = askopenfilename(title="请选择权重文件",
-                               initialdir=r"D:",
-                               filetypes=[("pth文件", ".pth")])
+                               initialdir="D:\\Desktop\\tempfile\\weights",
+                               filetypes=[("onnx文件", ".onnx")])
         # 将file赋值给self.weights
         self.weights.set(file)
 
     def open_dir(self):
         file = askdirectory(title="请选择图片库文件夹",
-                            initialdir=r"D:")
+                            initialdir="D:\\workspace\\data\\dl\\reid")
         # 将file赋值给self.gallery_dir
         self.gallery_dir.set(file)
+
+    def save_dir_path(self):
+        file = askdirectory(title="保存路径",
+                            initialdir="D:\\Desktop\\tempfile\\some_infer")
+        self.save_dir.set(file)
 
     def open_image(self):
         # paned = tk.PanedWindow(self.login_page)
         # paned.place(x=40, y=180)
         # paned.pack(fill=tk.X, side=tk.LEFT)
         file = askopenfilename(title="请选择图片文件",
-                               initialdir=r"D:",
+                               initialdir="D:\\workspace\\data\dl\\reid",
                                filetypes=[("图片文件", ".jpg"),
                                           ("图片文件", ".png"),
                                           ("图片文件", ".JPEG"),
                                           ("图片文件", ".PNG")])
         self.src_pic.set(file)
-        img = Image.open(file)
-        self.cv2_img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
-        self.login_page.photo = ImageTk.PhotoImage(img.resize((128, 256)))
-        tk.Label(self.login_page, image=self.login_page.photo).place(x=10, y=220)
+        # img = Image.open(file)
+        # self.login_page.photo = ImageTk.PhotoImage(img.resize((128, 256)))
+        # tk.Label(self.login_page, image=self.login_page.photo).place(x=10, y=220)
 
-    def confirm_model(self):
-        # 获取entry输入的内容
-        model_name = self.model_name.get()
+        paned = tk.PanedWindow(self.login_page)
+        paned.place(x=10, y=220)
+        img = Image.open(file)
+        paned.photo = ImageTk.PhotoImage(img.resize((128, 256)))  # 改变图片显示大小
+        ttk.Label(self.login_page, image=paned.photo).place(x=10, y=220)
 
     def start_infer(self):
         file = self.weights.get()
-        onnx_infer = OnnxInfer(file)
+        onnx_infer = OnnxInfer(onnx_file=file, save_dir=self.save_dir.get())
+        onnx_infer.infer(probe_path=self.src_pic.get(),
+                         gallery_dir=self.gallery_dir.get(),
+                         gallery_data_name=self.gallery_name.get())
+        # 将重识别之后的行人图像展示在页面上
+        save_path = os.path.join(self.save_dir.get(), self.src_pic.get().split("/")[-1][:-3] + "txt")
+        with open(save_path, 'r', encoding="utf-8") as fr:
+            lines = fr.readlines()
+        print(lines)
+        # for idx, line in enumerate(lines):
+        #     line = line.strip()
+        #     paned = tk.PanedWindow(self.login_page)
+        #     paned.place(x=10, y=220)
+        #     img = Image.open(line)
+        #     paned.photo = ImageTk.PhotoImage(img.resize((128, 256)))  # 改变图片显示大小
+        #     ttk.Label(self.login_page, image=paned.photo).place(x=(idx+1)*170, y=220)
 
 
 class OnnxInfer(object):
-    def __init__(self, onnx_file, resized_w=128, resized_h=256, batch_size=6):
+    def __init__(self, onnx_file, save_dir, resized_w=128, resized_h=256, batch_size=6):
         self.onnx_file = onnx_file
         self.resized_w = resized_w
         self.resized_h = resized_h
@@ -200,17 +247,11 @@ class OnnxInfer(object):
         self.input_name = [self.onnx_session.get_inputs()[0].name]
         self.output_name = [self.onnx_session.get_outputs()[0].name]
 
+        self.save_dir = save_dir
+
     def infer(self, probe_path, gallery_dir, gallery_data_name):
-        probe_path, dataset, dist_mat, q_pid, g_pids, q_camid, g_camids = self.prepare(probe_path,
-                                                                                       gallery_dir,
-                                                                                       gallery_data_name)
-        self.post_process(probe_path=probe_path,
-                          dataset=dataset,
-                          dist_mat=dist_mat,
-                          q_pids=q_pid,
-                          g_pids=g_pids,
-                          q_camids=q_camid,
-                          g_camids=g_camids)
+        prepares = self.prepare(probe_path, gallery_dir, gallery_data_name)
+        self.post_process(prepares=prepares)
         print("保存完毕！")
 
     def prepare(self, probe_path, gallery_dir, gallery_data_name):
@@ -251,11 +292,12 @@ class OnnxInfer(object):
                   np.power(g_fs, 2).sum(axis=1, keepdims=True).repeat(m, axis=1).T
         dis_mat = dis_mat - 2 * q_fs @ g_fs.T
 
-        return probe_path, datasets, dis_mat, q_pid, g_pids, q_camid, g_camids
+        return (probe_path, datasets, dis_mat, q_pid, g_pids, q_camid, g_camids)
 
-    @staticmethod
-    def post_process(probe_path, dataset, dist_mat, q_pids, g_pids, q_camids, g_camids, max_rank=5):
-        save_dir = r"D:\Desktop\tempfile\some_infer\reid_infer"
+    def post_process(self, prepares):
+        # save_dir = "D:\\Desktop\\tempfile\\some_infer\\reid_infer"
+        probe_path, dataset, dist_mat, q_pids, g_pids, q_camids, g_camids = prepares
+        max_rank = 5
         num_q, num_g = dist_mat.shape
         if num_g < max_rank:
             max_rank = num_g
@@ -306,29 +348,34 @@ class OnnxInfer(object):
                 print('no matched in gallery')
                 continue
 
-            for i, g_pid_idx in enumerate(g_pids_indices_sorted[idx][:10]):
-                ax = plt.subplot(1, 11, i + 2)
-                ax.axis('off')
-                g_path = dataset[int(g_pid_idx)][0]
-                g_pid = dataset[int(g_pid_idx)][1]
-                img = plt.imread(g_path)
-                plt.title(str(g_pid_idx))
-                plt.imshow(img)
+            # for i, g_pid_idx in enumerate(g_pids_indices_sorted[idx][:10]):
+            #     ax = plt.subplot(1, 11, i + 2)
+            #     ax.axis('off')
+            #     g_path = dataset[int(g_pid_idx)][0]
+            #     g_pid = dataset[int(g_pid_idx)][1]
+            #     img = plt.imread(g_path)
+            #     plt.title(str(g_pid_idx))
+            #     plt.imshow(img)
 
-                if g_pid == q_pid:
-                    ax.set_title('%d' % (i + 1), color='green')
-                else:
-                    ax.set_title('%d' % (i + 1), color='red')
-
-            fig.savefig(os.path.join(save_dir, probe_path.split(os.sep)[-1]))
-            plt.close()
+            #     if g_pid == q_pid:
+            #         ax.set_title('%d' % (i + 1), color='green')
+            #     else:
+            #         ax.set_title('%d' % (i + 1), color='red')
+            # save_path = os.path.join(self.save_dir, probe_path.split("/")[-1])
+            # fig.savefig(save_path)
+            # plt.close()
+            save_path = os.path.join(self.save_dir, probe_path.split("/")[-1][:-3] + "txt")
+            with open(save_path, "w", encoding="utf-8") as fa:
+                for g_pid_idx in g_pids_indices_sorted[idx][:5]:
+                    g_path = dataset[int(g_pid_idx)][0]
+                    fa.write(g_path + "\n")
 
     def _process_probe(self, probe_path, gallery_data_name):
         """处理probe图片信息"""
         img = self.resize_img(probe_path, resized_w=128, resized_h=256)
         img = np.expand_dims(img, axis=0)  # [1, H, W, C]
         img = self.normalize_img(img)  # [1, C, H, W]
-        probe_name = probe_path.split(os.sep)[-1]
+        probe_name = probe_path.split("/")[-1]
         if gallery_data_name == "market1501":
             pid, camid = int(probe_name.split('_')[0]), int(probe_name.split('_')[1][1]) - 1
         elif gallery_data_name == "duke":
