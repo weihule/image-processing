@@ -1,5 +1,4 @@
 import os
-import sys
 import cv2
 import numpy as np
 from tkinter.filedialog import askopenfilename, askdirectory
@@ -7,7 +6,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import json
 from PIL import Image, ImageTk
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import onnxruntime
 import glob
 
@@ -165,17 +164,18 @@ class MainPage(object):
         ttk.Entry(self.login_page, textvariable=self.save_dir, width=50).place(x=135, y=120)
         ttk.Button(self.login_page, text="点击选择", command=self.save_dir_path).place(x=500, y=118)
 
-        ttk.Button(self.login_page, text="选择图片", command=self.open_image).place(x=50, y=145)
-        ttk.Button(self.login_page, text="开始重识别", command=self.start_infer).place(x=150, y=145)
-        ttk.Button(self.login_page, text="退出系统", command=self.master.destroy).place(x=250, y=145)
+        ttk.Button(self.login_page, text="选择图片", command=self.open_image).place(x=50, y=150)
+        ttk.Button(self.login_page, text="开始重识别", command=self.start_infer).place(x=150, y=150)
+        ttk.Button(self.login_page, text="退出系统", command=self.master.destroy).place(x=250, y=150)
 
         # 图片排列控件
-        ttk.Label(self.login_page, text="src", font=("宋体", 25)).place(x=50, y=180)
-        ttk.Label(self.login_page, text="1", font=("宋体", 25)).place(x=250, y=180)
-        ttk.Label(self.login_page, text="2", font=("宋体", 25)).place(x=400, y=180)
-        ttk.Label(self.login_page, text="3", font=("宋体", 25)).place(x=550, y=180)
-        ttk.Label(self.login_page, text="4", font=("宋体", 25)).place(x=700, y=180)
-        ttk.Label(self.login_page, text="5", font=("宋体", 25)).place(x=850, y=180)
+        ttk.Label(self.login_page, text="query", font=("Times New Roman", 20)).place(x=50, y=180)
+        # ttk.Label(self.login_page, text="1", font=("宋体", 25)).place(x=250, y=180)
+        # ttk.Label(self.login_page, text="2", font=("宋体", 25)).place(x=400, y=180)
+        ttk.Label(self.login_page, text="gallery", font=("Times New Roman", 20)).place(x=550, y=180)
+        # ttk.Label(self.login_page, text="4", font=("宋体", 25)).place(x=700, y=180)
+        # ttk.Label(self.login_page, text="5", font=("宋体", 25)).place(x=850, y=180)
+        
 
     def open_file(self):
         file = askopenfilename(title="请选择权重文件",
@@ -226,14 +226,14 @@ class MainPage(object):
         save_path = os.path.join(self.save_dir.get(), self.src_pic.get().split("/")[-1][:-3] + "txt")
         with open(save_path, 'r', encoding="utf-8") as fr:
             lines = fr.readlines()
-        print(lines)
-        # for idx, line in enumerate(lines):
-        #     line = line.strip()
-        #     paned = tk.PanedWindow(self.login_page)
-        #     paned.place(x=10, y=220)
-        #     img = Image.open(line)
-        #     paned.photo = ImageTk.PhotoImage(img.resize((128, 256)))  # 改变图片显示大小
-        #     ttk.Label(self.login_page, image=paned.photo).place(x=(idx+1)*170, y=220)
+        # print(lines)
+        for idx, line in enumerate(lines):
+            line = line.strip()
+            paned = tk.PanedWindow(self.login_page)
+            paned.place(x=10, y=220)
+            img = Image.open(line)
+            paned.photo = ImageTk.PhotoImage(img.resize((128, 256)))  # 改变图片显示大小
+            ttk.Label(self.login_page, image=paned.photo).place(x=(idx+1)*170, y=220)
 
 
 class OnnxInfer(object):
@@ -252,7 +252,6 @@ class OnnxInfer(object):
     def infer(self, probe_path, gallery_dir, gallery_data_name):
         prepares = self.prepare(probe_path, gallery_dir, gallery_data_name)
         self.post_process(prepares=prepares)
-        print("保存完毕！")
 
     def prepare(self, probe_path, gallery_dir, gallery_data_name):
         q_img, q_pid, q_camid = self._process_probe(probe_path, gallery_data_name)
@@ -335,13 +334,13 @@ class OnnxInfer(object):
             g_pids_indices_sorted[q_idx][:len(orig_cmc)] = indices[q_idx][keep]
 
         for idx in range(num_q):
-            q_pid = q_pids[idx]
-            fig = plt.figure(figsize=(16, 4))
-            ax = plt.subplot(1, 11, 1)
-            ax.axis('off')
-            img = plt.imread(probe_path)
-            plt.title("query")
-            plt.imshow(img)
+            # q_pid = q_pids[idx]
+            # fig = plt.figure(figsize=(16, 4))
+            # ax = plt.subplot(1, 11, 1)
+            # ax.axis('off')
+            # img = plt.imread(probe_path)
+            # plt.title("query")
+            # plt.imshow(img)
 
             # 没有在gallery中找到匹配的行人
             if (g_pids_indices_sorted[idx] == -1).all():
