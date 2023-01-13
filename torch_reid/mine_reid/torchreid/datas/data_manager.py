@@ -7,7 +7,7 @@ import numpy as np
 from torch.utils.data import Dataset
 
 # from torchreid.datas.datasets.images import Market1501
-from .datasets.images import Market1501, DukeMTMC
+from .datasets.images import Market1501, DukeMTMC, MSMT17
 
 
 class ImageDataset(Dataset):
@@ -41,10 +41,10 @@ class ImageDataset(Dataset):
 
 
 """Create dataset"""
-
 __img_factory = {
     'market1501': Market1501,
     'dukemtmc': DukeMTMC,
+    'msmt17': MSMT17,
     'reid_debug': Market1501,
 }
 

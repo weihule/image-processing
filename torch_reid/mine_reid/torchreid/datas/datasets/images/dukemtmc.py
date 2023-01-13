@@ -50,7 +50,6 @@ class DukeMTMC:
         self.num_query_pids = num_query_pids
         self.num_gallery_pids = num_gallery_pids
 
-
     def _check_before_run(self):
         if not os.path.exists(self.dataset_dir):
             raise RuntimeError(f'{self.dataset_dir} is not available')
@@ -61,7 +60,6 @@ class DukeMTMC:
         if not os.path.exists(self.gallery_dir):
             raise RuntimeError(f'{self.gallery_dir} is not available')
 
-    
     @staticmethod
     def _process_dir(dir_path, relabel=False):
         img_paths = glob.glob(os.path.join(dir_path, '*.jpg'))
@@ -89,7 +87,7 @@ class DukeMTMC:
 
 
 if __name__ == "__main__":
-    duke = DukeMTMC(root='D:\\workspace\\data\\dl')
+    duke = DukeMTMC(root='D:\\workspace\\data\\dl\\reid')
 
 
 

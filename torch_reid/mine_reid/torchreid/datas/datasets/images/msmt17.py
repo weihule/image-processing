@@ -1,6 +1,10 @@
 import os
 import glob
 
+__all__ = [
+    "MSMT17"
+]
+
 
 class MSMT17(object):
     """

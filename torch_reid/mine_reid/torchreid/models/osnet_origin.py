@@ -4,6 +4,9 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from .other_modules import activate_function, HorizontalPooling
+from .other_modules import attention_module
+
 __all__ = [
     'osnet_x1_0_origin',
     'osnet_ibn_x1_0_origin',
