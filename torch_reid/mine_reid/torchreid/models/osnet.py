@@ -262,8 +262,9 @@ class OSBlock(nn.Module):
 
         # 注意力模块的添加位置
         if self.attention is not None:
-            attention_x3 = self.attention(x3)
-            x3 = attention_x3 + x3
+            # attention_x3 = self.attention(x3)
+            # x3 = attention_x3 + x3
+            x3 = self.attention(x3)
 
         if self.downsample is not None:
             identity = self.downsample(identity)

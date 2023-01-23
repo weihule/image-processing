@@ -42,17 +42,17 @@ class ConvLayer(nn.Module):
         else:
             self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
+        # self.act_func = activate_function('prelu', out_channels)
 
     def forward(self, x):
         x = self.conv(x)
         x = self.bn(x)
         x = self.relu(x)
+        # x = self.act_func(x)
         return x
 
 
 class Conv1x1(nn.Module):
-    """1x1 convolution + bn + relu."""
-
     def __init__(self, in_channels, out_channels, stride=1, groups=1):
         super(Conv1x1, self).__init__()
         self.conv = nn.Conv2d(
@@ -66,11 +66,13 @@ class Conv1x1(nn.Module):
         )
         self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
+        # self.act_func = activate_function('prelu', out_channels)
 
     def forward(self, x):
         x = self.conv(x)
         x = self.bn(x)
         x = self.relu(x)
+        # x = self.act_func(x)
         return x
 
 
@@ -106,11 +108,13 @@ class Conv3x3(nn.Module):
         )
         self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
+        # self.act_func = activate_function('prelu', out_channels)
 
     def forward(self, x):
         x = self.conv(x)
         x = self.bn(x)
         x = self.relu(x)
+        # x = self.act_func(x)
         return x
 
 
@@ -136,12 +140,14 @@ class LightConv3x3(nn.Module):
         )
         self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
+        # self.act_func = activate_function('prelu', out_channels)
 
     def forward(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.bn(x)
         x = self.relu(x)
+        # x = self.act_func(x)
         return x
 
 
@@ -176,6 +182,7 @@ class ChannelGate(nn.Module):
         if layer_norm:
             self.norm1 = nn.LayerNorm((in_channels // reduction, 1, 1))
         self.relu = nn.ReLU(inplace=True)
+        # self.act_func = activate_function('prelu', in_channels // reduction)
         self.fc2 = nn.Conv2d(
             in_channels // reduction,
             num_gates,
@@ -201,6 +208,7 @@ class ChannelGate(nn.Module):
         if self.norm1 is not None:
             x = self.norm1(x)
         x = self.relu(x)
+        # x = self.act_func(x)
         x = self.fc2(x)
         if self.gate_activation is not None:
             x = self.gate_activation(x)
@@ -218,6 +226,7 @@ class OSBlock(nn.Module):
             out_channels,
             IN=False,
             bottleneck_reduction=4,
+            attention='nam',
             **kwargs
     ):
         super(OSBlock, self).__init__()
@@ -244,9 +253,17 @@ class OSBlock(nn.Module):
         self.downsample = None
         if in_channels != out_channels:
             self.downsample = Conv1x1Linear(in_channels, out_channels)
-        self.IN = None
+
         if IN:
             self.IN = nn.InstanceNorm2d(out_channels, affine=True)
+        else:
+            self.IN = None
+
+        self.act_func = activate_function('prelu', out_channels)
+        if attention:
+            self.attention = attention_module(attention, out_channels)
+        else:
+            self.attention = None
 
     def forward(self, x):
         identity = x
@@ -257,12 +274,20 @@ class OSBlock(nn.Module):
         x2d = self.conv2d(x1)
         x2 = self.gate(x2a) + self.gate(x2b) + self.gate(x2c) + self.gate(x2d)
         x3 = self.conv3(x2)
+
+        # 添加注意力模块
+        if self.attention:
+            x3 = self.attention(x3)
+
         if self.downsample is not None:
             identity = self.downsample(identity)
         out = x3 + identity
         if self.IN is not None:
             out = self.IN(out)
-        return F.relu(out)
+
+        # return F.relu(out)
+        out = self.act_func(out)
+        return out
 
 
 ##########

@@ -179,20 +179,22 @@ class MainPage(object):
 
     def open_file(self):
         file = askopenfilename(title="请选择权重文件",
-                               initialdir="D:\\Desktop\\tempfile\\weights",
+                            #    initialdir="D:\\Desktop\\tempfile\\weights",
                                filetypes=[("onnx文件", ".onnx")])
         # 将file赋值给self.weights
         self.weights.set(file)
 
     def open_dir(self):
         file = askdirectory(title="请选择图片库文件夹",
-                            initialdir="D:\\workspace\\data\\dl\\reid")
+                            # initialdir="D:\\workspace\\data\\dl\\reid"
+                            )
         # 将file赋值给self.gallery_dir
         self.gallery_dir.set(file)
 
     def save_dir_path(self):
         file = askdirectory(title="保存路径",
-                            initialdir="D:\\Desktop\\tempfile\\some_infer")
+                            # initialdir="D:\\Desktop\\tempfile\\some_infer"
+                            )
         self.save_dir.set(file)
 
     def open_image(self):
@@ -200,7 +202,7 @@ class MainPage(object):
         # paned.place(x=40, y=180)
         # paned.pack(fill=tk.X, side=tk.LEFT)
         file = askopenfilename(title="请选择图片文件",
-                               initialdir="D:\\workspace\\data\dl\\reid",
+                            #    initialdir="D:\\workspace\\data\dl\\reid",
                                filetypes=[("图片文件", ".jpg"),
                                           ("图片文件", ".png"),
                                           ("图片文件", ".JPEG"),
@@ -424,7 +426,8 @@ class OnnxInfer(object):
 
     @staticmethod
     def resize_img(img_path, resized_w=128, resized_h=256):
-        img = cv2.imread(img_path)
+        # 这种写法支持opencv读取中文路径
+        img = cv2.imdecode(np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_COLOR)
         h, w, _ = img.shape
         img = cv2.resize(img, (resized_w, resized_h))  # (width, height)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # BGR -> RGB
@@ -460,14 +463,30 @@ class OnnxInfer(object):
 
 def run():
     root = tk.Tk()
-    # LoginPage(root)
-    MainPage(root)
+    LoginPage(root)
+    # MainPage(root)
 
     root.mainloop()
+
+# import matplotlib.pyplot as plt
+# import random
+
+# def plt_test():
+#     xs = [i for i in range(10)]
+#     y1s = [0.1, 0.2, 0.3, 0.25, 0.31, 0.33, 0.4, 0.5, 0.55, 0.86]
+#     y2s = [0.05, 0.15, 0.35, 0.32, 0.43, 0.45, 0.57, 0.61, 0.65, 0.79]
+    
+#     plt.plot(xs, y1s, label="osnet_1_0")
+#     plt.plot(xs, y2s, label="osnet_0_75")
+#     plt.legend(loc="lower right")
+#     plt.xlabel('epoch')
+#     plt.ylabel('accuracy')
+#     plt.show()
 
 
 if __name__ == "__main__":
     run()
+    # plt_test()
     # onnx_infer = OnnxInfer(onnx_file="D:\\Desktop\\tempfile\\weights\\osnet_ibn_x1_0_onnx.onnx")
     # p1 = "D:\\workspace\\data\\dl\\reid\\demo\\market1501\\query\\0002_c3s1_000076_01.jpg"
     # p2 = "D:\\workspace\\data\\dl\\reid\\demo\\market1501\\gallery"

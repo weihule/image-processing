@@ -207,13 +207,13 @@ class NAM(nn.Module):
 
 
 def attention_module(attention_name, channel=None):
-    if attention_name == 'se_attention':
+    if attention_name == 'se':
         return SEAttention(channel)
-    elif attention_name == 'cbam_attention':
+    elif attention_name == 'cbam':
         return CBAMAttention(channel)
-    elif attention_name == 'triplet_attention':
+    elif attention_name == 'triplet':
         return TripletAttention(no_spatial=True)
-    elif attention_name == 'nam_attention':
+    elif attention_name == 'nam':
         return NAM(channel)
     else:
         raise KeyError(f'Unknown {attention_name}')
