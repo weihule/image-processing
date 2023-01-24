@@ -116,7 +116,6 @@ def main(config):
     load_dicts = torch.load(pth_path, map_location='cpu')
 
     model.load_state_dict(load_dicts)
-    # model = model.cuda()
     model = model.to(device)
 
     # 测试状态
@@ -270,15 +269,53 @@ def visualization(dataset, g_pids_indices, save_dir, re_rank=False):
             print('save finished!')
             break
 
-def visual_curve(log_path, eval_step, max_epoch):
+
+def visual_curve(log_path1, label1, eval_step, max_epoch):
     """
     可视化log日志中的各指标折线图
     """
-    with open(log_path, 'r', encoding='utf-8') as fr:
+
+    with open(log_path1, 'r', encoding='utf-8') as fr:
         lines = fr.readlines()
+    epoch_count = 1
+    losses = list()
+    maps = list()
+    ranks = list()
     for line in lines:
-        if "Epoch" in line:
-            pass
+        infos = line.split("\t")
+        if "Epoch: [" in line:
+            loss = float(infos[2].split(" ")[-1][1:-1])
+            losses.append(loss)
+        elif "mAP:" in line:
+            mAP = float(infos[0].split(" ")[-1][:-2])
+            maps.append(mAP)
+        elif "Rank-1  :" in line:
+            rank_1 = float(infos[0].split(" ")[-1][:-2])
+            ranks.append(rank_1)
+    losses = [sum(losses[i: i+3])/3. for i in range(0, max_epoch*3, 3)]
+    losses_xs = [i for i in range(len(losses))]
+    plt.figure()
+    plt.plot(losses_xs, losses, linewidth=1.0, label=label1)
+    plt.xlabel("Epoch")
+    plt.ylabel("accuracy")
+    plt.legend(loc="upper right")
+    plt.show()
+
+    # maps_xs = [(i+1)*eval_step for i in range(len(maps))]
+    # plt.figure()
+    # plt.plot(maps_xs, maps, linewidth=1.0, label=label1)
+    # plt.xlabel("Epoch")
+    # plt.ylabel("mAP(%)")
+    # plt.legend(loc="lower right")
+    # plt.show()
+
+    ranks_xs = [(i+1)*eval_step for i in range(len(ranks))]
+    plt.figure()
+    plt.plot(ranks_xs, maps, linewidth=1.0, label=label1)
+    plt.xlabel("Epoch")
+    plt.ylabel("Rank-1(%)")
+    plt.legend(loc="lower right")
+    plt.show()
 
 
 def plt_test():
@@ -296,6 +333,13 @@ def plt_test():
     # im = plt.imread(os.path.join(root, "0001_c5s2_002483_03.jpg"))
     # plt.imshow(im)
     # plt.show()
+    xs = ['1/10', '1/20', '1/30', '2/10', '2/20', '2/30']
+    ys = [0.04, 0.12, 0.34, 0.38, 0.5, 0.78]
+    plt.xlabel("Epoch/Step")
+    plt.ylabel("accuracy")
+    plt.plot(xs, ys, label="osnet")
+    plt.legend(loc="lower right")
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -322,7 +366,8 @@ if __name__ == "__main__":
     # main(configs)
     # plt_test()
 
-    visual_curve(log_path="D:\\Desktop\\train.log",
+    visual_curve(log_path1="D:\\Desktop\\train.log",
+                 label1="osnet_1_0",
                  eval_step=25,
                  max_epoch=230)
 
