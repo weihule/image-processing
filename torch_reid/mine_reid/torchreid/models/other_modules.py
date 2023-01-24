@@ -33,8 +33,9 @@ class FRelu(nn.Module):
     def forward(self, x):
         x1 = self.conv_frelu(x)
         x1 = self.bn_frelu(x1)
-        res = torch.maximum(x, x1)
-
+        # 转onnx时不支持torch.maximum, 所以用torch.max替换
+        # res = torch.maximum(x, x1)
+        res = torch.max(x, x1)
         return res
 
 

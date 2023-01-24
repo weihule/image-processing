@@ -43,7 +43,7 @@ class ImageDataset(Dataset):
 """Create dataset"""
 __img_factory = {
     'market1501': Market1501,
-    'dukemtmc': DukeMTMC,
+    'duke': DukeMTMC,
     'msmt17': MSMT17,
     'reid_debug': Market1501,
 }

@@ -1,15 +1,18 @@
 import torch
 import onnx
+import warnings
 import onnxsim
 import onnxruntime
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-
+from thop import profile, clever_format
 from torchreid import models
 
+warnings.filterwarnings("ignore")
 
-def convert_torch2onnx_model(model, inputs, save_file_path, opset_version=11, use_onnxsim=True):
+
+def convert_torch2onnx_model(model, inputs, save_file_path, opset_version=12, use_onnxsim=True):
     print(f'starting export with onnx version {onnx.__version__}...')
     dynamic_axes = {
         'input': {0: 'batch_size'},  # 这么写表示第0维可以变化
@@ -43,19 +46,70 @@ def convert_torch2onnx_model(model, inputs, save_file_path, opset_version=11, us
     print(f"save finished: {save_file_path}")
 
 
-if __name__ == "__main__":
-    pth_path = r'D:\Desktop\best_model.pth'
-    net_name = 'osnet_x1_0_origin'
-    net = models.init_model(name=net_name,
-                            num_classes=751)
-    for idx, m in enumerate(net.modules()):
-        print(idx, type(m))
+def main(name, act_func, attention, aligned):
+    pth_path = r'D:\Desktop\osnet.pth'
+    net = models.init_model(name=name,
+                            num_classes=751,
+                            act_func=act_func,
+                            attention=attention,
+                            loss='softmax_trip',
+                            aligned=aligned)
+    net.load_state_dict(torch.load(pth_path))
     net.eval()
-    # model.load_state_dict(torch.load(pth_path))
 
-    # input_data = torch.randn(1, 3, 256, 128)
-    # save_path = "D:\\Desktop\\" + net_name + ".onnx"
-    # convert_torch2onnx_model(model=net,
-    #                          inputs=input_data,
-    #                          save_file_path=save_path,
-    #                          use_onnxsim=False)
+    input_data = torch.randn(1, 3, 256, 128)
+    save_path = "D:\\Desktop\\osnet.onnx"
+    convert_torch2onnx_model(model=net,
+                             inputs=input_data,
+                             save_file_path=save_path,
+                             use_onnxsim=False)
+
+
+def test_model(name, act_func, attention, aligned):
+    """
+    测试模型的FLOPs以及是否可以转成ONNX
+    """
+    model = models.init_model(name=name,
+                              num_classes=751,
+                              act_func=act_func,
+                              attention=attention,
+                              loss='softmax_trip',
+                              aligned=aligned)
+    input_data = torch.randn(4, 3, 256, 128)
+    print(model.training)
+    # Macs, params = profile(model, inputs=(torch.randn(1, 3, 256, 128),))
+    # Flops = Macs * 2
+    # Flops, params = clever_format([Flops, params], "%.3f")
+    outs, features, local_features = model(input_data)
+    print(outs.shape, features.shape, local_features.shape)
+    # print(f"{attention} Flops: {Flops}, params: {params}")
+
+    save_path = "D:\\Desktop\\osnet.pth"
+    print(len(model.state_dict().keys()))
+    torch.save(model.state_dict(), save_path)
+
+
+def test_onnx():
+    """
+    测试生成的onnx是否可以正常输出
+    """
+    onnx_file = "D:\\Desktop\\osnet.onnx"
+    onnx_session = onnxruntime.InferenceSession(onnx_file, providers=['CPUExecutionProvider'])
+    input_name = [onnx_session.get_inputs()[0].name]
+    output_name = [onnx_session.get_outputs()[0].name]
+    input_feed = {}
+    for name in input_name:
+        input_feed[name] = np.random.random(size=(4, 3, 256, 128)).astype(np.float32)
+    outs = onnx_session.run(output_name, input_feed=input_feed)
+    features = outs[0]
+    print(type(features), features.shape)
+
+
+if __name__ == "__main__":
+    model_name = "osnet_x1_0_origin"
+    activation_function = "frelu"
+    attention_function = "nam"
+    test_model(model_name, activation_function, attention_function, True)
+    main(model_name, activation_function, attention_function, True)
+    # test_onnx()
+

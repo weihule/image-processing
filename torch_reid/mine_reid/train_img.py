@@ -51,7 +51,7 @@ def parse_args():
     parser.add_argument('--train_batch', default=16, type=int, help="train batch size")
     parser.add_argument('--test_batch', default=32, type=int, help="test batch size")
     parser.add_argument('--lr', '--learning_rate', default=0.0004, type=float, help="initial learning rate")
-    parser.add_argument('--step_size', default=20, type=int,
+    parser.add_argument('--step_size', default=50, type=int,
                         help="stepsize to decay learning rate (>0 means this is enabled)")
     parser.add_argument('--gamma', default=0.1, type=float, help="learning rate decay")
     parser.add_argument('--weight_decay', default=5e-04, type=float, help="weight decay")
@@ -265,14 +265,16 @@ def main(args):
             if is_best:
                 best_rank1 = rank1
                 best_epoch = epoch + 1
-            save_checkpoints({
-                'model_state_dict': model.state_dict(),
-                'optimizer_model_state_dict': optimizer_model.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict(),
-                'rank1': rank1,
-                'epoch': epoch,
-                'best_rank1': best_rank1
-            }, is_best, args.save_dir, 'checkpoint_ep' + str(epoch + 1) + '.pth')
+            # 保存的时候，为了不生成很多中间权重文件, 设置为 (epoch + 1) % (args.eval_step * 3) == 0 才保存权重文件
+            if (epoch + 1) % (args.eval_step * 3) == 0:
+                save_checkpoints({
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_model_state_dict': optimizer_model.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict(),
+                    'rank1': rank1,
+                    'epoch': epoch,
+                    'best_rank1': best_rank1
+                }, is_best, args.save_dir, 'checkpoint_ep' + str(epoch + 1) + '.pth')
 
     print(f'==> Best Rank-1 {best_rank1:.2f}, achieved at epoch {best_epoch}')
     train_time = round((time.time() - start_time) / 60, 2)
@@ -354,7 +356,7 @@ def train(epoch, model, criterion_trip, criterion_xent, criterion_cent, optimize
                   f'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   f'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
                   f'xent_loss {xent_loss.item():.3f}\t'
-                  f'Lr {lr_value}')
+                  )
 
 
 def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking=False):
@@ -374,7 +376,9 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
             end = time.time()
 
             # features: [batch_size, 2048], local_feature: [batch_size, 128, 8]
-            features, local_feature = model(imgs)
+            features = model(imgs)
+            # TODO: 测试时并未使用到lf，所以这里lf就随机赋值了
+            local_feature = torch.randn(imgs.shape[1], 128, 16)
             batch_time.update(time.time() - end)
 
             features = features.data.cpu()
@@ -395,7 +399,8 @@ def test(model, queryloader, galleryloader, use_gpu, args, ranks=None, reranking
                 imgs = imgs.cuda()
 
             end = time.time()
-            features, local_feature = model(imgs)
+            features = model(imgs)
+            local_feature = torch.randn(imgs.shape[1], 128, 16)
             batch_time.update(time.time() - end)
 
             features = features.data.cpu()

@@ -10,6 +10,8 @@ from .other_modules import attention_module
 __all__ = [
     'osnet_x1_0_origin',
     'osnet_ibn_x1_0_origin',
+    'osnet_x0_75_origin',
+    'osnet_x0_5_origin',
 ]
 
 
@@ -215,7 +217,7 @@ class OSBlock(nn.Module):
             out_channels,
             IN=False,
             bottleneck_reduction=4,
-            attention='nam',
+            attention=None,
             act_func='relu',
             **kwargs
     ):
@@ -302,6 +304,7 @@ class OSNet(nn.Module):
             loss='softmax',
             act_func='relu',
             attention=None,
+            aligned=False,
             IN=False,
             **kwargs
     ):
@@ -321,21 +324,27 @@ class OSNet(nn.Module):
             channels[0],
             channels[1],
             reduce_spatial_size=True,
-            IN=IN
+            IN=IN,
+            attention=attention,
+            act_func=act_func,
         )
         self.conv3 = self._make_layer(
             blocks[1],
             layers[1],
             channels[1],
             channels[2],
-            reduce_spatial_size=True
+            reduce_spatial_size=True,
+            attention=attention,
+            act_func=act_func,
         )
         self.conv4 = self._make_layer(
             blocks[2],
             layers[2],
             channels[2],
             channels[3],
-            reduce_spatial_size=False
+            reduce_spatial_size=False,
+            attention=attention,
+            act_func=act_func,
         )
         self.conv5 = Conv1x1(channels[3], channels[3])
         self.global_avgpool = nn.AdaptiveAvgPool2d(1)
@@ -346,22 +355,35 @@ class OSNet(nn.Module):
         # identity classification layer
         self.classifier = nn.Linear(self.feature_dim, num_classes)
 
+        self.aligned = aligned
+        self.horizon_pool = HorizontalPooling()
+        if self.aligned:
+            self.aligned_bn = nn.BatchNorm2d(channels[3])
+            self.aligned_relu = nn.ReLU(inplace=True)
+            self.aligned_conv = nn.Conv2d(channels[3], 128,
+                                          kernel_size=1,
+                                          stride=1,
+                                          padding=0,
+                                          bias=True)
+
         self._init_params()
 
     def _make_layer(
             self,
-            block,
+            block: OSBlock,
             layer,
             in_channels,
             out_channels,
             reduce_spatial_size,
-            IN=False
+            IN=False,
+            attention=None,
+            act_func='relu',
     ):
         layers = []
 
         layers.append(block(in_channels, out_channels, IN=IN))
         for i in range(1, layer):
-            layers.append(block(out_channels, out_channels, IN=IN))
+            layers.append(block(out_channels, out_channels, IN=IN, attention=attention, act_func=act_func,))
 
         if reduce_spatial_size:
             layers.append(
@@ -374,13 +396,14 @@ class OSNet(nn.Module):
         return nn.Sequential(*layers)
 
     def _construct_fc_layer(self, fc_dims, input_dim, dropout_p=None):
-        if fc_dims is None or fc_dims < 0:
-            self.feature_dim = input_dim
-            return None
+        # if fc_dims is None or fc_dims < 0:
+        #     self.feature_dim = input_dim
+        #     return None
+        #
+        # if isinstance(fc_dims, int):
+        #     fc_dims = [fc_dims]
 
-        if isinstance(fc_dims, int):
-            fc_dims = [fc_dims]
-
+        fc_dims = [fc_dims]
         layers = []
         for dim in fc_dims:
             layers.append(nn.Linear(input_dim, dim))
@@ -426,26 +449,38 @@ class OSNet(nn.Module):
         return x
 
     def forward(self, x, return_featuremaps=False):
-        x = self.featuremaps(x)
+        x = self.featuremaps(x)     # [B, channels[3], 16, 8]
+
+        # TODO: 这里只有在训练阶段使用lf, 测试阶段不输出lf(和原版不同)
+        if self.aligned and self.training:
+            lf = self.aligned_bn(x)
+            lf = self.aligned_relu(lf)      # [B, 128, 16, 8]
+            lf = self.horizon_pool(lf)      # [B, 128, 16, 1]
+            lf = self.aligned_conv(lf)
+            lf = lf.view(lf.shape[0:3])     # [B, 128, 16]
+            # 这里相当于是对lf做了通道方向的归一化
+            lf = lf / torch.pow(lf, 2).sum(dim=1, keepdim=True).clamp(min=1e-12).sqrt()
+            print(lf.shape)
         if return_featuremaps:
             return x
-        v = self.global_avgpool(x)
-        v = v.view(v.size(0), -1)
+        f = self.global_avgpool(x)
+        f = f.view(f.size(0), -1)
 
         if self.fc is not None:
-            v = self.fc(v)
+            f = self.fc(f)
 
-        # TODO: 这里lf还没有得到，只是随机设定了一个值
-        lf = torch.randn(4, 512)
         if not self.training:
-            return v, lf
-        y = self.classifier(v)
+            return f
+        y = self.classifier(f)
         if self.loss == 'softmax':
             return y
         elif self.loss == 'softmax_trip':
-            return y, v
-        elif self.loss == 'cent':
-            return y, v
+            if self.aligned:
+                return y, f, lf
+            else:
+                return y, f
+        elif self.loss == 'softmax_trip_cent':
+            return y, f
         else:
             raise KeyError("Unsupported loss: {}".format(self.loss))
 

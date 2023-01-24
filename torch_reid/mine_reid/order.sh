@@ -2,19 +2,18 @@
 
 
 python train_img.py --root '/root/autodl-tmp' \
---dataset 'market1501' \
+--dataset 'msmt17' \
 --optim 'adam' \
 --max_epoch 230 \
 --train_batch 80 \
---step_size 50 \
 --test_batch 64 \
 --lr 0.0005 \
---arch 'osnet_ibn_x1_0_origin' \
---pre_train_load_dir '/root/autodl-nas/classification_data/osnet/pre_weights/osnet_ibn_x1_0_imagenet.pth' \
+--arch 'osnet_x1_0_origin' \
+--pre_train_load_dir '/root/autodl-nas/classification_data/osnet/pre_weights/osnet_x1_0_imagenet.pth' \
 --loss_type 'softmax_trip' \
 --resume 'checkpoint.pth' \
---eval_step 25 \
---save_dir '/root/autodl-nas/reid_train_data/osnet_ibn_x1_0_origin' \
+--eval_step 10 \
+--save_dir '/root/autodl-nas/reid_train_data/msmt17/osnet_x1_0_origin' \
 
 
 # 128.55

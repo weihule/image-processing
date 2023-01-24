@@ -131,7 +131,7 @@ class TripletAlignedLoss:
         Args:
             inputs: prediction matrix (before softmax) with shape [B, feat_dim]
             targets: ground truth labels with shape [B]
-            local_features: shape is [B, 128]
+            local_features: if osnet shape is [B, 128, 16], if resnet50, shape is [B, 128, 8]
         Returns:
         """
         device = inputs.device
@@ -151,6 +151,7 @@ class TripletAlignedLoss:
         global_loss = self.ranking_loss(dist_an, dist_ap, y)
 
         # if resnet 50, [batch_size, 128, 8] -> [batch_size, 8, 128]
+        # if osnet, [batch_size, 128, 16] -> [batch_size, 16, 128]
         local_features = local_features.permute(0, 2, 1).contiguous()
 
         # TODO: 这里还没明白
