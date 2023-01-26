@@ -174,7 +174,7 @@ def main(args):
                                 pin_memory=args.pin_memory,
                                 drop_last=False)
 
-    act_func = 'frelu'
+    act_func = 'relu'
     attention = 'nam'
     print(f'Initializing model: {args.arch} act_func={act_func} attention={attention}')
     model = models.init_model(name=args.arch,
@@ -267,8 +267,8 @@ def main(args):
             if is_best:
                 best_rank1 = rank1
                 best_epoch = epoch + 1
-            # 保存的时候，为了不生成很多中间权重文件, 设置为 (epoch + 1) % (args.eval_step * 3) == 0 才保存权重文件
-            if (epoch + 1) % (args.eval_step * 3) == 0:
+            # 保存的时候，为了不生成很多中间权重文件, 设置为 (epoch + 1) % (args.eval_step * 5) == 0 才保存权重文件
+            if (epoch + 1) % (args.eval_step * 5) == 0:
                 save_checkpoints({
                     'model_state_dict': model.state_dict(),
                     'optimizer_model_state_dict': optimizer_model.state_dict(),

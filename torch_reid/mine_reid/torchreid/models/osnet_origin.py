@@ -465,7 +465,6 @@ class OSNet(nn.Module):
             lf = lf.view(lf.shape[0:3])     # [B, 128, 16]
             # 这里相当于是对lf做了通道方向的归一化
             lf = lf / torch.pow(lf, 2).sum(dim=1, keepdim=True).clamp(min=1e-12).sqrt()
-            print(lf.shape)
         if return_featuremaps:
             return x
         f = self.global_avgpool(x)
