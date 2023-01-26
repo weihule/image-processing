@@ -6,7 +6,8 @@ __all__ = [
     'HorizontalPooling',
     'FRelu',
     'activate_function',
-    'attention_module'
+    'attention_module',
+    'SCBottleneck'
 ]
 
 
@@ -49,6 +50,7 @@ def activate_function(act_name, channels=None):
     else:
         raise KeyError(f'Unknown activate function {act_name}')
 
+
 # =========== SE ================
 
 
@@ -71,7 +73,9 @@ class SEAttention(nn.Module):
         y = self.avg_pool(x).view(b, c)
         y = self.fc(y).view(b, c, 1, 1)
 
-        return y.expand_as(x)*x
+        return y.expand_as(x) * x
+
+
 # =========== SE ================
 
 
@@ -83,9 +87,9 @@ class ChannelAttention(nn.Module):
         self.max_pool = nn.AdaptiveMaxPool2d((1, 1))
 
         self.shared_mlp = nn.Sequential(
-            nn.Conv2d(channel, channel//reduction, 1, bias=False),
+            nn.Conv2d(channel, channel // reduction, 1, bias=False),
             nn.ReLU(),
-            nn.Conv2d(channel//reduction, channel, 1, bias=False)
+            nn.Conv2d(channel // reduction, channel, 1, bias=False)
         )
         self.sigmoid = nn.Sigmoid()
 
@@ -106,10 +110,10 @@ class SpatialAttention(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        avg_out = torch.mean(x, dim=1, keepdim=True)    # [b, 1, h, w]
+        avg_out = torch.mean(x, dim=1, keepdim=True)  # [b, 1, h, w]
         max_out, _ = torch.max(x, dim=1, keepdim=True)  # [b, 1, h, w]
-        y = torch.cat([avg_out, max_out], dim=1)        # [b, 2, h, w]
-        y = self.conv(y)                                # [b, 1, h, w]
+        y = torch.cat([avg_out, max_out], dim=1)  # [b, 2, h, w]
+        y = self.conv(y)  # [b, 1, h, w]
 
         return self.sigmoid(y)
 
@@ -125,6 +129,8 @@ class CBAMAttention(nn.Module):
         x = self.sa(x) * x
 
         return x
+
+
 # =========== CBAM ================
 
 
@@ -136,9 +142,9 @@ class ZPool(nn.Module):
         super(ZPool, self).__init__()
 
     def forward(self, x):
-        x1, _ = torch.max(x, dim=1, keepdim=True)   # [b, 1, h, c]
-        x2 = torch.mean(x, dim=1, keepdim=True)     # [b, 1, h, c]
-        outs = torch.cat([x1, x2], dim=1)           # [b, 2, h, w]
+        x1, _ = torch.max(x, dim=1, keepdim=True)  # [b, 1, h, c]
+        x2 = torch.mean(x, dim=1, keepdim=True)  # [b, 1, h, c]
+        outs = torch.cat([x1, x2], dim=1)  # [b, 2, h, w]
 
         return outs
 
@@ -148,13 +154,13 @@ class AttentionGate(nn.Module):
         super(AttentionGate, self).__init__()
         kernel_size = 7
         self.compress = ZPool()
-        self.conv = nn.Conv2d(2, 1, kernel_size, 1, padding=kernel_size//2, bias=False)
+        self.conv = nn.Conv2d(2, 1, kernel_size, 1, padding=kernel_size // 2, bias=False)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        x_compress = self.compress(x)   # [b, 2, h, w]
+        x_compress = self.compress(x)  # [b, 2, h, w]
         x_out = self.conv(x_compress)
-        x_out = self.sigmoid(x_out)     # [b, 1, h, w]
+        x_out = self.sigmoid(x_out)  # [b, 1, h, w]
 
         # # [b, c, h, w]
         return x_out * x
@@ -170,19 +176,19 @@ class TripletAttention(nn.Module):
             self.hw = AttentionGate()
 
     def forward(self, x):
-        x_perm1 = x.permute(0, 2, 1, 3).contiguous()    # [b, h, c, w]
-        x_out1 = self.cw(x_perm1)                       # [b, 1(h), c, w]
-        x_out11 = x_out1.permute(0, 2, 1, 3).contiguous()        # [b, c, 1(h), w]
+        x_perm1 = x.permute(0, 2, 1, 3).contiguous()  # [b, h, c, w]
+        x_out1 = self.cw(x_perm1)  # [b, 1(h), c, w]
+        x_out11 = x_out1.permute(0, 2, 1, 3).contiguous()  # [b, c, 1(h), w]
 
-        x_perm2 = x.permute(0, 3, 2, 1).contiguous()    # [b, w, h, c]
-        x_out2 = self.cw(x_perm2)                       # [b, 1(w), h, c]
-        x_out21 = x_out2.permute(0, 3, 2, 1).contiguous()        # [b, c, h, 1(w)]
+        x_perm2 = x.permute(0, 3, 2, 1).contiguous()  # [b, w, h, c]
+        x_out2 = self.cw(x_perm2)  # [b, 1(w), h, c]
+        x_out21 = x_out2.permute(0, 3, 2, 1).contiguous()  # [b, c, h, 1(w)]
 
         if not self.no_spatial:
-            x_out = self.hw(x)                          # [b, 1(c), h, w]
-            x_out = 1/3 * (x_out + x_out11 + x_out21)
+            x_out = self.hw(x)  # [b, 1(c), h, w]
+            x_out = 1 / 3 * (x_out + x_out11 + x_out21)
         else:
-            x_out = 1/2 * (x_out11 + x_out21)
+            x_out = 1 / 2 * (x_out11 + x_out21)
 
         return x_out
 
@@ -196,7 +202,7 @@ class NAM(nn.Module):
     def forward(self, x):
         residual = x
         x = self.bn2(x)
-        weight_bn = self.bn2.weight.data.abs() / torch.sum(self.bn2.weight.data.abs())      # [channel]
+        weight_bn = self.bn2.weight.data.abs() / torch.sum(self.bn2.weight.data.abs())  # [channel]
         # 交换维度是为了 weight_bn 进行广播操作 -> [1, 1, 1, channel]
         # [b, c, h, w] -> [b, h, w, c]
         x = x.permute(0, 2, 3, 1).contiguous()
@@ -254,22 +260,19 @@ class SCConv(nn.Module):
     def forward(self, x):
         identity = x
 
-        out = self.k2(x)
+        # sigmoid(identity + k2)
+        # print(identity.shape, self.k2(x).shape)
+        out = torch.sigmoid(torch.add(identity, F.interpolate(self.k2(x), identity.shape[2:])))
 
-        # # sigmoid(identity + k2)
-        # out = F.sigmoid(torch.add(identity, F.interpolate(self.k2(x), identity.shape[2:])))
-        #
-        # # k3 * sigmoid(identity + k2)
-        # out = torch.multiply(self.k3(x), out)
-        #
-        # out = self.k4(out)
+        # k3 * sigmoid(identity + k2)
+        out = torch.mul(self.k3(x), out)
+
+        out = self.k4(out)
 
         return out
 
 
 class SCBottleneck(nn.Module):
-    """SCNet SCBottleneck
-    """
     expansion = 4
     pooling_r = 4  # down-sampling rate of the avg pooling layer in the K3 path of SC-Conv.
 
@@ -290,12 +293,12 @@ class SCBottleneck(nn.Module):
             stride = 1
 
         self.k1 = nn.Sequential(
-                    nn.Conv2d(
-                        group_width, group_width, kernel_size=3, stride=stride,
-                        padding=dilation, dilation=dilation,
-                        groups=cardinality, bias=False),
-                    norm_layer(group_width),
-                    )
+            nn.Conv2d(
+                group_width, group_width, kernel_size=3, stride=stride,
+                padding=dilation, dilation=dilation,
+                groups=cardinality, bias=False),
+            norm_layer(group_width),
+        )
 
         self.scconv = SCConv(
             group_width, group_width, stride=stride,
@@ -304,7 +307,7 @@ class SCBottleneck(nn.Module):
 
         self.conv3 = nn.Conv2d(
             group_width * 2, planes * 4, kernel_size=1, bias=False)
-        self.bn3 = norm_layer(planes*4)
+        self.bn3 = norm_layer(planes * 4)
 
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
@@ -314,7 +317,7 @@ class SCBottleneck(nn.Module):
     def forward(self, x):
         residual = x
 
-        out_a= self.conv1_a(x)
+        out_a = self.conv1_a(x)
         out_a = self.bn1_a(out_a)
         out_b = self.conv1_b(x)
         out_b = self.bn1_b(out_b)
@@ -334,7 +337,7 @@ class SCBottleneck(nn.Module):
         out = self.bn3(out)
 
         if self.downsample is not None:
-            residual = self.downsample(x)
+            residual = self.downsample(residual)
 
         out += residual
         out = self.relu(out)
@@ -355,11 +358,31 @@ if __name__ == "__main__":
     # arr_out = nam(arr)
     # print(arr_out.shape)
 
-    arr = torch.randn(4, 3, 12, 12)
-    scconv = SCConv(12, 6, stride=1, padding=1, dilation=1, groups=1, pooling_r=2)
-    arr_out = scconv(arr)
-    print(arr_out.shape)
-
-
-
-
+    from thop import profile, clever_format
+    arr = torch.randn(4, 384, 16, 8)
+    # sc_bottle_neck = SCBottleneck(inplanes=3,
+    #                               planes=18,
+    #                               stride=2,
+    #                               is_first=True,
+    #                               norm_layer=nn.BatchNorm2d)
+    in_planes = arr.shape[1]
+    down_layers = []
+    down_layers.append(nn.Conv2d(in_planes, in_planes * SCBottleneck.expansion,
+                                 kernel_size=1, stride=1, bias=False))
+    down_layers.append(nn.BatchNorm2d(in_planes * SCBottleneck.expansion))
+    downsample = nn.Sequential(*down_layers)
+    sc_bottle_neck = SCBottleneck(384, 96,
+                                  stride=1,
+                                  downsample=None,
+                                  cardinality=1,
+                                  bottleneck_width=32,
+                                  avd=False,
+                                  dilation=1,
+                                  is_first=False,
+                                  norm_layer=nn.BatchNorm2d)
+    outs = sc_bottle_neck(arr)
+    print(outs.shape)
+    # Macs, params = profile(sc_bottle_neck, inputs=(torch.randn(1, 256, 32, 16),))
+    # Flops = Macs * 2
+    # Flops, params = clever_format([Flops, params], "%.3f")
+    # print(f"Flops: {Flops}, params: {params}")

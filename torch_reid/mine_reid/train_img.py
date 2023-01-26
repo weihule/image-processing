@@ -89,13 +89,13 @@ def parse_args():
 
 
 def main(args):
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_devices
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
     np.random.seed(args.seed)
     random.seed(args.seed)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_devices
     use_gpu = torch.cuda.is_available()
     if args.use_cpu:
         use_gpu = False
@@ -174,13 +174,15 @@ def main(args):
                                 pin_memory=args.pin_memory,
                                 drop_last=False)
 
-    print(f'Initializing model: {args.arch}')
+    act_func = 'frelu'
+    attention = 'nam'
+    print(f'Initializing model: {args.arch} act_func={act_func} attention={attention}')
     model = models.init_model(name=args.arch,
                               num_classes=dataset.num_train_pids,
                               loss=args.loss_type,
                               aligned=args.aligned,
-                              act_func='prelu',
-                              attention=None)
+                              act_func=act_func,
+                              attention=attention)
     # model = ResNet50(num_classes=dataset.num_train_pids)
     init_pretrained_weights(model, args.pre_train_load_dir)
     if use_gpu and args.use_ddp is False:

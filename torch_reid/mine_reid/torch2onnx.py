@@ -76,17 +76,16 @@ def test_model(name, act_func, attention, aligned):
                               loss='softmax_trip',
                               aligned=aligned)
     input_data = torch.randn(4, 3, 256, 128)
-    print(model.training)
-    # Macs, params = profile(model, inputs=(torch.randn(1, 3, 256, 128),))
-    # Flops = Macs * 2
-    # Flops, params = clever_format([Flops, params], "%.3f")
     outs, features, local_features = model(input_data)
-    print(outs.shape, features.shape, local_features.shape)
-    # print(f"{attention} Flops: {Flops}, params: {params}")
+    print('model output => ', outs.shape, features.shape, local_features.shape)
+    Macs, params = profile(model, inputs=(torch.randn(1, 3, 256, 128),))
+    Flops = Macs * 2
+    Flops, params = clever_format([Flops, params], "%.3f")
+    print(f"{attention} Flops: {Flops}, params: {params}")
 
-    save_path = "D:\\Desktop\\osnet.pth"
-    print(len(model.state_dict().keys()))
-    torch.save(model.state_dict(), save_path)
+    # save_path = "D:\\Desktop\\osnet.pth"
+    # print(len(model.state_dict().keys()))
+    # torch.save(model.state_dict(), save_path)
 
 
 def test_onnx():
@@ -106,10 +105,10 @@ def test_onnx():
 
 
 if __name__ == "__main__":
-    model_name = "osnet_x1_0_origin"
-    activation_function = "frelu"
-    attention_function = "nam"
+    model_name = "sc_osnet_x1_0_origin"
+    activation_function = "relu"
+    attention_function = 'nam'
     test_model(model_name, activation_function, attention_function, True)
-    main(model_name, activation_function, attention_function, True)
+    # main(model_name, activation_function, attention_function, True)
     # test_onnx()
 

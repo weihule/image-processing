@@ -12,6 +12,11 @@ __all__ = [
     'osnet_ibn_x1_0_origin',
     'osnet_x0_75_origin',
     'osnet_x0_5_origin',
+    'ConvLayer',
+    'Conv1x1',
+    'LightConv3x3',
+    'ChannelGate',
+    'OSBlock'
 ]
 
 
