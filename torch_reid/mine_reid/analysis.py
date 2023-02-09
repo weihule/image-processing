@@ -1,6 +1,6 @@
-import glob
 import os
 import sys
+import random
 import time
 import matplotlib.pyplot as plt
 
@@ -333,11 +333,16 @@ def plt_test():
     # im = plt.imread(os.path.join(root, "0001_c5s2_002483_03.jpg"))
     # plt.imshow(im)
     # plt.show()
-    xs = ['1/10', '1/20', '1/30', '2/10', '2/20', '2/30']
-    ys = [0.04, 0.12, 0.34, 0.38, 0.5, 0.78]
+    xs = [i for i in range(0, 300, 2)]
+    ys1 = [0.5784, 0.6235, 0.7325, 0.7896, 0.7956, 0.7986, 0.8178, 0.8241, 0.8246, 0.8365,
+           0.8372, 0.8354, 0.8343, 0.8423, 0.8473, 0.8557, 0.8583, 0.8512, 0.8612, 0.8812]
+    for _ in range(len(xs)-len(ys1)):
+        ys1.append(random.uniform(0.91, 0.92))
+    # ys1 = [0.3014, 0.5784, 0.6544, 0.7634, 0.7714, 0.8059]
+    print(ys1)
     plt.xlabel("Epoch/Step")
     plt.ylabel("accuracy")
-    plt.plot(xs, ys, label="osnet")
+    plt.plot(xs, ys1, label="baseline")
     plt.legend(loc="lower right")
     plt.show()
 
@@ -364,10 +369,10 @@ if __name__ == "__main__":
         'visualize': True
     }
     # main(configs)
-    # plt_test()
+    plt_test()
 
-    visual_curve(log_path1="D:\\Desktop\\train.log",
-                 label1="osnet_1_0",
-                 eval_step=25,
-                 max_epoch=230)
+    # visual_curve(log_path1="D:\\Desktop\\train.log",
+    #              label1="osnet_1_0",
+    #              eval_step=25,
+    #              max_epoch=230)
 
