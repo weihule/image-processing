@@ -3,9 +3,10 @@ import sys
 import random
 import time
 import matplotlib.pyplot as plt
-
+import cv2
 import numpy as np
 from tqdm import tqdm
+import glob
 
 import torch
 import torchvision
@@ -50,13 +51,15 @@ class ResNet50(nn.Module):
 def main(config):
     gpu_devices = config['gpu_devices']
     save_dir = config['save_dir']
-    dataset = config['dataset']
+    dataset_name = config['dataset']
     root = config['root']
     split_id = config['split_id']
     cuhk03_labeled = config['cuhk03_labeled']
     cuhk03_classic_split = config['cuhk03_classic_split']
     use_metric_cuhk03 = config['use_metric_cuhk03']
     arch = config['arch']
+    act_func = config['act_func']
+    attention = config['attention']
     loss_type = config['loss_type']
     height = config['height']
     width = config['width']
@@ -66,6 +69,9 @@ def main(config):
     reranking = config['reranking']
     test_distance = config['test_distance']
     visualize = config['visualize']
+
+    num_classes_dict = {"market1501": 751, 
+                        "duke": 702}
 
     # os.environ['CUDA_VISIBLE_DEVICES'] = gpu_devices
     device = torch.device('cuda')
@@ -80,8 +86,7 @@ def main(config):
         cudnn.benchmark = True
     else:
         print('Currently using CPU (GPU is highly recommended)')
-
-    dataset = data_manager.init_img_dataset(name=dataset,
+    dataset = data_manager.init_img_dataset(name=dataset_name,
                                             root=root,
                                             split_id=split_id,
                                             cuhk03_labeled=cuhk03_labeled,
@@ -108,18 +113,17 @@ def main(config):
 
     print(f'Initializing model: {arch}')
     model = models.init_model(name=arch,
-                              num_classes=dataset.num_train_pids,
+                              num_classes=num_classes_dict[dataset_name],
                               loss=loss_type,
                               aligned=aligned,
-                              act_func='prelu',
-                              attention=None)
+                              act_func=act_func,
+                              attention=attention)
     load_dicts = torch.load(pth_path, map_location='cpu')
-
-    model.load_state_dict(load_dicts)
-    model = model.to(device)
 
     # 测试状态
     model.eval()
+    model.load_state_dict(load_dicts)
+    model = model.to(device)
 
     ranks = [1, 5, 10, 20]
     batch_time = AverageMeter()
@@ -134,7 +138,7 @@ def main(config):
             end = time.time()
             # if resnet50
             # outputs: [b, num_classes], features: [b, 2048], local_feature: [b, 128, 8]
-            features, local_feature = model(imgs)
+            features = model(imgs)
             batch_time.update(time.time() - end)
 
             features = features.detach().cpu()
@@ -152,7 +156,7 @@ def main(config):
                 imgs = imgs.cuda()
 
             end = time.time()
-            features, local_feature = model(imgs)  # if resnet50, shape is [batch_size, 2048]
+            features = model(imgs)  # if resnet50, shape is [batch_size, 2048]
             batch_time.update(time.time() - end)
 
             features = features.detach().cpu()
@@ -178,6 +182,7 @@ def main(config):
 
     print('Compute CMC and mAP')
     cmc, mAP, g_pids_sorted = evaluate(dis_mat, q_pids, g_pids, q_camids, g_camids,
+                                       max_rank=20,
                                        need_indices=visualize,
                                        use_metric_cuhk03=config['use_metric_cuhk03'])
     if visualize:
@@ -207,22 +212,15 @@ def main(config):
             print('Compute CMC and mAP for re_ranking')
             cmc, mAP, g_pids_sorted = evaluate(dis_mat, q_pids, g_pids, q_camids, g_camids,
                                                need_indices=visualize,
+                                               max_rank=20,
                                                use_metric_cuhk03=config['use_metric_cuhk03'])
             if visualize:
-                visualization(dataset, g_pids_sorted, save_dir, re_rank=reranking)
+                visualization(dataset, g_pids_sorted, save_dir, re_rank=True)
             print("Results(RK) ----------")
             print(f'mAP(RK): {mAP:.2%}')
             print('CMC curve(RK)')
             for r in ranks:
                 print(f'Rank-{r:2d}: {cmc[r - 1]:.2%}')
-
-
-def imshow(path, title=None):
-    im = plt.imread(path)
-    plt.imshow(im)
-    if title is not None:
-        plt.title(title)
-    plt.pause(0.001)  # pause a bit so that plots are updated
 
 
 def visualization(dataset, g_pids_indices, save_dir, re_rank=False):
@@ -236,13 +234,15 @@ def visualization(dataset, g_pids_indices, save_dir, re_rank=False):
         save_dir = os.path.join(save_dir, 'no_re_rank')
     mkdir_if_missing(save_dir)
 
-    for idx in range(dataset.num_query_pids):
+    for idx in range(len(dataset.query)):
         q_path = dataset.query[idx][0]
         q_pid = dataset.query[idx][1]
         fig = plt.figure(figsize=(16, 4))
         ax = plt.subplot(1, 11, 1)
         ax.axis('off')
-        imshow(q_path, 'query')
+        img = plt.imread(q_path)
+        plt.imshow(img)
+        plt.title('query')
 
         # 没有在gallery中找到匹配的行人
         if (g_pids_indices[idx] == -1).all():
@@ -254,7 +254,9 @@ def visualization(dataset, g_pids_indices, save_dir, re_rank=False):
             ax.axis('off')
             g_path = dataset.gallery[int(g_pid_idx)][0]
             g_pid = dataset.gallery[int(g_pid_idx)][1]
-            imshow(g_path)
+            # imshow(g_path)
+            img = plt.imread(g_path)
+            plt.imshow(img)
 
             # print(q_label, g_label, gids[i])
             if g_pid == q_pid:
@@ -265,111 +267,60 @@ def visualization(dataset, g_pids_indices, save_dir, re_rank=False):
         fig.savefig(os.path.join(save_dir, q_path.split(os.sep)[-1]))
         plt.close()
 
-        if idx == 20:
-            print('save finished!')
-            break
-
-
-def visual_curve(log_path1, label1, eval_step, max_epoch):
-    """
-    可视化log日志中的各指标折线图
-    """
-
-    with open(log_path1, 'r', encoding='utf-8') as fr:
-        lines = fr.readlines()
-    epoch_count = 1
-    losses = list()
-    maps = list()
-    ranks = list()
-    for line in lines:
-        infos = line.split("\t")
-        if "Epoch: [" in line:
-            loss = float(infos[2].split(" ")[-1][1:-1])
-            losses.append(loss)
-        elif "mAP:" in line:
-            mAP = float(infos[0].split(" ")[-1][:-2])
-            maps.append(mAP)
-        elif "Rank-1  :" in line:
-            rank_1 = float(infos[0].split(" ")[-1][:-2])
-            ranks.append(rank_1)
-    losses = [sum(losses[i: i+3])/3. for i in range(0, max_epoch*3, 3)]
-    losses_xs = [i for i in range(len(losses))]
-    plt.figure()
-    plt.plot(losses_xs, losses, linewidth=1.0, label=label1)
-    plt.xlabel("Epoch")
-    plt.ylabel("accuracy")
-    plt.legend(loc="upper right")
-    plt.show()
-
-    # maps_xs = [(i+1)*eval_step for i in range(len(maps))]
-    # plt.figure()
-    # plt.plot(maps_xs, maps, linewidth=1.0, label=label1)
-    # plt.xlabel("Epoch")
-    # plt.ylabel("mAP(%)")
-    # plt.legend(loc="lower right")
-    # plt.show()
-
-    ranks_xs = [(i+1)*eval_step for i in range(len(ranks))]
-    plt.figure()
-    plt.plot(ranks_xs, maps, linewidth=1.0, label=label1)
-    plt.xlabel("Epoch")
-    plt.ylabel("Rank-1(%)")
-    plt.legend(loc="lower right")
-    plt.show()
+        # if idx == 20:
+        #     print('save finished!')
+        #     break
 
 
 def plt_test():
-    # root = "D:\\workspace\\data\\dl\\reid\\demo\\market1501\\gallery"
-    # imgs = glob.glob(os.path.join(root, "*.jpg"))[:5]
-    # fig = plt.figure(figsize=(10, 4))
-    # for idx, path in enumerate(imgs):
-    #     ax = plt.subplot(1, 5, idx+1)
-    #     ax.axis('off')
-    #     img = plt.imread(path)
-    #     plt.imshow(img)
-    #     plt.title(str(idx))
-    # plt.show()
-    # fig = plt.figure(figsize=(16, 4))
-    # im = plt.imread(os.path.join(root, "0001_c5s2_002483_03.jpg"))
-    # plt.imshow(im)
-    # plt.show()
-    xs = [i for i in range(0, 300, 2)]
-    ys1 = [0.5784, 0.6235, 0.7325, 0.7896, 0.7956, 0.7986, 0.8178, 0.8241, 0.8246, 0.8365,
-           0.8372, 0.8354, 0.8343, 0.8423, 0.8473, 0.8557, 0.8583, 0.8512, 0.8612, 0.8812]
-    for _ in range(len(xs)-len(ys1)):
-        ys1.append(random.uniform(0.91, 0.92))
-    # ys1 = [0.3014, 0.5784, 0.6544, 0.7634, 0.7714, 0.8059]
-    print(ys1)
-    plt.xlabel("Epoch/Step")
-    plt.ylabel("accuracy")
-    plt.plot(xs, ys1, label="baseline")
-    plt.legend(loc="lower right")
-    plt.show()
+    root = "D:\\workspace\\data\\dl\\reid\\demo\\DukeMTMC-reID\\bounding_box_test"
+    imgs = glob.glob(os.path.join(root, "*.jpg"))
+    imgs = [imgs[s: s+10] for s in range(0, len(imgs), 10)]
+    for per_datas in imgs:
+        fig = plt.figure(figsize=(16, 4))
+        for idx, path in enumerate(per_datas):
+            img = plt.imread(path)
+            # img2 = cv2.imread(path)
+            img = cv2.resize(img, (256, 128))
+            cv2.imshow("res", img)
+            cv2.waitKey(0)
+            break
+        #     ax = plt.subplot(1, len(per_datas), idx+1)
+        #     ax.axis('off')
+        #     img = plt.imread(path)
+        #     img = cv2.resize(img, (128, 256))
+        #     plt.imshow(img)
+        #     plt.title(str(idx))
+        # plt.show()
+        break
+    # fig.savefig("D:\\Desktop\\test.png")
+    # plt.close()
 
 
 if __name__ == "__main__":
     configs = {
         'gpu_devices': '0',
-        'save_dir': 'D:\\Desktop\\tempfile\\some_infer\\reid_infer',
+        'save_dir': 'D:\\Desktop\\tempfile\\some_infer\\reid_infer\\market1501\\osnet',
         'dataset': 'market1501',
-        'root': 'D:\\workspace\\data\\dl\\reid',
+        'root': 'D:\\workspace\\data\\dl\\reid\\demo',
         'split_id': 0,
         'cuhk03_labeled': False,
         'cuhk03_classic_split': False,
         'use_metric_cuhk03': False,
-        'arch': 'osnet_ibn_x1_0_origin',
+        'arch': 'osnet_x1_0_origin',
+        'act_func': 'relu',
+        'attention': None,
         'loss_type': 'softmax_trip',
         'height': 256,
         'width': 128,
         'test_batch': 4,
-        'pth_path': 'D:\\Desktop\\tempfile\\weights\\best_model.pth',
-        'aligned': True,
+        'pth_path': 'D:\\Desktop\\tempfile\\weights\\market1501\\osnet_x1_0.pth',
+        'aligned': False,
         'reranking': True,
         'test_distance': 'global',
         'visualize': True
     }
-    # main(configs)
-    plt_test()
+    main(configs)
 
     # visual_curve(log_path1="D:\\Desktop\\train.log",
     #              label1="osnet_1_0",
