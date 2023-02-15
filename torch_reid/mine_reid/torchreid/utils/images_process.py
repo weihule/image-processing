@@ -52,6 +52,9 @@ def test():
     arr = "SAP’D\\Rc"
     print(arr.split("’D：\\"))
 
+    for i in range(1):
+        print(i)
+
 if __name__ == "__main__":
     # main()
 
