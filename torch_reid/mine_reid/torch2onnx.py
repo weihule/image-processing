@@ -67,7 +67,7 @@ def main(name, act_func, attention, aligned):
 
 def test_model(name, act_func, attention, aligned):
     """
-    测试模型的FLOPs以及是否可以转成ONNX
+    测试模型的FLOPs、params以及是否可以转成ONNX
     """
     model = models.init_model(name=name,
                               num_classes=751,
@@ -81,7 +81,7 @@ def test_model(name, act_func, attention, aligned):
     Macs, params = profile(model, inputs=(torch.randn(1, 3, 256, 128),))
     Flops = Macs * 2
     Flops, params = clever_format([Flops, params], "%.3f")
-    print(f"{attention} Flops: {Flops}, params: {params}")
+    print(f"model: {name} \nattention: {attention} Flops: {Flops}, params: {params}")
 
     # save_path = "D:\\Desktop\\osnet.pth"
     # print(len(model.state_dict().keys()))
@@ -105,9 +105,10 @@ def test_onnx():
 
 
 if __name__ == "__main__":
+    # osnet_x1_0_origin resnet50 sc_osnet_x1_0_origin
     model_name = "sc_osnet_x1_0_origin"
     activation_function = "relu"
-    attention_function = 'nam'
+    attention_function = None
     test_model(model_name, activation_function, attention_function, True)
     # main(model_name, activation_function, attention_function, True)
     # test_onnx()

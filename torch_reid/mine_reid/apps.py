@@ -133,9 +133,9 @@ class MainPage(object):
         # ttk.Button(self.login_page, text="点击确定", command=self.confirm_model).place(x=440, y=18)
         com = ttk.Combobox(self.login_page, textvariable=self.model_name,
                            width=25,
-                           values=("osnet_ibn_x1_0_origin",
-                                   "osnet_x1_0",
-                                   "osnet_x0_75")
+                           values=("osnet_baseline",
+                                   "osnet1",
+                                   "osnet2")
                            )
         com.place(x=135, y=10)
         com.current(0)  # 设定下拉菜单的默认值为第0个
