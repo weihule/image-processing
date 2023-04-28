@@ -106,10 +106,11 @@ def test_onnx():
 
 if __name__ == "__main__":
     # osnet_x1_0_origin resnet50 sc_osnet_x1_0_origin
-    model_name = "sc_osnet_x1_0_origin"
+    model_name = "resnet50"
     activation_function = "relu"
     attention_function = None
     test_model(model_name, activation_function, attention_function, True)
     # main(model_name, activation_function, attention_function, True)
     # test_onnx()
+    # 2_ueAPYIhFgpOZdgFzhiKz_0hh0H7pBVGnOPulUU8PJxryMS
 

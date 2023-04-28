@@ -66,12 +66,12 @@ import math
 
 def de_bug_main():
     datasets = [torch.randn(4, 3, 16, 16) for _ in range(10)]
-    epochs = 100
+    epochs = 300
     model = DeBugModel(num_classes=3)
     model = model.cuda()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, weight_decay=5e-04, momentum=0.9)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.0005, weight_decay=5e-04, momentum=0.9)
     # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=350)
 
     lr_list = []
 
@@ -81,8 +81,8 @@ def de_bug_main():
                              current_epoch=epoch,
                              max_epoch=epochs,
                              lr_min=1e-12,
-                             lr_max=0.0001,
-                             warmup_epoch=5,
+                             lr_max=0.0005,
+                             warmup_epoch=10,
                              warmup=True)
         for p in datasets:
             p = p.cuda()
@@ -92,7 +92,7 @@ def de_bug_main():
             loss.backward()
             optimizer.step()
         # print(len(optimizer.param_groups))
-        # print('[', epoch, ']', optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_lr())
+        print('[', epoch, ']', optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_lr())
         # print(optimizer.state_dict())
         # print(scheduler.state_dict())
         scheduler.step()

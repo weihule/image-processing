@@ -26,8 +26,9 @@ class MySQL:
 
     def find(self):
         db = self.connect()
+        print(type(db))
         cursor = db.cursor()    # 生成游标对象
-        sql = """select * from `emp`"""
+        sql = """select * from employee"""
         # noinspection PyBroadException
         try:
             cursor.execute(sql)
@@ -39,15 +40,17 @@ class MySQL:
 
 
 def main():
-    conn = pymysql.connect(host="127.0.0.1",
+    local_host = "127.0.0.1"
+    aliyun = "47.115.228.106"
+    conn = pymysql.connect(host=aliyun,
                            user="root",
                            password="123456",
                            port=3306,
-                           db="itcase",
+                           db="itcast",
                            charset="utf8")
     cursor = conn.cursor()  # 生成游标对象
     for _ in range(1):
-        sql = """select * from `emp`"""
+        sql = """select * from employee"""
         # noinspection PyBroadException
         try:
             cursor.execute(sql)

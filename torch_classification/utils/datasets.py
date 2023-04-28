@@ -230,6 +230,7 @@ if __name__ == "__main__":
         images = datas['image']
         labels = datas['label']
         print(images.shape, labels.shape)
+    
 
 
 

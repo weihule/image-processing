@@ -183,7 +183,7 @@ def main(logger):
                 'scheduler_state_dict': scheduler.state_dict()
             }, os.path.join(Config.checkpoints, 'latest.pth'))
     train_time = (time.time() - start_time) / 60
-    logger.info(f'finish training, total training timr: {train_time:.2f} mins')
+    logger.info(f'finish training, total training time: {train_time:.2f} mins')
 
 
 if __name__ == "__main__":

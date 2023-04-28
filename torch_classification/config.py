@@ -9,7 +9,7 @@ from utils.util import get_paths
 
 
 class Config:
-    mode = 'company1'      # company   autodl
+    mode = 'local'      # company   autodl
 
     if mode == 'local':
         # dataset_path = 'D:\\workspace\\data\\dl\\flower'
