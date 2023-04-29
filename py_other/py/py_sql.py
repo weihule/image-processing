@@ -81,9 +81,15 @@ class MySQL:
             return
 
         cursor = conn.cursor()    # 生成游标对象
-        cursor.execute(sql)
-        conn.commit()
-        print("注册成功")
+
+        try:
+            cursor.execute(sql)
+            conn.commit()
+            print("注册成功")
+        except Exception as e:
+            conn.rollback()
+            print("注册失败")
+            print(e)
 
         # 关闭连接
         cursor.close()
@@ -93,6 +99,7 @@ class MySQL:
         conn = self.connect()
         sql = """select * from user_account where username={} and password={}""".\
             format(repr(username), repr(password))
+        print(sql)
         cursor = conn.cursor()    # 生成游标对象
         cursor.execute(sql)
         result = cursor.fetchone()
@@ -125,5 +132,5 @@ def run(order: int, username: str, password: str):
 
 
 if __name__ == "__main__":
-    run(1, "zhangsan", "123456")
+    run(0,  "zhangsan", "123456")
     # main()
