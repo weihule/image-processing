@@ -60,7 +60,7 @@ class Config:
         pth_path = os.path.join(save_root, 'pths')
         resume = os.path.join(checkpoints, 'latest.pth')
 
-    epochs = 50
+    epochs = 80
     batch_size = 8
     lr = 0.001
     lrf = 0.001
