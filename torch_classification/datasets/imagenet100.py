@@ -1,10 +1,11 @@
 import os
 import json
-
+import random
 import cv2
 import numpy as np
-from torch.utils.data import Dataset
-from transform import transform
+import torch
+from torch.utils.data import Dataset, DataLoader
+from transform import transform, Collater
 
 
 class ImageNet100Dataset(Dataset):
@@ -44,9 +45,9 @@ class ImageNet100Dataset(Dataset):
         image = self.load_image(index)
         label = self.load_label(index)
 
-        cv2.namedWindow("inside", cv2.WINDOW_FREERATIO)
-        cv2.imshow("inside", cv2.cvtColor(image, cv2.COLOR_RGB2BGR).astype(np.uint8))
-        cv2.waitKey(0)
+        # cv2.namedWindow("inside", cv2.WINDOW_FREERATIO)
+        # cv2.imshow("inside", cv2.cvtColor(image, cv2.COLOR_RGB2BGR).astype(np.uint8))
+        # cv2.waitKey(0)
 
         sample = {
             "image": image,
@@ -75,17 +76,36 @@ class ImageNet100Dataset(Dataset):
         return np.asarray(label, dtype=np.float32)
 
 
-if __name__ == "__main__":
-    root_dir_ = r"D:\workspace\data\dl\imagenet100"
-    imagenet = ImageNet100Dataset(root_dir=root_dir_,
-                                  transform=transform["train"])
+def test(imagenet):
     sample_ = imagenet[90]
-    
-    image = cv2.cvtColor(sample_["image"], cv2.COLOR_RGB2BGR).astype(np.uint8)
+
+    image_ = sample_["image"]
+    print(type(image_), image_.shape)
+    image_ = cv2.cvtColor(image_, cv2.COLOR_RGB2BGR).astype(np.uint8)
     cv2.namedWindow("res", cv2.WINDOW_FREERATIO)
-    cv2.imshow("res", sample_["image"])
+    cv2.imshow("res", image_)
     cv2.waitKey(0)
     print(sample_["label"])
 
 
+def test02(dataset):
+    collater = Collater(mean=(0.5, 0.5, 0.5),
+                        std=(0.5, 0.5, 0.5))
+    loader = DataLoader(dataset=dataset,
+                        batch_size=16,
+                        shuffle=True,
+                        collate_fn=collater)
+    print("len(loader) = ", len(loader))
+    for datas in loader:
+        images = datas["image"]
+        labels = datas["label"]
+        print(images.shape, labels)
+
+
+if __name__ == "__main__":
+    root_dir_ = r"D:\workspace\data\dl\imagenet100"
+    imagenet_ = ImageNet100Dataset(root_dir=root_dir_,
+                                   set_name='imagenet100_val',
+                                   transform=transform["train"])
+    test02(imagenet_)
 

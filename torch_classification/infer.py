@@ -1,10 +1,50 @@
 import os
 import cv2
 import torch
+import random
 import numpy as np
 import json
+import argparse
 import torch.nn.functional as F
 import backbones
+
+
+def parse_args():
+    parse = argparse.ArgumentParser(description="detect image")
+    parse.add_argument("--seed", type=int, default=0, help="seed")
+    parse.add_argument("--model", type=str, default="resnet50", help="name of model")
+    parse.add_argument("--train_num_classes", type=int, default=100, help="class number")
+    parse.add_argument("--input_image_size", type=int, default=224, help="input image size")
+    parse.add_argument("--train_model_path", type=str, help="trained model weight path")
+    parse.add_argument("--save_path", type=str)
+    parse.add_argument("--show_image", default=False, action="store_true")
+    args = parse.parse_args()
+
+    return args
+
+
+def inference():
+    args = parse_args()
+    print(f"args: {args}")
+
+    assert args.model not in backbones.__dict__.keys(), "Unsupported model!"
+
+    if args.seed:
+        seed = args.seed
+        os.environ['PYTHONHASHSEED'] = str(seed)
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)    # 为CPU设置随机种子
+
+    model = backbones.__dict__[args.model](
+        **{"num_classes": args.train_num_classes}
+    )
+
+    if args.train_model_path:
+        weight_dict = torch.load(args.train_model_path, map_location=torch.device("cpu"))
+        model.load_state_dict(weight_dict, strict=True)
+
+    model.eval()
 
 
 def main(cfgs):
