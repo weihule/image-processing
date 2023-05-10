@@ -88,8 +88,8 @@ class Config:
     }
 
     # imagenet100_
-    train_images_path, train_images_label = get_paths(dataset_path, "train", 'utils/flower_indices.json')
-    val_images_path, val_images_label = get_paths(dataset_path, "val", 'utils/flower_indices.json')
+    train_images_path, train_images_label = get_paths(dataset_path, "train", 'utils/flower.json')
+    val_images_path, val_images_label = get_paths(dataset_path, "val", 'utils/flower.json')
 
     train_dataset = CustomDataset(train_images_path, train_images_label, transforms['train'])
     val_dataset = CustomDataset(val_images_path, val_images_label, transforms['val'])
@@ -107,7 +107,7 @@ class Config:
 
 if __name__ == "__main__":
     dataset_path = 'D:\\workspace\\data\\dl\\flower'
-    train_images_path, train_images_label = get_paths(dataset_path, "train", 'utils/flower_indices.json')
+    train_images_path, train_images_label = get_paths(dataset_path, "train", 'utils/flower.json')
     for i, j in zip(train_images_path, train_images_label):
         print(i, j)
 

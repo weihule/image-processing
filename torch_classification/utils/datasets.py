@@ -202,7 +202,7 @@ if __name__ == "__main__":
     from util import get_paths
 
     dataset_path = 'D:\\workspace\\data\\dl\\flower'
-    train_images_path, train_images_label = get_paths(dataset_path, "train", 'flower_indices.json')
+    train_images_path, train_images_label = get_paths(dataset_path, "train", 'flower.json')
 
     transforms = {
         'train': torchvision.transforms.Compose([
