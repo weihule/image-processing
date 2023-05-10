@@ -90,15 +90,18 @@ class FocalCELoss(nn.Module):
 
 
 if __name__ == "__main__":
-    inputs = torch.tensor([[0.0235, 0.4266, 0.7232, 0.5329],
-                          [0.8937, 0.0001, 0.8116, 0.4274],
-                          [0.6525, 0.1494, 0.6610, 0.0002]])
+    # inputs = torch.tensor([[0.0235, 0.4266, 0.7232, 0.5329, 0.4321],
+    #                       [0.8937, 0.0001, 0.8116, 0.4274, 0.7896],
+    #                       [0.6525, 0.1494, 0.6610, 0.0002, 0.2387],
+    #                       [0.0987, 0.1023, 0.0777, 0.9893, 0.2198]])
 
-    # inputs = torch.tensor([[0.9893, 0.1023, 0.0987, 0.0777],
-    #                       [0.1023, 0.0987, 0.9654, 0.1098],
-    #                       [0.9999, 0.0078, 0.0976, 0.9999]])
-    labels = torch.tensor([0, 2, 3])
-    print(inputs)
+    inputs = torch.tensor([[0.0235, 0.0266, 0.7232, 0.0329, 0.0321],
+                          [0.8937, 0.0001, 0.0116, 0.0274, 0.0896],
+                          [0.6525, 0.0494, 0.0610, 0.0002, 0.0387],
+                          [0.0987, 0.1023, 0.0777, 0.9893, 0.2198]])
+
+    # [2, 0, 0, 3]
+    labels = torch.tensor([2, 0, 0, 3])
 
     ce_loss_func1 = CELoss(use_custom=False)
     ce_loss_func2 = CELoss(use_custom=True)
@@ -107,8 +110,8 @@ if __name__ == "__main__":
 
     loss1 = ce_loss_func1(inputs, labels)
     loss2 = ce_loss_func2(inputs, labels)
-    loss3 = focal_loss_func(inputs, labels)
+    # loss3 = focal_loss_func(inputs, labels)
 
-    print(loss1, loss2, loss3)
+    print(loss1, loss2)
 
 

@@ -8,7 +8,12 @@ import random
 from PIL import Image
 
 __all__ = [
-    'transform',
+    'OpenCV2PIL',
+    'PIL2OpenCV',
+    'TorchResize',
+    'TorchRandomHorizontalFlip',
+    'TorchColorJitter',
+    'Random2DErasing',
     'Collater'
 ]
 

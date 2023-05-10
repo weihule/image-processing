@@ -5,7 +5,11 @@ import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
-from transform import transform, Collater
+
+
+__all__ = [
+    "ImageNet100Dataset"
+]
 
 
 class ImageNet100Dataset(Dataset):
@@ -38,8 +42,8 @@ class ImageNet100Dataset(Dataset):
 
         self.transform = transform
 
-        print(f"Dataset size: {len(self.image_path_list)}")
-        print(f"Dataset Class Num: {len(self.class2label)}")
+        print(f"{set_name} Dataset size: {len(self.image_path_list)}")
+        print(f"{set_name} Dataset Class Num: {len(self.class2label)}")
 
     def __getitem__(self, index):
         image = self.load_image(index)
@@ -103,6 +107,7 @@ def test02(dataset):
 
 
 if __name__ == "__main__":
+    from transform import transform, Collater
     root_dir_ = r"D:\workspace\data\dl\imagenet100"
     imagenet_ = ImageNet100Dataset(root_dir=root_dir_,
                                    set_name='imagenet100_val',
