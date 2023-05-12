@@ -41,9 +41,9 @@ class ImageNet100Dataset(Dataset):
         }
 
         self.transform = transform
-
-        print(f"{set_name} Dataset size: {len(self.image_path_list)}")
-        print(f"{set_name} Dataset Class Num: {len(self.class2label)}")
+        print("=> {}".format(set_name))
+        print("| Dataset Size      |{:<8d} |".format(len(self.image_path_list)))
+        print("| Dataset Class Num |{:<8d} |".format(len(self.class2label)))
 
     def __getitem__(self, index):
         image = self.load_image(index)
