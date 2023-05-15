@@ -47,7 +47,7 @@ def convert_torch2onnx_model(model, inputs, save_file_path, opset_version=12, us
 
 
 def main(name, act_func, attention, aligned):
-    pth_path = r'D:\Desktop\osnet.pth'
+    pth_path = r'D:\Desktop\tempfile\weights\market1501\osnet_x1_0_9171_7915.pth'
     net = models.init_model(name=name,
                             num_classes=751,
                             act_func=act_func,
@@ -58,7 +58,7 @@ def main(name, act_func, attention, aligned):
     net.eval()
 
     input_data = torch.randn(1, 3, 256, 128)
-    save_path = "D:\\Desktop\\osnet.onnx"
+    save_path = r"D:\Desktop\tempfile\weights\market1501\osnet_x1_0_9171_7915.onnx"
     convert_torch2onnx_model(model=net,
                              inputs=input_data,
                              save_file_path=save_path,
@@ -106,11 +106,11 @@ def test_onnx():
 
 if __name__ == "__main__":
     # osnet_x1_0_origin resnet50 sc_osnet_x1_0_origin
-    model_name = "resnet50"
+    model_name = "osnet_x1_0_origin"
     activation_function = "relu"
     attention_function = None
-    test_model(model_name, activation_function, attention_function, True)
-    # main(model_name, activation_function, attention_function, True)
+    # test_model(model_name, activation_function, attention_function, True)
+    main(model_name, activation_function, attention_function, False)
     # test_onnx()
     # 2_ueAPYIhFgpOZdgFzhiKz_0hh0H7pBVGnOPulUU8PJxryMS
 

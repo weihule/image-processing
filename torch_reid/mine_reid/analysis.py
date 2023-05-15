@@ -118,6 +118,7 @@ def main(config):
                               aligned=aligned,
                               act_func=act_func,
                               attention=attention)
+    print("act_func = ", act_func)
     load_dicts = torch.load(pth_path, map_location='cpu')
 
     # 测试状态
@@ -302,23 +303,23 @@ if __name__ == "__main__":
         'gpu_devices': '0',
         'save_dir': 'D:\\Desktop\\tempfile\\some_infer\\reid_infer\\market1501\\osnet',
         'dataset': 'market1501',
-        'root': 'D:\\workspace\\data\\dl\\reid\\demo',
+        'root': 'D:\\workspace\\data\\dl\\reid',
         'split_id': 0,
         'cuhk03_labeled': False,
         'cuhk03_classic_split': False,
         'use_metric_cuhk03': False,
-        'arch': 'osnet_x1_0_origin',
+        'arch': 'sc_osnet_x1_0_origin',
         'act_func': 'relu',
         'attention': None,
         'loss_type': 'softmax_trip',
         'height': 256,
         'width': 128,
         'test_batch': 4,
-        'pth_path': 'D:\\Desktop\\tempfile\\weights\\market1501\\osnet_x1_0.pth',
+        'pth_path': 'D:\\Desktop\\tempfile\\weights\\market1501\\osnet_sc.pth',
         'aligned': False,
-        'reranking': True,
+        'reranking': False,
         'test_distance': 'global',
-        'visualize': True
+        'visualize': False
     }
     main(configs)
 
