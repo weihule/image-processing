@@ -6,6 +6,7 @@ from torchvision import transforms
 import cv2
 import random
 from PIL import Image
+from pathlib import Path
 
 __all__ = [
     'OpenCV2PIL',
@@ -102,19 +103,19 @@ class Random2DErasing:
         if random.random() < self.p:
             return sample
 
-        # Õâ¸öÀà·ÅÔÚÁËPIL2OpenCVÏÂ£¬ËùÒÔÕâÀïµÄimageÒÑ¾­ÊÇnp.float32µÄRGBÐÎÊ½
+        # è¿™ä¸ªç±»æ”¾åœ¨äº†PIL2OpenCVä¸‹ï¼Œæ‰€ä»¥è¿™é‡Œçš„imageå·²ç»æ˜¯np.float32çš„RGBå½¢å¼
         image, label = sample['image'], sample['label']
         image_h, image_w, _ = image.shape
         area = image_h * image_w
 
-        target_area = random.uniform(self.sl, self.sh)*area     # È·¶¨Ëæ»ú²Á³ýÇøÓòµÄÃæ»ý
-        aspect_ratio = random.uniform(self.r1, 1 / self.r1)     # È·¶¨Ëæ»ú²Á³ýÇøÓòµÄratio (h / w)
+        target_area = random.uniform(self.sl, self.sh)*area     # ç¡®å®šéšæœºæ“¦é™¤åŒºåŸŸçš„é¢ç§¯
+        aspect_ratio = random.uniform(self.r1, 1 / self.r1)     # ç¡®å®šéšæœºæ“¦é™¤åŒºåŸŸçš„ratio (h / w)
 
         erase_h = int(round(math.sqrt(target_area * aspect_ratio)))
         erase_w = int(round(math.sqrt(target_area / aspect_ratio)))
 
         if erase_w < image_w and erase_h < image_h:
-            # È·¶¨Ëæ»ú²Á³ýÇøÓòµÄ(x, y)×ø±ê
+            # ç¡®å®šéšæœºæ“¦é™¤åŒºåŸŸçš„(x, y)åæ ‡
             loc1 = random.randint(0, image_h - erase_h - 1)
             loc2 = random.randint(0, image_w - erase_w - 1)
             erase_area = (np.random.rand(erase_h, erase_w, 3) * 255.)
@@ -155,7 +156,7 @@ class Collater:
             images.append(s["image"])
             labels.append(s["label"])
 
-        # stackÖ®ºó»áÔö¼ÓÒ»¸öÎ¬¶È B,H,W,3
+        # stackä¹‹åŽä¼šå¢žåŠ ä¸€ä¸ªç»´åº¦ B,H,W,3
         images = np.stack(images, axis=0)
         mean = np.asarray(self.mean, dtype=np.float32).reshape((1, 1, 1, 3))
         std = np.asarray(self.std, dtype=np.float32).reshape((1, 1, 1, 3))
@@ -169,6 +170,41 @@ class Collater:
             'image': images,
             'label': labels
         }
+    
+
+def test_erase():
+    """
+    æµ‹è¯•å›¾åƒéšæœºæ“¦é™¤
+    """
+    image_dir = r"D:\Desktop\apps\out\data_dir\query"
+    save_dir = r"D:\Desktop"
+    sl, sh, r1=0.01, 0.2, 0.3
+    for i in Path(image_dir).iterdir():
+        image = cv2.imread(str(i))
+        image = np.asarray(image, dtype=np.float32)
+        image_h, image_w, _ = image.shape
+        area = image_h * image_w
+
+        target_area = random.uniform(sl, sh)*area     # ç¡®å®šéšæœºæ“¦é™¤åŒºåŸŸçš„é¢ç§¯
+        aspect_ratio = random.uniform(r1, 1 / r1)     # ç¡®å®šéšæœºæ“¦é™¤åŒºåŸŸçš„ratio (h / w)
+
+        erase_h = int(round(math.sqrt(target_area * aspect_ratio)))
+        erase_w = int(round(math.sqrt(target_area / aspect_ratio)))
+
+        if erase_w < image_w and erase_h < image_h:
+            # ç¡®å®šéšæœºæ“¦é™¤åŒºåŸŸçš„(x, y)åæ ‡
+            loc1 = random.randint(0, image_h - erase_h - 1)
+            loc2 = random.randint(0, image_w - erase_w - 1)
+            erase_area = (np.random.rand(erase_h, erase_w, 3) * 255.)
+            image[loc1: loc1+erase_h, loc2: loc2+erase_w, :] = erase_area
+        
+        image = image.astype(np.uint8)
+        cv2.imwrite(str(Path(save_dir) / i.name), image)
+
+
+
+if __name__ == '__main__':
+    test_erase()
 
 
 

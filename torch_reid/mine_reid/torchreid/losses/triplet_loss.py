@@ -34,7 +34,7 @@ def hard_example_mining(dist_mat, labels, return_inds=False, use_gpu=True):
     """
     for each anchor, find the hardest positive and negative sample
     Args:
-        dist_mat: [N, M] N == M, 因为是一个[batch_size, 2048]求出来的距离矩阵
+        dist_mat: [N, M], N == M, 因为是一个[batch_size, 2048]求出来的距离矩阵
         labels: [N]
         return_inds: bool
         use_gpu: bool

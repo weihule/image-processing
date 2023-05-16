@@ -71,3 +71,20 @@ class CrossEntropyLabelSmooth(nn.Module):
         loss = (- targets * log_probs).mean(0).sum()
         return loss
 
+
+import math 
+import numpy as np
+def test():
+    x = np.array([1.0, 5.0, 4.0])
+    label = np.array([0., 1.0, 0.0])
+    y_hat = np.array([0.013, 0.721, 0.265])
+    eplise = 0.001
+    new_label = label * (1-0.001) + (0.001 / 3)
+    print(new_label)
+
+    print(-label*np.log(y_hat))
+    print(-new_label*np.log(y_hat))
+
+if __name__ == "__main__":
+    test()
+
