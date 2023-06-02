@@ -23,8 +23,8 @@ import cv2
 
 
 def test():
-    p = Path(r"D:\workspace\data\dl\flower\test\daisy\daisy01.jpg")
-    print(p.parent.is_dir())
+    p = Path(r"D:\desktop\test.txt")
+    p.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

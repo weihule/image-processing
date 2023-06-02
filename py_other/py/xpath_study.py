@@ -8,6 +8,7 @@ import time
 import json
 from tqdm import tqdm
 
+
 # 爬取58二手房信息
 def main():
     # 获取页面源码数据
@@ -26,7 +27,7 @@ def main():
         print(house_type)
 
 
-# 爬取4K美女
+# 爬取图片
 def beautiful():
     save_root = 'D:\\workspace\\data\\DL\\beautiful_girl'
     headers = {
@@ -49,14 +50,15 @@ def beautiful():
         # cv2.waitKey(0)
 
 
-
 def countries():
     headers = {
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36 Edg/102.0.1245.30'
     }
     url = 'https://www.aqistudy.cn/historydata/'
-    page_text = requests.get(url=url, headers=headers).text 
+    page_text = requests.get(url=url, headers=headers).text
+
     tree = etree.HTML(page_text)
+
     roi_cities = tree.xpath('//div[@class="hot"]//ul[@class="unstyled"]/li')
     print(len(roi_cities))
     for roi_city in roi_cities:
@@ -68,15 +70,16 @@ def countries():
         print(i.xpath('./a/text()')[0])
 
 
-
 def get_resumes():
     """
     爬取简历模板
     """
     save_root = 'D:\\workspace\\data\\scipy\\resumes'
     headers = {
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36 Edg/102.0.1245.30'
+        'user-agent': "user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/113.0.0.0 Safari/537.36 Edg/113.0.1774.57"
     }
+
     c = 0
     for i in range(1, 6):
         net = 'free' if i == 1 else 'free_' + str(i)
