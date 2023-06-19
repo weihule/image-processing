@@ -8,8 +8,10 @@ from lxml import etree
 
 urls = [f"https://www.cnblogs.com/#p{page}" for page in range(1, 50)]
 
+
 def func(a, b):
     pass
+
 
 def craw(url):
     res = requests.get(url)
@@ -17,11 +19,12 @@ def craw(url):
     titles = html_info.xpath("//div[@class='post-item-text']/a")
     hrefs = html_info.xpath("//div[@class='post-item-text']/a/@href")
     titles = [t.text for t in titles]
-    
+
     # for href, title in zip(hrefs, titles):
     #     print(href, title)
 
     return zip(hrefs, titles)
+
 
 def single_thread():
     print("single begin")
@@ -31,9 +34,11 @@ def single_thread():
             print(href, title)
     print("single end")
 
+
 def craw2(url):
     res = requests.get(url)
     return res.text
+
 
 def parse2(html):
     html_info = etree.HTML(html)
@@ -42,6 +47,7 @@ def parse2(html):
     titles = [t.text for t in titles]
 
     return zip(hrefs, titles)
+
 
 def do_craw(url_queue: queue.Queue, html_queue: queue.Queue):
     while True:
@@ -52,6 +58,7 @@ def do_craw(url_queue: queue.Queue, html_queue: queue.Queue):
               f"url_queue.size = {url_queue.qsize()}")
         time.sleep(random.randint(1, 2))
 
+
 def do_parse(html_queue: queue.Queue):
     while True:
         html = html_queue.get()
@@ -59,6 +66,7 @@ def do_parse(html_queue: queue.Queue):
         print(threading.current_thread().name,
               f"url_queue.size = {html_queue.qsize()}")
         time.sleep(random.randint(1, 2))
+
 
 def multi_thread():
     print("multi begin")
@@ -76,22 +84,23 @@ def multi_thread():
     html_queue = queue.Queue()
     for url in urls:
         url_queue.put(url)
-    
+
     # 3个生产者线程
     for idx in range(3):
-        t = threading.Thread(target=do_craw, 
+        t = threading.Thread(target=do_craw,
                              args=(url_queue, html_queue),
                              name=f"craw{idx}")
         t.start()
 
     # 2个消费者线程
     for idx in range(2):
-        t = threading.Thread(target=do_parse, 
-                             args=(html_queue, ),
+        t = threading.Thread(target=do_parse,
+                             args=(html_queue,),
                              name=f"parse{idx}")
         t.start()
-    
+
     print("multi end")
+
 
 def main():
     # start = time.time()
