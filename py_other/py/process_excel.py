@@ -22,6 +22,12 @@ def main():
     wb.save('test.xlsx')
 
 
+def main2():
+    myExcel = load_workbook('省会表.xlsx')  # 获取表格文件
+    # 获取指定的表单
+    mySheet = myExcel.get_sheet_by_name('Sheet1')
+
+
 def test():
     p = Path(r"D:\desktop\test.txt")
     p.unlink(missing_ok=True)
