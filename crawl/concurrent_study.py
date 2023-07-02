@@ -160,7 +160,7 @@ class ThreadQueue(threading.Thread):
     @staticmethod
     def crawl(thread_name, q: queue.Queue):
         url = q.get(timeout=1.5)
-        temp.append(url)
+        temp.append(url)    # 是为了计数的
         try:
             r = get_response(url=url, timeoue=1.5)
         except Exception as e:

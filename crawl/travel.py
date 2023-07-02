@@ -3,11 +3,16 @@ import requests
 from lxml import etree
 from openpyxl import Workbook, load_workbook
 import json
+import selenium
 
 headers = {
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36 Edg/102.0.1245.30'
 }
 save_root = Path(r'D:\Desktop\provinces')
+
+# 1. 确定url地址，然后用requests中的get进行请求
+# 根据请求得到的返回值，利用text属性得到网页源码
+# 根据网页源码进行解析，解析的方法目前有很多，最常用的就是xpath
 
 
 def main():
@@ -355,8 +360,27 @@ def parse_excel():
     print(f"nums = {nums} none_nums = {none_nums}")
 
 
+def main2():
+    url = "https://www.maigoo.com/goomai/197792.html"
+    response = requests.get(url=url, headers=headers)
+    page_text = response.text
+    page_text = etree.HTML(page_text)
+
+    provinces = page_text.xpath(
+        '//div[@class="md_citiaothemetop10 md_citiaothemetop10_clos"]/div')[0].xpath('.//li')
+
+    province_list = []
+    urls = []
+    for p in provinces:
+        text = p.xpath('.//span[@class="dhidden"]/text()')
+        province_list.append(text[0])
+
+    print(province_list)
+
+
 if __name__ == "__main__":
-    run()
+    # run()
+    main2()
     # test_beijing()
     # test()
     # parse_excel()
