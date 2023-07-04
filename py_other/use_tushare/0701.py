@@ -1,6 +1,5 @@
 import tushare as ts
 import time
-from tqdm import tqdm
 import queue
 import threading
 from openpyxl import Workbook, load_workbook
@@ -9,22 +8,57 @@ from openpyxl import Workbook, load_workbook
 pro = ts.pro_api(token='818670fa68bc204c217143cdb75efeae1986031841ff8ca2c6a855bd')
 
 
-def get_datas():
-    datas = pro.stock_basic()
-    datas = datas.to_dict()
-    ts_codes = datas['ts_code'].values()     # 股票代码
-    names = datas['name'].values()           # 公司名称
-    areas = datas['area'].values()           # 地区
-    industries = datas['industry'].values()  # 行业
-    markets = datas['market'].values()       # 板块
-    # print(len(ts_codes), len(names), len(areas), len(industries), len(markets))
+def get_datas(type_info):
+    # 美股数据
+    if type_info == 'us':
+        datas = pro.us_basic()
+        datas = datas.to_dict()
+        ts_codes = datas['ts_code'].values()
+        ennames = datas['enname'].values()       # 英文名称
 
-    # 存储示例: [[股票代码, 公司名称, 地区, 行业, 板块], ...]
-    infos = []
-    for t, n, a, i, m in zip(ts_codes, names, areas, industries, markets):
-        temp = []
-        temp.extend([t, n, a, i, m])
-        infos.append(temp)
+        # 存储示例: [[股票代码, 公司名称(英文)], ...]
+        infos = []
+        for t, e in zip(ts_codes, ennames):
+            temp = []
+            temp.extend([t, e])
+            infos.append(temp)
+
+    # 港股数据
+    elif type_info == 'hk':
+        datas = pro.hk_basic()
+        datas = datas.to_dict()
+        ts_codes = datas['ts_code'].values()  # 股票代码
+        names = datas['name'].values()  # 公司名称(中文)
+        markets = datas['market'].values()       # 市场类别
+
+        # 存储示例: [[股票代码, 公司名称(中文), 市场类别], ...]
+        infos = []
+        for t, n, m in zip(ts_codes, names, markets):
+            temp = []
+            temp.extend([t, n, m])
+            infos.append(temp)
+
+    # 沪深
+    elif type_info == 'stock':
+        datas = pro.stock_basic()
+        datas = datas.to_dict()
+        ts_codes = datas['ts_code'].values()     # 股票代码
+        names = datas['name'].values()           # 公司名称
+        areas = datas['area'].values()           # 地区
+        industries = datas['industry'].values()  # 行业
+        markets = datas['market'].values()       # 板块，市场类别
+        # print(len(ts_codes), len(names), len(areas), len(industries), len(markets))
+
+        # 存储示例: [[股票代码, 公司名称, 地区, 行业, 板块], ...]
+        infos = []
+        for t, n, a, i, m in zip(ts_codes, names, areas, industries, markets):
+            temp = []
+            temp.extend([t, n, a, i, m])
+            infos.append(temp)
+    
+    else:
+        infos = []
+        datas = None
 
     return infos, list(datas['ts_code'].values())
 
@@ -62,11 +96,13 @@ class ThreadQueue(threading.Thread):
             opens = list(df['open'].values())[:5][::-1]
             highs = list(df['high'].values())[:5][::-1]
             lows = list(df['low'].values())[:5][::-1]
+            closes = list(df['close'].values())[:5][::-1]
             pct_chgs = list(df['pct_chg'].values())[:5][::-1]
             temp[ts_code].append(trade_dates)
             temp[ts_code].append(opens)
             temp[ts_code].append(highs)
             temp[ts_code].append(lows)
+            temp[ts_code].append(closes)
             temp[ts_code].append(pct_chgs)
             all_datas.append(temp)
             if ts_code == '000001.SZ':
@@ -119,29 +155,6 @@ def main_queue(infos):
         t.join()
 
 
-def main(infos):
-    # 遍历每一个公司
-    for info in tqdm(infos):
-        temp = []
-        ts_code = info[0]
-        df = pro.daily(ts_code=ts_code)
-        df = df.to_dict()
-        df = dict_slice(df, length=5)
-        trade_dates = list(df['trade_date'].values())[:5][::-1]
-        opens = list(df['open'].values())[:5][::-1]
-        highs = list(df['high'].values())[:5][::-1]
-        lows = list(df['low'].values())[:5][::-1]
-        pct_chgs = list(df['pct_chg'].values())[:5][::-1]
-        temp.append(trade_dates)
-        temp.append(opens)
-        temp.append(highs)
-        temp.append(lows)
-        temp.append(pct_chgs)
-        all_datas.append(temp)
-
-    print(len(all_datas))
-
-
 def sort_dict(infos1, keys):
     """
     按照原始的ts_code顺序，给最终数据重新排序
@@ -168,7 +181,7 @@ def process_file(infos1, keys):
     ws = wb.active
 
     ws.append(['股票代码', '公司名称', '地点', '行业', '板块',
-               '第一天日期', '开盘价', '最高价', '最低价', '跌涨幅'])
+               '第一天日期', '开盘价', '最高价', '最低价', '收盘价', '跌涨幅'])
 
     width_20 = ['A', 'B', 'D', 'E', 'F']
     for i in width_20:
@@ -184,39 +197,40 @@ def process_file(infos1, keys):
                 date1_open = info[2][0]
                 date1_high = info[3][0]
                 date1_low = info[4][0]
-                date1_pct_chg = info[5][0]
+                date1_close = info[5][0]
+                date1_pct_chg = info[6][0]
                 # print(info)
                 # print(info)
                 # print(len(info[4]))
-                if len(info[5]) == 5:
-                    date2_pct_chg = info[5][1]
-                    date3_pct_chg = info[5][2]
-                    date4_pct_chg = info[5][3]
-                    date5_pct_chg = info[5][4]
-                elif len(info[5]) == 4:
-                    date2_pct_chg = info[5][1]
-                    date3_pct_chg = info[5][2]
-                    date4_pct_chg = info[5][3]
+                if len(info[6]) == 5:
+                    date2_pct_chg = info[6][1]
+                    date3_pct_chg = info[6][2]
+                    date4_pct_chg = info[6][3]
+                    date5_pct_chg = info[6][4]
+                elif len(info[6]) == 4:
+                    date2_pct_chg = info[6][1]
+                    date3_pct_chg = info[6][2]
+                    date4_pct_chg = info[6][3]
                     date5_pct_chg = None
-                elif len(info[5]) == 3:
-                    date2_pct_chg = info[5][1]
-                    date3_pct_chg = info[5][2]
+                elif len(info[6]) == 3:
+                    date2_pct_chg = info[6][1]
+                    date3_pct_chg = info[6][2]
                     date4_pct_chg = None
                     date5_pct_chg = None
                 else:
                     date2_pct_chg, date3_pct_chg, date4_pct_chg, date5_pct_chg = None, None, None, None
                 ws.append([ts_code, company_name, loc, industry, market,
-                           date1, date1_open, date1_high, date1_low, date1_pct_chg,
+                           date1, date1_open, date1_high, date1_low, date1_close, date1_pct_chg,
                            date2_pct_chg, date3_pct_chg, date4_pct_chg, date5_pct_chg])
             except Exception as e:
                 print(e)
 
-    wb.save('test.xlsx')
+    wb.save('test_.xlsx')
 
 
 def run():
     start_t = time.time()
-    infos, origin_keys = get_datas()
+    infos, origin_keys = get_datas(type_info='stock')
     # infos, origin_keys = infos[:10], origin_keys[:10]
     # main(infos=infos)
     main_queue(infos=infos)
@@ -229,12 +243,20 @@ def run():
 
 
 def test():
-    ts_code = '000010.SZ'
+    ts_code = '000001.SZ'
     df = pro.daily(ts_code=ts_code)
     # print(df)
     df = df.to_dict()
     new_df = dict_slice(df, length=5)
-    print(new_df)
+    # print(new_df)
+
+    df = pro.us_basic()
+    us_tz_code = 'AAPL'
+    us_df = pro.us_daily(ts_code=us_tz_code)
+    # print(us_df)
+
+    a, b = get_datas(type_info='hk')
+    print(a[:3], b[:3])
 
 
 if __name__ == "__main__":

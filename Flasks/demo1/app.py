@@ -1,7 +1,7 @@
 from flask import Flask, request, render_template
 from datetime import datetime
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='./static')
 
 
 # url: http[80]/https[443]://www.baidu.com:443/path
@@ -75,6 +75,11 @@ def child2():
 @app.route('/static')
 def static_demo():
     return render_template("static.html")
+
+
+@app.route('/study')
+def test():
+    return render_template("test_study.html")
 
 
 if __name__ == '__main__':
