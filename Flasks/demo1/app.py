@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, request
 from datetime import datetime
 
 app = Flask(__name__, static_folder='./static')
@@ -80,6 +80,35 @@ def static_demo():
 @app.route('/study')
 def test():
     return render_template("test_study.html")
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'GET':
+        return render_template("register.html")
+    else:
+        # 1. 接受前端传递过来的参数
+        print('POST', request.form)
+        username = request.form.get("username")
+        password = request.form.get("password")
+        gender = request.form.get("gender")
+        hobbies = request.form.getlist("hobby")
+        print(username)
+        print(password)
+        print(gender)
+        print(hobbies)
+        return '注册成功'
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'GET':
+        return render_template("login.html")
+    else:
+        username = request.form.get("username")
+        password = request.form.get("password")
+        print(username, password)
+        return "登录成功"
 
 
 if __name__ == '__main__':
