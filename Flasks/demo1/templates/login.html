@@ -3,19 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <title>用户登录</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-<h1>登录</h1>
+<h1 class="c1">登录</h1>
 <form action="/login" method="post">
-    <div>
+    <div class="c2">
         用户名
         <input type="text" name="username">
     </div>
-    <div>
+    <div class="c2">
         密码
         <input type="password" name="password">
     </div>
     <input type="submit" value="登录">
 </form>
+<ul>
+    <li>北京</li>
+    <li>上海</li>
+    <li>深圳</li>
+</ul>
+<div class="country">
+    <ul>
+        <li>美国</li>
+        <li>日本</li>
+        <li>韩国</li>
+    </ul>
+</div>
+<div class="v1" No="1">张三</div>
+<div class="v1" No="2">李四</div>
+<div class="v1" No="3">王五</div>
 </body>
 </html>

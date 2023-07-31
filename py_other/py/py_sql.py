@@ -50,6 +50,16 @@ class MySQL:
                                    db=self.db,
                                    charset=self.charset)
             print("数据库连接成功")
+            if conn:
+                sql = """
+                create table if not exists user_account(
+                id int auto_increment primary key comment '主键ID',
+                username varchar(20) comment '用户名',
+                password varchar(20) comment '密码'
+                ) comment '课程表';
+                """
+                cursor = conn.cursor()  # 生成游标对象
+                cursor.execute(sql)
             return conn
         except Exception as e:
             print("数据库连接失败")
@@ -57,8 +67,7 @@ class MySQL:
 
     def find(self):
         db = self.connect()
-        print(type(db))
-        cursor = db.cursor()    # 生成游标对象
+        cursor = db.cursor()  # 生成游标对象
         sql = """select * from employee"""
         try:
             cursor.execute(sql)
@@ -71,19 +80,21 @@ class MySQL:
 
     def register(self, username, password):
         conn = self.connect()
-        sql2 = """select * from user_account where username={}""".format(repr(username))
+        # TODO：不用要python中format，容易SQL注入
+        # sql2 = """select * from user_account where username={}""".format(repr(username))
+        # 用pymysql内置的%s来做占位符，参数可以在execute中用列表传递
+        sql2 = """select * from user_account where username=%s"""
 
-        sql = """insert into user_account (username, password) values ({}, {})""".\
-            format(repr(username), repr(password))
+        sql = """insert into user_account (username, password) values (%s, %s)"""
 
-        if conn.cursor().execute(sql2):
+        if conn.cursor().execute(sql2, [repr(username)]):
             print("用户名已存在")
             return
 
-        cursor = conn.cursor()    # 生成游标对象
+        cursor = conn.cursor()  # 生成游标对象
 
         try:
-            cursor.execute(sql)
+            cursor.execute(sql, [repr(username), repr(password)])
             conn.commit()
             print("注册成功")
         except Exception as e:
@@ -97,11 +108,9 @@ class MySQL:
 
     def login(self, username, password):
         conn = self.connect()
-        sql = """select * from user_account where username={} and password={}""".\
-            format(repr(username), repr(password))
-        print(sql)
-        cursor = conn.cursor()    # 生成游标对象
-        cursor.execute(sql)
+        sql = """select * from user_account where username=%s and password=%s"""
+        cursor = conn.cursor()  # 生成游标对象
+        cursor.execute(sql, [username, password])
         result = cursor.fetchone()
 
         if result:
@@ -117,11 +126,11 @@ class MySQL:
 
 def run(order: int, username: str, password: str):
     localhost = "127.0.0.1"
-    aliyun = "47.115.228.106"
-    conn = MySQL(host=localhost,
+    tencent = "111.230.192.230"
+    conn = MySQL(host=tencent,
                  user="root",
-                 password="123456",
-                 db="itcase")
+                 password="weiyounuLI01#",
+                 db="itcast")
     if order == 1:
         conn.register(username, password)
     elif order == 0:
@@ -132,5 +141,5 @@ def run(order: int, username: str, password: str):
 
 
 if __name__ == "__main__":
-    run(0,  "zhangsan", "123456")
+    run(0, "zhangsan", "123456")
     # main()
