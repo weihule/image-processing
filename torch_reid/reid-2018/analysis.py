@@ -18,7 +18,6 @@ from dataset_loader import ImageDataset
 import models
 from utils import AverageMeter
 from eval_metrics import evaluate
-from IPython import embed
 
 
 def main(config):

@@ -173,12 +173,31 @@ def vit_base_patch16_224(**kwargs):
                 **kwargs)
 
 
-if __name__ == "__main__":
-    inputs = torch.randn((2, 2, 2, 2))
-    var_mean = torch.var_mean(inputs, dim=-1, unbiased=False)
-    print(inputs)
+def test():
+    str1 = 'ying'
+    str2 = str1
+    print(id(str1), id(str2))
 
-    mean_inputs = inputs.mean(-1, keepdim=True)
-    print(mean_inputs)
+    str2 = 'mei'
+    print(id(str1), id(str2))
+    print(str1, str2)
+
+    a = [1, 2, 3, [2, 4, [3, 5]]]
+    b = a
+    b[3][0] = 10
+    print(id(a), id(b))
+    print(a)
+    print(b)
+
+
+if __name__ == "__main__":
+    # inputs = torch.randn((2, 2, 2, 2))
+    # var_mean = torch.var_mean(inputs, dim=-1, unbiased=False)
+    # print(inputs)
+    #
+    # mean_inputs = inputs.mean(-1, keepdim=True)
+    # print(mean_inputs)
+
+    test()
 
 
