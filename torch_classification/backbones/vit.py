@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import copy
 
 __all__ = [
     'vit_tiny_patch16_224',
@@ -182,12 +183,27 @@ def test():
     print(id(str1), id(str2))
     print(str1, str2)
 
-    a = [1, 2, 3, [2, 4, [3, 5]]]
-    b = a
-    b[3][0] = 10
-    print(id(a), id(b))
-    print(a)
-    print(b)
+    arr = [1, 2, 3]
+    arr2 = arr.copy()
+
+    tup = (1, 2, 3)
+    tup2 = tup.copy()
+
+    # a = [1, 2, 3, [2, 4, [3, 5]]]
+    # b = a
+    # b[3][0] = 10
+    # print(id(a), id(b))
+    # print(a)
+    # print(b)
+    #
+    # c = a.copy()
+    # print(id(a), id(c))
+    # c[3][0] = 200
+    # print(a)
+    # print(c)
+    #
+    # d = copy.deepcopy(a)
+
 
 
 if __name__ == "__main__":
