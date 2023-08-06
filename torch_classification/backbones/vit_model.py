@@ -5,8 +5,7 @@ from collections import OrderedDict
 
 
 class PatchEmbed(nn.Module):
-    def __init__(self, img_size=224, patch_size=16, in_c=3,
-                 embed_dim=768, norm_layer=None):
+    def __init__(self, img_size=224, patch_size=16, in_c=3, embed_dim=768, norm_layer=None):
         super(PatchEmbed, self).__init__()
         img_size = (img_size, img_size)
         self.img_size = img_size
@@ -28,10 +27,55 @@ class PatchEmbed(nn.Module):
         # [b, 768, 14, 14] -> [b, 768, 14*14]
         x = torch.flatten(x, start_dim=2)
 
-        # [b, 768, 14*12] -> [b, 14*14, 768]
+        # [b, 768, 14*14] -> [b, 14*14, 768]
         x = torch.transpose(x, dim0=1, dim1=2)
 
         x = self.norm(x)
+
+        return x
+
+
+class Attention(nn.Module):
+    def __init__(self,
+                 dim,           # 输入token的dim (768)
+                 num_heads=8,
+                 qkv_bias=False,
+                 qk_scale=None,
+                 attn_drop_ratio=0.,
+                 proj_drop_ratio=0.):
+        super(Attention, self).__init__()
+        self.num_heads = num_heads
+        head_dim = dim // num_heads
+        self.scale = qk_scale or head_dim ** -0.5
+        self.qkv = nn.Linear(dim, dim*3, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(attn_drop_ratio)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(proj_drop_ratio)
+
+    def forward(self, x):
+        # [batch_size, num_patches+1, total_embed_dim] if input_size=224, num_patches=196, total_embed_dim=768
+        B, N, C = x.shape
+
+        # qkv(): -> [batch_size, num_patches+1, 3*total_embed_dim]
+        # reshape(): -> [batch_size, num_patches+1, 3, num_heads, total_embed_dim//num_heads]
+        # permute(): -> [3, batch_size, num_heads, num_patches+1, total_embed_dim//num_heads]
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        # [batch_size, num_heads, num_patches+1, embed_dim_per_head]
+        q, k, v = qkv[0], qkv[1], qkv[2]
+
+        # (Q * K_-1) / (d_k ** 0.5)
+        # transpose(): -> [batch_size, num_heads, embed_dim_per_head, num_patches+1]
+        # @: -> [batch_size, num_heads, num_patches+1, num_patches+1]
+        attn = (q @ k.transpose(2, 3)) * self.scale
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+
+        # @: [batch_size, num_heads, num_patches+1, embed_dim_per_head]
+        # transpose(): -> [batch_size, num_patches+1, num_heads, embed_dim_per_head], 上面把3调到前面了，这里需要还原
+        # reshape: -> [batch_size, num_patches+1, total_embed_dim]
+        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
 
         return x
 
@@ -54,16 +98,29 @@ class VisionTransform(nn.Module):
                                        patch_size=patch_size,
                                        in_c=in_c,
                                        embed_dim=embed_dim)
+        # if input size is 224*224, num_patches = (224*224)/(16*16) = 196
         num_patches = self.patch_embed.num_patches
 
-        self.cls_token = nn.Parameter(torch)
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.dist_token = nn.Parameter(torch.zeros(1, 1, embed_dim)) if distilled else None
+        # if input size is 224*224, pos_embed: [1, 196+1, 768]
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + self.num_tokens, embed_dim))
+        self.pos_drop = nn.Dropout(p=drop_ratio)
+
+        # stochastic depth decay rule 随机深度衰减
+        dpr = [x.item() for x in torch.linspace(0, drop_path_ratio, depth)]
 
 
 def test():
     i = torch.randn(4, 3, 224, 224)
     pe = PatchEmbed()
     o = pe(i)
-    print(o.shape)
+
+    l1 = nn.Linear(768, 768*3, bias=False)
+    attn = Attention(dim=768)
+    i1 = torch.randn(4, 196+1, 768)
+    o1 = attn(i1)
+    print(o1.shape)
 
 
 def test_kwargs(first, *args, **kwargs):
@@ -80,8 +137,4 @@ def mod(n, m):
 
 
 if __name__ == "__main__":
-    # test()
-
-    mod_by_15 = partial(mod, 15)
-    print(mod(15, 7))
-    print(mod_by_15(7))
+    test()
