@@ -117,7 +117,7 @@ def test():
     o = pe(i)
 
     l1 = nn.Linear(768, 768*3, bias=False)
-    attn = Attention(dim=768)
+    attn = Attention(dim=768, attn_drop_ratio=0.2, proj_drop_ratio=0.2)
     i1 = torch.randn(4, 196+1, 768)
     o1 = attn(i1)
     print(o1.shape)
