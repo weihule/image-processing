@@ -1,7 +1,11 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.text import Text
 
+nltk.download()
 
 def bn_process(feature, mean, var):
     feature_shape = feature.shape
@@ -65,6 +69,14 @@ def run_ln():
     print(t2, t2.shape)
 
 
+def test():
+    str1 = "Today's weather is good. very windy and sunny, "\
+        "we have no classes in the afternoon. We have to play basketball tomorrow."
+    tokens = word_tokenize(str1)
+    tokens[:5]
+
+
 if __name__ == "__main__":
     # run_bn()
-    run_ln()
+    # run_ln()
+    test()
