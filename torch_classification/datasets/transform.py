@@ -15,7 +15,8 @@ __all__ = [
     'TorchRandomHorizontalFlip',
     'TorchColorJitter',
     'Random2DErasing',
-    'Collater'
+    'Collater',
+    'transform'
 ]
 
 
@@ -200,7 +201,6 @@ def test_erase():
         
         image = image.astype(np.uint8)
         cv2.imwrite(str(Path(save_dir) / i.name), image)
-
 
 
 if __name__ == '__main__':

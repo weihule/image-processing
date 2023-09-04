@@ -1,9 +1,8 @@
 import os
 import json
-import random
+from pathlib import Path
 import cv2
 import numpy as np
-import torch
 from torch.utils.data import Dataset, DataLoader
 
 
@@ -92,25 +91,71 @@ def test(imagenet):
     print(sample_["label"])
 
 
-def test02(dataset):
-    collater = Collater(mean=(0.5, 0.5, 0.5),
-                        std=(0.5, 0.5, 0.5))
-    loader = DataLoader(dataset=dataset,
-                        batch_size=16,
-                        shuffle=True,
-                        collate_fn=collater)
-    print("len(loader) = ", len(loader))
-    for datas in loader:
-        images = datas["image"]
-        labels = datas["label"]
-        print(images.shape, labels)
+class ImageNet100(Dataset):
+    def __init__(self,
+                 root_dir,
+                 set_name='imagenet100_train',
+                 class_file=None,
+                 transform=None):
+        super(ImageNet100, self).__init__()
+        assert set_name in ["imagenet100_train", "imagenet100_val"], "wrong set_name !"
+        if not Path(root_dir).exists():
+            raise FileExistsError(f"{root_dir} not exists !")
+
+        if class_file is None or not Path(class_file).exists():
+            raise FileNotFoundError(f"{class_file} not found !")
+
+        img_paths, labels = self.prepare_data(root_dir, set_name, class_file)
+        print(len(img_paths), len(labels))
+        print(img_paths[0], labels[0])
+
+    def __getitem__(self, item):
+        pass
+
+    def __len__(self):
+        pass
+
+    @staticmethod
+    def prepare_data(root_dir, set_name, class_file):
+        # 获取各类别的索引
+        with open(class_file, "r", encoding="utf-8") as fr:
+            cls2idx = json.load(fr)
+        idx2cls = {v: k for k, v in cls2idx.items()}
+
+        # 获取图片路径 和 对应的label
+        paths, labels = [], []
+        for idx, sub_class_dir in enumerate(Path(root_dir).joinpath(set_name).iterdir()):
+            label = cls2idx[sub_class_dir.parts[-1]]
+            labels.extend([label] * len(list(sub_class_dir.glob("*"))))
+            for per_image_path in sub_class_dir.iterdir():
+                if per_image_path.exists():
+                    paths.append(str(per_image_path))
+                else:
+                    paths.append(-1)
+        return paths, labels
+
+    def load_image(self):
+        pass
 
 
-if __name__ == "__main__":
+def main():
     from transform import transform, Collater
     root_dir_ = r"D:\workspace\data\dl\imagenet100"
     imagenet_ = ImageNet100Dataset(root_dir=root_dir_,
                                    set_name='imagenet100_val',
                                    transform=transform["train"])
-    test02(imagenet_)
+
+
+def test02():
+    root_dir_ = r"D:\workspace\data\dl\imagenet100"
+    imgnet = ImageNet100(root_dir=root_dir_,
+                         set_name='imagenet100_val',
+                         class_file=r"D:\workspace\data\dl\imagenet100\class_100.json")
+
+
+if __name__ == "__main__":
+    # main()
+    test02()
+
+
 
