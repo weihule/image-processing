@@ -4,6 +4,7 @@ from torchvision import transforms
 
 import backbones
 from datasets.transform import *
+from datasets.collater import Collater
 
 
 class Config:
@@ -85,5 +86,13 @@ class Config:
 cfg = Config()
 
 
+def main():
+    import yaml
+    with open("cfg.yaml", "r", encoding="utf-8") as fr:
+        cfgs = yaml.load(fr, Loader=yaml.FullLoader)
+    print(cfgs)
+
+
 if __name__ == "__main__":
-    pass
+    main()
+
