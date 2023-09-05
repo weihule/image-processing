@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 
-
 __all__ = [
     "ImageNet100Dataset"
 ]
@@ -105,15 +104,30 @@ class ImageNet100(Dataset):
         if class_file is None or not Path(class_file).exists():
             raise FileNotFoundError(f"{class_file} not found !")
 
-        img_paths, labels = self.prepare_data(root_dir, set_name, class_file)
-        print(len(img_paths), len(labels))
-        print(img_paths[0], labels[0])
+        img_paths, labels, idx2cls = self.prepare_data(root_dir, set_name, class_file)
+        self.img_paths, self.labels, self.idx2cls = img_paths, labels, idx2cls
+
+        self.transform = transform
+        print("=> {}".format(set_name))
+        print("| Dataset Size      |{:<8d} |".format(len(self.img_paths)))
+        print("| Dataset Class Num |{:<8d} |".format(len(self.labels)))
 
     def __getitem__(self, item):
-        pass
+        image = self.load_image(item)
+        label = self.load_label(item)
+
+        sample = {
+            "image": image,
+            "label": label
+        }
+
+        if self.transform:
+            sample = self.transform(sample)
+
+        return sample
 
     def __len__(self):
-        pass
+        return len(self.img_paths)
 
     @staticmethod
     def prepare_data(root_dir, set_name, class_file):
@@ -132,14 +146,23 @@ class ImageNet100(Dataset):
                     paths.append(str(per_image_path))
                 else:
                     paths.append(-1)
-        return paths, labels
+        return paths, labels, idx2cls
 
-    def load_image(self):
-        pass
+    def load_image(self, item):
+        image_path = self.img_paths[item]
+        image = cv2.imdecode(np.fromfile(str(image_path), dtype=np.uint8), cv2.IMREAD_COLOR)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        return image.astype(np.float32)
+
+    def load_label(self, item):
+        label = self.labels[item]
+
+        return np.asarray(label, dtype=np.float32)
 
 
 def main():
-    from transform import transform, Collater
+    from transform import transform
     root_dir_ = r"D:\workspace\data\dl\imagenet100"
     imagenet_ = ImageNet100Dataset(root_dir=root_dir_,
                                    set_name='imagenet100_val',
@@ -147,15 +170,23 @@ def main():
 
 
 def test02():
-    root_dir_ = r"D:\workspace\data\dl\imagenet100"
-    imgnet = ImageNet100(root_dir=root_dir_,
-                         set_name='imagenet100_val',
-                         class_file=r"D:\workspace\data\dl\imagenet100\class_100.json")
+    from transform import transform
+    root_dir = r"D:\workspace\data\dl\imagenet100"
+    set_name = "imagenet100_val"
+    class_file = r"D:\workspace\data\dl\imagenet100\class_100.json"
+    imgnet100 = ImageNet100(root_dir=root_dir,
+                            set_name=set_name,
+                            transform=None,
+                            class_file=class_file)
+    sample = imgnet100[1001]
+    image, label = sample["image"], sample["label"]
+    print(label, imgnet100.idx2cls[int(label)])
+    image = image.astype(np.uint8)
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    cv2.imshow("res", image)
+    cv2.waitKey(0)
 
 
 if __name__ == "__main__":
     # main()
     test02()
-
-
-
