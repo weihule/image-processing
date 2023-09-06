@@ -3,6 +3,13 @@ import torch.nn as nn
 from functools import partial
 from collections import OrderedDict
 
+__all__ = [
+    'vit_base_patch16_224',
+    'vit_base_patch16_224_in21k',
+    'vit_base_patch32_224',
+    'vit_base_patch32_224_in21k'
+]
+
 
 def drop_path(x, drop_prob: float = 0., training: bool = False):
     if drop_prob == 0. or not training:
@@ -308,7 +315,7 @@ def _init_vit_weights(m):
         nn.init.ones_(m.weight)
 
 
-def vit_base_patch16_224(num_classes: int=1000):
+def vit_base_patch16_224(num_classes: int = 1000):
     """
     ViT-Base model (ViT-B/16) from original paper (https://arxiv.org/abs/2010.11929).
     ImageNet-1k weights @ 224x224, source https://github.com/google-research/vision_transformer.

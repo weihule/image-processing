@@ -1,4 +1,5 @@
 from .resnet import *
+from .vit_model import *
 
 
 models = [
@@ -9,6 +10,11 @@ models = [
     'resnet50',
     'resnet101',
     'resnet152',
+
+    'vit_base_patch16_224',
+    'vit_base_patch16_224_in21k',
+    'vit_base_patch32_224',
+    'vit_base_patch32_224_in21k'
 ]
 
 

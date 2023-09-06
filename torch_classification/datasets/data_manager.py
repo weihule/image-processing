@@ -2,27 +2,18 @@ from .imagenet100 import ImageNet100Dataset, ImageNet100
 from .flower5 import Flower5
 
 
-def init_dataset(name, root_dir, class_file, transform_dict, **kwargs):
+def init_dataset(name, root_dir, set_name, class_file, transform, **kwargs):
     if name == "imagenet100":
-        train_dataset = ImageNet100(root_dir=root_dir,
-                                    set_name="imagenet100_train",
-                                    class_file=class_file,
-                                    transform=transform_dict["train"])
-        val_dataset = ImageNet100(root_dir=root_dir,
-                                  set_name="imagenet100_val",
-                                  class_file=class_file,
-                                  transform=transform_dict["val"])
-    elif name == "flower5":
-        train_dataset = Flower5(root_dir=root_dir,
-                                set_name="train",
-                                class_file=class_file,
-                                transform=transform_dict["train"])
-        val_dataset = Flower5(root_dir=root_dir,
-                              set_name="val",
+        dataset = ImageNet100(root_dir=root_dir,
+                              set_name=set_name,
                               class_file=class_file,
-                              transform=transform_dict["val"])
+                              transform=transform)
+    elif name == "flower5":
+        dataset = Flower5(root_dir=root_dir,
+                          set_name=set_name,
+                          class_file=class_file,
+                          transform=transform)
     else:
-        train_dataset = None
-        val_dataset = None
+        dataset = None
 
-    return train_dataset, val_dataset
+    return dataset

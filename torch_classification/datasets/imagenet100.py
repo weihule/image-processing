@@ -6,7 +6,8 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 
 __all__ = [
-    "ImageNet100Dataset"
+    "ImageNet100Dataset",
+    "ImageNet100"
 ]
 
 

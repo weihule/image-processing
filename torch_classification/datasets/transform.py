@@ -15,7 +15,7 @@ __all__ = [
     'TorchRandomHorizontalFlip',
     'TorchColorJitter',
     'Random2DErasing',
-    'transform'
+    'transform_func'
 ]
 
 
@@ -127,21 +127,40 @@ class Random2DErasing:
         }
 
 
-transform = {
-    'train': transforms.Compose([
-        OpenCV2PIL(),
-        TorchResize(resize=224),
-        TorchRandomHorizontalFlip(prob=0.5),
-        TorchColorJitter(),
-        PIL2OpenCV(),
-        Random2DErasing()
-    ]),
-    'val': transforms.Compose([
-        OpenCV2PIL(),
-        TorchResize(resize=400),
-        PIL2OpenCV()
-    ])
-}
+def transform_func(image_size, use_random_erase):
+    if use_random_erase:
+        transform = {
+            'train': transforms.Compose([
+                OpenCV2PIL(),
+                TorchResize(resize=image_size),
+                TorchRandomHorizontalFlip(prob=0.5),
+                TorchColorJitter(),
+                PIL2OpenCV(),
+                Random2DErasing()
+            ]),
+            'val': transforms.Compose([
+                OpenCV2PIL(),
+                TorchResize(resize=image_size),
+                PIL2OpenCV()
+            ])
+        }
+    else:
+        transform = {
+            'train': transforms.Compose([
+                OpenCV2PIL(),
+                TorchResize(resize=image_size),
+                TorchRandomHorizontalFlip(prob=0.5),
+                TorchColorJitter(),
+                PIL2OpenCV(),
+            ]),
+            'val': transforms.Compose([
+                OpenCV2PIL(),
+                TorchResize(resize=image_size),
+                PIL2OpenCV()
+            ])
+        }
+
+    return transform
 
 
 def test_erase():
@@ -150,7 +169,7 @@ def test_erase():
     """
     image_dir = r"D:\Desktop\apps\out\data_dir\query"
     save_dir = r"D:\Desktop"
-    sl, sh, r1=0.01, 0.2, 0.3
+    sl, sh, r1 = 0.01, 0.2, 0.3
     for i in Path(image_dir).iterdir():
         image = cv2.imread(str(i))
         image = np.asarray(image, dtype=np.float32)
