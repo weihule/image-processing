@@ -74,9 +74,8 @@ def de_bug_main():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=350)
 
     lr_list = []
-
+    model.train()
     for epoch in range(epochs):
-        model.train()
         adjust_learning_rate(optimizer,
                              current_epoch=epoch,
                              max_epoch=epochs,
@@ -92,10 +91,10 @@ def de_bug_main():
             loss.backward()
             optimizer.step()
         # print(len(optimizer.param_groups))
-        print('[', epoch, ']', optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_last_lr())
         # print(optimizer.state_dict())
         # print(scheduler.state_dict())
         scheduler.step()
+        print('[', epoch, ']', optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_last_lr())
         lr_list.append(optimizer.state_dict()['param_groups'][0]['lr'])
     plt.plot(range(epochs), lr_list, color='b')
     plt.grid(True)

@@ -20,6 +20,8 @@ from datasets.collater import Collater
 from backbones.model_manager import init_model
 
 from losses import CELoss
+from utils.optimers import init_optimizer
+from utils.schedulers import init_scheduler
 from utils.util import get_logger, load_state_dict
 
 with open("cfg.yaml", "r", encoding="utf-8") as fr:
@@ -48,9 +50,9 @@ def main(logger):
     transform = transform_func(image_size=cfgs["image_size"],
                                use_random_erase=True)
     train_dataset = init_dataset(name=cfgs["dataset_name"],
-                                 root_dir=cfgs["data_loc"][cfgs["mode"]]["root_dir"],
+                                 root_dir=cfgs[cfgs["mode"]]["root_dir"],
                                  set_name=cfgs["train_set_name"],
-                                 class_file=cfgs["data_loc"][cfgs["mode"]]["class_file"],
+                                 class_file=cfgs[cfgs["mode"]]["class_file"],
                                  transform=transform["train"])
     print(len(train_dataset))
     collater = Collater(mean=cfgs["mean"],
@@ -65,7 +67,11 @@ def main(logger):
                        num_classes=cfgs["num_classes"])
     model.to(device)
 
-    load_state_dict()
+    load_state_dict(saved_model_path=cfgs[cfgs["mode"]]["pre_weight_path"],
+                    model=model)
+
+    params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = Adam(params, lr=cfgs["lr"], weight_decay=4e-5)
 
 
 if __name__ == "__main__":
