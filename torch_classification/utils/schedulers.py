@@ -1,5 +1,8 @@
 from __future__ import print_function, absolute_import
+from functools import partial
+from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingLR, CosineAnnealingWarmRestarts
 import torch
+import math
 
 __all__ = [
     'init_scheduler',
@@ -7,19 +10,21 @@ __all__ = [
 ]
 
 
-def adjust_learning_rate(optimizer, current_epoch, max_epoch, lr_min=0., lr_max=0.1, warmup_epoch=5, warmup=True):
-    if warmup:
-        warmup_epoch = warmup_epoch
+def adjust_learning_rate(optimizer, current_epoch, max_epoch, lr_min=0., lr_max=0.1, warm_up_epoch=5, warm_up=True):
+    if warm_up:
+        warm_up_epoch = warm_up_epoch
     else:
-        warmup_epoch = 0
+        warm_up_epoch = 0
 
-    if current_epoch < warmup_epoch:
+    if current_epoch < warm_up_epoch:
         # 如果当前epoch为0, current_epoch就赋值为0.1
         current_epoch = 0.1 if current_epoch == 0 else current_epoch
-        lr = lr_max * current_epoch / warmup_epoch
+        lr = lr_max * current_epoch / warm_up_epoch
+        print('-- lr=', lr, current_epoch, warm_up_epoch)
     else:
         lr = lr_min + (lr_max - lr_min) * (
-                    1 + math.cos(math.pi * (current_epoch - warmup_epoch) / (max_epoch - warmup_epoch))) / 2
+                    1 + math.cos(math.pi * (current_epoch - warm_up_epoch) / (max_epoch - warm_up_epoch))) / 2
+        print('***** end_lr = ', lr_max, current_epoch, current_epoch - warm_up_epoch)
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
@@ -33,6 +38,11 @@ def init_scheduler(scheduler, optimizer, **kwargs):
     elif scheduler == 'cosine_annealing_lr':
         return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
                                                           T_max=kwargs["T_max"])
+    elif scheduler == 'cosine_annealing_warm_restarts':
+        return CosineAnnealingWarmRestarts(optimizer,
+                                           T_0=kwargs["T_0"],
+                                           T_mult=kwargs["T_mult"],
+                                           eta_min=kwargs["eta_min"])
     else:
         raise KeyError('Unsupported scheduler: {}'.format(scheduler))
 
@@ -70,7 +80,7 @@ def de_bug_main():
     model = DeBugModel(num_classes=3)
     model = model.cuda()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.0005, weight_decay=5e-04, momentum=0.9)
-    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=350)
 
     lr_list = []
@@ -81,18 +91,72 @@ def de_bug_main():
                              max_epoch=epochs,
                              lr_min=1e-12,
                              lr_max=0.0005,
-                             warmup_epoch=10,
-                             warmup=True)
+                             warm_up_epoch=10,
+                             warm_up=True)
         for p in datasets:
-            p = p.cuda()
-            outputs = model(p)
-            optimizer.zero_grad()
-            loss = torch.tensor(0.8, requires_grad=True)
-            loss.backward()
+        #     p = p.cuda()
+        #     outputs = model(p)
+        #     optimizer.zero_grad()
+        #     loss = torch.tensor(0.8, requires_grad=True)
+        #     loss.backward()
             optimizer.step()
-        # print(len(optimizer.param_groups))
-        # print(optimizer.state_dict())
-        # print(scheduler.state_dict())
+            # print('[', epoch, ']', optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_last_lr())
+        scheduler.step()
+        print('[', epoch, ']', optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_last_lr())
+        lr_list.append(optimizer.state_dict()['param_groups'][0]['lr'])
+    plt.plot(range(epochs), lr_list, color='b')
+    plt.grid(True)
+    plt.show()
+
+
+class CosineAnnealingWarmUpLR(LambdaLR):
+    def __init__(self,
+                 optimizer,
+                 lr_min=1e-12,
+                 lr_max=0.0005,
+                 warm_up=True,
+                 warm_up_epoch=10,
+                 epochs=20):
+        super(CosineAnnealingWarmUpLR, self).__init__(optimizer, self.lr_lambda, -1)
+        self.lr_min = lr_min
+        self.lr_max = lr_max
+        self.warm_up = warm_up
+        self.warm_up_epoch = warm_up_epoch
+        self.epochs = epochs
+        print('**', self.epochs)
+
+    def lr_lambda(self, current_epoch):
+        print(f"current_epoch = {current_epoch}")
+        print("调用lr_lambda", current_epoch, self.epochs, self.lr_min, self.lr_max, self.warm_up, self.warm_up_epoch)
+
+        if current_epoch < self.warm_up_epoch:
+            # 如果当前epoch为0, current_epoch就赋值为0.1
+            current_epoch = 0.1 if current_epoch == 0 else current_epoch
+            lr = self.lr_max * current_epoch / self.warm_up_epoch
+            print('-- lr=', lr, current_epoch, self.warm_up_epoch)
+        else:
+            lr = self.lr_min + (self.lr_max - self.lr_min) * (
+                        1 + math.cos(math.pi * (current_epoch - self.warm_up_epoch) / (self.epochs - self.warm_up_epoch))) / 2
+            print('***** end_lr = ', self.lr_max, current_epoch, current_epoch - self.warm_up_epoch)
+
+        return lr
+
+
+def de_bug_main2():
+    datasets = [torch.randn(4, 3, 16, 16) for _ in range(10)]
+    epochs = 20
+    model = DeBugModel(num_classes=3)
+    model = model.cuda()
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1, weight_decay=5e-05, momentum=0.9)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
+    scheduler = CosineAnnealingWarmRestarts(optimizer, 10, 1, 1e-12)
+
+    lr_list = []
+    model.train()
+    for epoch in range(epochs):
+        for p in datasets:
+            optimizer.step()
+            # print('[', epoch, ']', optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_last_lr())
         scheduler.step()
         print('[', epoch, ']', optimizer.state_dict()['param_groups'][0]['lr'], '***', scheduler.get_last_lr())
         lr_list.append(optimizer.state_dict()['param_groups'][0]['lr'])
@@ -102,4 +166,4 @@ def de_bug_main():
 
 
 if __name__ == "__main__":
-    de_bug_main()
+    de_bug_main2()

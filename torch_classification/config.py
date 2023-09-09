@@ -2,7 +2,7 @@ import os
 import torch
 from torchvision import transforms
 
-import backbones
+from backbones import init_model
 from datasets.transform import *
 from datasets.collater import Collater
 
@@ -40,6 +40,8 @@ class Config:
     # model
     backbone_type = 'resnet50'
     num_classes = 100
+    model = init_model(backbone_type=backbone_type,
+                       num_classes=num_classes)
 
     # data
     dataset_name = "imagenet100"

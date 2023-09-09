@@ -1,5 +1,5 @@
 import os
-import json
+from pathlib import Path
 import logging
 from logging import handlers
 import torch
@@ -23,6 +23,13 @@ def get_paths(root, mode, classes_json_file):
 
 
 def get_logger(name, log_dir):
+    """
+    Args:
+        name: 模型名称
+        log_dir: 日志存放的文件夹路径
+    Returns:
+        logger
+    """
     logger = logging.getLogger(name=name)
     logger.setLevel(logging.INFO)
 
@@ -40,6 +47,13 @@ def get_logger(name, log_dir):
     logger.addHandler(info_handler)
 
     return logger
+
+
+def make_dir(path):
+    p = Path(path)
+    if not p.exists():
+        # parents设置为True表示可以创建多级目录
+        p.mkdir(parents=True)
 
 
 def load_state_dict(saved_model_path, model, excluded_layer_name=()):

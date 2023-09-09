@@ -3,8 +3,8 @@ mode: local
 local:
     root_dir: 'D:\workspace\data\dl\flower'
     class_file: 'D:\workspace\data\dl\flower\flower.json'
-    pre_weight_path: 'D:\workspace\data\weights\resnet\resnet50-acc76.264.pth'
-    save_root: 'D:\workspace\data\weights\resnet50'
+    pre_weight_path: 'D:\workspace\data\training_data\resnet\resnet50-acc76.264.pth'
+    save_root: 'D:\workspace\data\training_data'
 
 autodl:
     root_dir: '/root/autodl-tmp/imagenet100'
@@ -33,18 +33,21 @@ std:
 # data
 seed: 0
 epochs: 15
-batch_size: 8
+batch_size: 4
 lr: 0.001
+weight_decay: 0.00004
+momentum: 0.9
 lrf: 0.001
 num_workers: 4
 freeze_layer: False
 apex: False
+# 日志记录频率, 如为10, 即一个epoch内, 遍历循环10次train_loader就记录日志
 print_interval: 50
+# 保存频率, 如为1, 即一个epoch保存一次checkpoints
 save_interval: 1
 
 # optimizer scheduler
 step_size: 10
 gamma: 0.1
-T_max: 15
 
 device: cuda
