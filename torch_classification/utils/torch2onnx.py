@@ -13,7 +13,7 @@ from backbones.model_manager import init_model
 def convert_torch2onnx_model(model, inputs, save_file_path, opset_version=14, use_onnxsim=True):
     print(f'starting export with onnx version {onnx.__version__}...')
     dynamic_axes = {
-        'input': {0: 'batch_size', 2: "height", 3: "width"},  # 这么写表示第0、2， 3维可以变化
+        'input': {0: 'batch_size', 2: "height", 3: "width"},  # 这么写表示第0、2、 3维可以变化
         'output': {0: 'batch_size'},
     }
     torch.onnx.export(model,
@@ -45,20 +45,21 @@ def convert_torch2onnx_model(model, inputs, save_file_path, opset_version=14, us
 
 
 def main():
-    pth_path = "D:\\Desktop\\resnet50-acc76.264.pth"
+    pth_path = r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.pth"
     model = init_model(backbone_type="resnet50",
-                       num_classes=1000)
-    model.load_state_dict(torch.load(pth_path))
+                       num_classes=5)
+    model.load_state_dict(torch.load(pth_path), strict=True)
     model.eval()
-    input_data = torch.randn(1, 3, 256, 128)
-    save_path = "D:\\Desktop\\resnet50-acc76.264.onnx"
+    input_data = torch.randn(1, 3, 224, 224)
+    save_path = r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.onnx"
     convert_torch2onnx_model(model,
                              inputs=input_data,
                              save_file_path=save_path,
-                             opset_version=14,
+                             opset_version=12,
                              use_onnxsim=False)
 
 
 if __name__ == "__main__":
     main()
+
 
