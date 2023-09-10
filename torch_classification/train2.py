@@ -101,14 +101,15 @@ def evaluate_acc(model, val_dataset_len, val_loader, device):
         preds = model(images)
         preds = F.softmax(preds, dim=-1)
         _, max_indices = torch.max(preds, dim=-1)
-        correct = torch.eq(labels, max_indices).sum().item()
-    val_acc = round(correct / val_dataset_len, 3)
+        correct += torch.eq(labels, max_indices).sum().item()
+    val_acc = round(correct / val_dataset_len, 4)
     return val_acc
 
 
 def main(cfgs, logger):
     torch.cuda.empty_cache()
 
+    # 设置相同的随机种子, 确保实验结果可复现
     random.seed(cfgs["seed"])
     torch.manual_seed(cfgs["seed"])
     torch.cuda.manual_seed(cfgs["seed"])
@@ -127,7 +128,7 @@ def main(cfgs, logger):
     # 数据加载
     logger.info("start loading data")
     transform = transform_func(image_size=cfgs["image_size"],
-                               use_random_erase=True)
+                               use_random_erase=False)
     collater = Collater(mean=cfgs["mean"],
                         std=cfgs["std"])
     train_dataset = init_dataset(name=cfgs["dataset_name"],
@@ -148,7 +149,7 @@ def main(cfgs, logger):
                                transform=transform["val"])
     val_loader = DataLoader(dataset=val_dataset,
                             batch_size=cfgs["batch_size"],
-                            shuffle=True,
+                            shuffle=False,
                             num_workers=cfgs["num_workers"],
                             collate_fn=collater)
 
@@ -212,7 +213,7 @@ def main(cfgs, logger):
                                    val_loader=val_loader,
                                    device=device)
             logger.info(f"epoch = {epoch}, val_acc = {val_acc}")
-            print('epoch: {}  mean_loss: {:.3f} val_acc: {}'.format(epoch, mean_loss, val_acc))
+            print('epoch: {}  mean_loss: {:.3f} val_acc: {}%'.format(epoch, mean_loss, val_acc*100))
 
             if val_acc > best_acc:
                 best_acc = val_acc

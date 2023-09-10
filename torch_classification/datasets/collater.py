@@ -14,10 +14,11 @@ class Collater:
             images.append(d["image"])
             labels.append(d["label"])
 
-        # [B, H, W, 3]
-        images = np.stack(images, axis=0)
         mean = np.asarray(self.mean, dtype=np.float32).reshape((1, 1, 1, 3))
         std = np.asarray(self.std, dtype=np.float32).reshape((1, 1, 1, 3))
+
+        # [B, H, W, 3]
+        images = np.stack(images, axis=0)
         images = ((images / 255.) - mean) / std
         images = torch.from_numpy(images).float()
         images = images.permute(0, 3, 1, 2).contiguous()

@@ -53,7 +53,7 @@ class CELoss(nn.Module):
         """
         Args:
             pred: [B, num_classes]
-            label: [num_classes]
+            label: [B]
 
         Returns:
         """

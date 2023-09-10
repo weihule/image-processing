@@ -5,6 +5,7 @@ from torchvision import transforms
 from backbones import init_model
 from datasets.transform import *
 from datasets.collater import Collater
+from datasets.data_manager import init_dataset
 
 
 class Config:
@@ -18,13 +19,13 @@ class Config:
         # checkpoints = os.path.join(save_root, 'checkpoints')
         # resume = os.path.join(checkpoints, 'latest.pth')
 
-        dataset_path = 'D:\\workspace\\data\\dl\\imagenet100'
-        pre_weight_path = "D:\\Desktop\\resnet50-acc76.264.pth"
-        save_root = 'E:\\workspace\\classification\\resnet50'
+        dataset_path = 'D:\\workspace\\data\\dl\\flower'
+        pre_weight_path = r"D:\workspace\data\training_data\resnet\resnet50-acc76.264.pth"
+        save_root = r'D:\workspace\data\training_data\resnet50\resnet50'
         log = os.path.join(save_root, 'log')
         checkpoints = os.path.join(save_root, 'checkpoints')
         pth_path = os.path.join(save_root, 'pths')
-        resume = os.path.join(checkpoints, 'latest.pth')
+        resume = os.path.join(checkpoints, 'resume.pth')
 
     elif mode == 'autodl':
         dataset_path = '/root/autodl-tmp/imagenet100'
@@ -34,6 +35,14 @@ class Config:
         checkpoints = os.path.join(save_root, 'checkpoints')
         pth_path = os.path.join(save_root, 'pths')
         resume = os.path.join(checkpoints, 'latest.pth')
+    else:
+        dataset_path = None
+        pre_weight_path = None
+        save_root = None
+        log = None
+        checkpoints = None
+        pth_path = None
+        resume = None
 
     seed = 0
 
@@ -44,7 +53,7 @@ class Config:
                        num_classes=num_classes)
 
     # data
-    dataset_name = "imagenet100"
+    dataset_name = "flower5"
     epochs = 15
     batch_size = 8
     lr = 0.001
@@ -57,6 +66,27 @@ class Config:
     image_size = 224
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
+    train_dataset = init_dataset(name=dataset_name,
+                                 root_dir=dataset_path,
+                                 set_name="train",
+                                 class_file=cfgs[cfgs["mode"]]["class_file"],
+                                 transform=transform["train"])
+    train_loader = DataLoader(dataset=train_dataset,
+                              batch_size=cfgs["batch_size"],
+                              shuffle=True,
+                              num_workers=cfgs["num_workers"],
+                              collate_fn=collater)
+
+    val_dataset = init_dataset(name=cfgs["dataset_name"],
+                               root_dir=cfgs[cfgs["mode"]]["root_dir"],
+                               set_name=cfgs["val_set_name"],
+                               class_file=cfgs[cfgs["mode"]]["class_file"],
+                               transform=transform["val"])
+    val_loader = DataLoader(dataset=val_dataset,
+                            batch_size=cfgs["batch_size"],
+                            shuffle=True,
+                            num_workers=cfgs["num_workers"],
+                            collate_fn=collater)
 
     # optimizer scheduler
     step_size = 10

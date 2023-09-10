@@ -33,7 +33,7 @@ std:
 # data
 seed: 0
 epochs: 15
-batch_size: 4
+batch_size: 8
 lr: 0.001
 weight_decay: 0.00004
 momentum: 0.9

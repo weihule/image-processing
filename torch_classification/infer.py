@@ -5,46 +5,19 @@ import torch
 import random
 import numpy as np
 import json
-import argparse
 import torch.nn.functional as F
 import backbones
+from backbones.model_manager import init_model
 import time
 from PIL import Image
 
 
-def parse_args():
-    parse = argparse.ArgumentParser(description="detect image")
-    parse.add_argument("--seed", type=int, default=0, help="seed")
-    parse.add_argument("--model", type=str, default="resnet50", help="name of model")
-    parse.add_argument("--train_num_classes", type=int, default=1000, help="class number")
-    parse.add_argument("--input_image_size", type=int, default=224, help="input image size")
-    parse.add_argument("--batch_size", type=int, default=4, help="batch size")
-    parse.add_argument("--train_model_path", type=str,
-                       default="D:\\Desktop\\resnet50-acc76.264.pth",
-                       help="trained model weight path")
-    # D:\\Desktop\\test
-    # D:\\workspace\\data\\dl\\imagenet100\\imagenet100_val\\African-hunting-dog
-    parse.add_argument("--test_image_dir", type=str,
-                       default="D:\\workspace\\data\\dl\\imagenet100\\imagenet100_val\\African-hunting-dog",
-                       help="test images")
-    parse.add_argument("--index_path", type=str,
-                       default="D:\\workspace\\code\\study\\torch_classification\\utils\\imagenet1000.json",
-                       help="index_path")
-    args = parse.parse_args()
-
-    return args
-
-
-def inference(args):
+def inference(cfgs):
     """
     以文件夹的形式推理
     """
-    print(f"args: {args}")
-
-    assert args.model in backbones.__dict__.keys(), "Unsupported model!"
-
-    if args.seed:
-        seed = args.seed
+    if cfgs["seed"]:
+        seed = cfgs["seed"]
         os.environ['PYTHONHASHSEED'] = str(seed)
         random.seed(seed)
         np.random.seed(seed)
@@ -52,35 +25,39 @@ def inference(args):
 
     device = torch.device("cuda:0")
 
-    model = backbones.__dict__[args.model](
-        **{"num_classes": args.train_num_classes}
-    )
+    model = init_model(backbone_type=cfgs["model"],
+                       num_classes=cfgs["num_classes"])
     model = model.to(device)
 
-    if args.train_model_path:
-        weight_dict = torch.load(args.train_model_path, map_location=torch.device("cpu"))
+    if cfgs["train_model_path"]:
+        weight_dict = torch.load(cfgs["train_model_path"], map_location=torch.device("cpu"))
         model.load_state_dict(weight_dict, strict=True)
 
     model.eval()
 
     image_paths = list()
-    for img_name in os.listdir(args.test_image_dir):
-        image_paths.append(os.path.join(args.test_image_dir, img_name))
-    image_paths = [image_paths[s: s + args.batch_size] for s in range(0, len(image_paths), args.batch_size)]
+    for img_name in os.listdir(cfgs["test_image_dir"]):
+        image_paths.append(os.path.join(cfgs["test_image_dir"], img_name))
+    infer_num = len(image_paths)
+    image_paths = [image_paths[s: s+cfgs["batch_size"]] for
+                   s in range(0, len(image_paths), cfgs["batch_size"])]
 
     # 加载类别索引和类别名称映射
-    with open(args.index_path, "r", encoding="utf-8") as fr:
-        cls2name = json.load(fr)
+    with open(cfgs["class_file"], "r", encoding="utf-8") as fr:
+        cls2idx = json.load(fr)
+    idx2cls = {v: k for k, v in cls2idx.items()}
 
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
     mean = np.asarray(mean, dtype=np.float32).reshape((1, 1, 1, 3))
     std = np.asarray(std, dtype=np.float32).reshape((1, 1, 1, 3))
+
+    start_time = time.time()
     for batch_datas in image_paths:
         batch_images = []
         for img_path in batch_datas:
             image = cv2.imread(img_path)
-            image = cv2.resize(image, (args.input_image_size, args.input_image_size))
+            image = cv2.resize(image, (cfgs["input_image_size"], cfgs["input_image_size"]))
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             batch_images.append(image)
         batch_images = np.stack(batch_images, axis=0, dtype=np.float32)
@@ -93,10 +70,11 @@ def inference(args):
         output = F.softmax(output, dim=1)
         pred_scores, pred_classes = torch.max(output, dim=-1)
         for image_path, pred_class, pred_score in zip(batch_datas, pred_classes, pred_scores):
-            print(image_path.split(os.sep)[-1],
-                  pred_class.item(),
-                  cls2name[str(pred_class.item())],
-                  round(pred_score.item(), 3))
+            print(f"image_name: {image_path.split(os.sep)[-1]} "
+                  f"pred_class: {idx2cls[pred_class.item()]} "
+                  f"prob: {round(pred_score.item(), 3)}")
+    fps = round(1 / ((time.time() - start_time) / infer_num), 1)
+    print(f"model: {cfgs['model']} FPS: {fps}")
 
 
 # -------------------------------------#
@@ -130,15 +108,15 @@ def infer_video():
         **{"num_classes": 1000}
     )
     model = model.to(device)
-    train_model_path = "D:\\Desktop\\resnet50-acc76.264.pth"
+    train_model_path = "D:\Desktop\resnet50-acc76.264.pth"
     weight_dict = torch.load(train_model_path, map_location=torch.device("cpu"))
     model.load_state_dict(weight_dict, strict=True)
     model.eval()
 
     # 加载类别索引和类别名称映射
-    index_path = "./utils/imagenet1000.json"
-    with open(index_path, "r", encoding="utf-8") as fr:
-        cls2name = json.load(fr)
+    class_file = "./utils/imagenet1000.json"
+    with open(class_file, "r", encoding="utf-8") as fr:
+        cls2idx = json.load(fr)
 
     # 处理图像部分
     mean = (0.485, 0.456, 0.406)
@@ -155,7 +133,7 @@ def infer_video():
 
         # 进行检测
         top3_preds, top3_indices = detect_single_image(model, frame, mean, std, device)
-        top3_names = [cls2name[str(i)] for i in top3_indices]
+        top3_names = [cls2idx[str(i)] for i in top3_indices]
         print(top3_preds, top3_indices)
 
         # frame = cv2.cvtColor(np.asarray(frame), cv2.COLOR_RGB2BGR)
@@ -175,16 +153,16 @@ def infer_video():
             break
 
 
-def main():
-    args = parse_args()
-    inference(args)
-
-
-def test():
-    arr = torch.tensor([[0.001, 0.005, 0.004, 0.1, 0.02]])
-    print(torch.sort(arr, dim=-1))
-
-
 if __name__ == "__main__":
-    # main()
-    infer_video()
+    infer_cfg = {
+        "seed": 0,
+        "model": "resnet50",
+        "num_classes": 5,
+        "input_image_size": 224,
+        "batch_size": 4,
+        "train_model_path": r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.pth",
+        "class_file": r"D:\workspace\data\dl\flower\flower.json",
+        "test_image_dir": r"D:\workspace\data\dl\flower\test"
+    }
+    inference(infer_cfg)
+    # infer_video()
