@@ -65,7 +65,7 @@ def load_state_dict(saved_model_path, model, excluded_layer_name=()):
                            if name in model.state_dict() and weight.shape == model.state_dict()[name].shape
                            and not (name in excluded_layer_name)}
     if len(filtered_state_dict) == 0:
-        print('No pretrained parameters to load !')
+        print('have pre_weight, but not match model')
     else:
         print('pretrained layers: {},  loading {} layers parameters !'.format(
             len(save_state_dict), len(filtered_state_dict)

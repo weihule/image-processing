@@ -1,24 +1,14 @@
-import os.path
-
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils import model_zoo
-import warnings
 
 __all__ = [
     'mobilenetv2_x1_0',
     'mobilenetv2_x1_4'
 ]
 
-model_urls = {
-    # 1.0: top-1 71.3
-    'mobilenetv2_x1_0':
-    'https://mega.nz/#!NKp2wAIA!1NH1pbNzY_M2hVk_hdsxNM1NUOWvvGPHhaNr-fASF6c.pth',
-    # 1.4: top-1 73.9
-    'mobilenetv2_x1_4':
-    'https://mega.nz/#!RGhgEIwS!xN2s2ZdyqI6vQ3EwgmRXLEW3khr9tpXg96G9SUJugGk.pth',
-}
+# download url: https://download.pytorch.org/models/mobilenet_v2-b0353104.pth
 
 
 class ConvBlock(nn.Module):
@@ -163,44 +153,30 @@ class MobileNetV2(nn.Module):
         y = self.classifier(v)
 
         return y
+    
+
+class ConvBNReLU(nn.Sequential):
+    def __init__(self, in_channel, out_channel, kernel_size=3,
+                 stride=1, groups=1):
+        padding = (kernel_size - 1) // 2
+        super(ConvBNReLU, self).__init__()
 
 
-def init_pretrained_weights(model, model_url):
-    print(os.path.exists('D:\workspace\data\classification_data\mobilenetv2\pths'))
-    pretrain_dict = model_zoo.load_url(model_url, model_dir='D:\workspace\data\classification_data\mobilenetv2\pths')
-    model_dict = model.state_dict()
-    pretrain_dict = {
-        k: v for k, v in pretrain_dict if k in model_dict and v.shape == model_dict[k].shape
-    }
-    model_dict.update(pretrain_dict)
-    print('loading pretrain model success! and load {} layers params'.format(len(model_dict)))
-    model.load_state_dict(model_dict)
-
-
-def mobilenetv2_x1_0(num_classes, pretrain=False, **kwargs):
+def mobilenetv2_x1_0(num_classes, **kwargs):
     model = MobileNetV2(num_classes=num_classes,
                         width_mult=1,
                         **kwargs)
-    if pretrain:
-        init_pretrained_weights(model, model_urls['mobilenetv2_x1_4'])
-        warnings.warn('The imagenet pretrained weight need to be manually downloaded from {}'
-                      .format(model_urls['mobilenetv2_x1_0']))
 
     return model
 
 
-def mobilenetv2_x1_4(num_classes, pretrained=False, **kwargs):
+def mobilenetv2_x1_4(num_classes, **kwargs):
     model = MobileNetV2(
         num_classes,
         width_mult=1.4,
         **kwargs
     )
-    if pretrained:
-        init_pretrained_weights(model, model_urls['mobilenetv2_x1_4'])
-        warnings.warn(
-            'The imagenet pretrained weights need to be manually downloaded from {}'
-            .format(model_urls['mobilenetv2_x1_4'])
-        )
+
     return model
 
 

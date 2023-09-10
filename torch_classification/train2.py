@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 import torch
 import torch.nn as nn
-from torch.cuda import amp
+from pathlib import Path
 import torch.nn.functional as F
 from torch.backends import cudnn
 from torch.optim import Adam, SGD, lr_scheduler
@@ -195,6 +195,9 @@ def main(cfgs, logger):
         logger.info(f"epoch {checkpoint['epoch']}, best_acc: {checkpoint['best_acc']}, loss: {checkpoint['loss']}")
         logger.info('finish resume model !')
 
+    pths_dir = os.path.join(cfgs[cfgs["mode"]]["save_root"],
+                            cfgs["backbone_type"],
+                            "pths")
     logger.info(f"Starting training from the {start_epoch} epoch")
     for epoch in range(start_epoch, cfgs["epochs"] + 1):
         mean_loss = train(cfgs=cfgs,
@@ -213,14 +216,15 @@ def main(cfgs, logger):
                                    val_loader=val_loader,
                                    device=device)
             logger.info(f"epoch = {epoch}, val_acc = {val_acc}")
-            print('epoch: {}  mean_loss: {:.3f} val_acc: {}%'.format(epoch, mean_loss, val_acc*100))
+            print('epoch: {}  mean_loss: {:.3f} val_acc: {:.3f}%'.format(epoch, mean_loss, val_acc * 100))
 
             if val_acc > best_acc:
+                # 先删除历史权重
+                for i in Path(pths_dir).glob("*.pth"):
+                    i.unlink(missing_ok=True)
                 best_acc = val_acc
                 best_weight_name = cfgs["backbone_type"] + "-" + str(best_acc) + ".pth"
-                best_weight_path = os.path.join(cfgs[cfgs["mode"]]["save_root"],
-                                                cfgs["backbone_type"],
-                                                "pths",
+                best_weight_path = os.path.join(pths_dir,
                                                 best_weight_name)
                 torch.save(model.state_dict(), best_weight_path)
 
