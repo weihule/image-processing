@@ -166,8 +166,11 @@ class OnnxInfer:
             print(f"发生了其他异常: {e}")
 
     def infer(self):
+        start_time = time.time()
         loader = self.batch_images_gen()
+        len_dataset = 0
         for images, image_infos in loader:
+            len_dataset += len(image_infos)
             input_feed = {self.input_name: images}
             preds = self.onnx_session.run([self.output_name], input_feed)
             preds = preds[0]
@@ -175,6 +178,8 @@ class OnnxInfer:
             scores, indices = np.max(preds, axis=-1), np.argmax(preds, axis=-1)
             for ii, s, i in zip(image_infos, scores, indices):
                 print(f"file_name: {ii.name} pred_class: {self.idx2cls[int(i)]} pred_score: {s}")
+        cost_time = time.time() - start_time
+        print(f"inference time: {cost_time:.2f} s  fps: {1 / (cost_time / len_dataset):.2f}")
 
 
 def run():
@@ -197,7 +202,9 @@ def run():
 
 
 if __name__ == "__main__":
+    import tensorrt as trt
+    print(trt.__version__)
     # main()
-    run()
-    print(onnxruntime.get_device())
+    # run()
+    # print(onnxruntime.get_device())
     # print(onnxruntime.get_available_providers())
