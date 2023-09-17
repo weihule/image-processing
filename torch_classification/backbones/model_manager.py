@@ -1,6 +1,6 @@
 from .resnet import *
 from .vit_model import *
-from .mobilenet import *
+from .mobilenet_v2 import *
 
 
 models = [

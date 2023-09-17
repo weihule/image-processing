@@ -6,7 +6,7 @@ import random
 import numpy as np
 import json
 import torch.nn.functional as F
-import backbones
+from utils.util import cal_macs_params
 from backbones.model_manager import init_model
 import time
 from PIL import Image
@@ -75,6 +75,7 @@ def inference(cfgs):
                   f"prob: {round(pred_score.item(), 3)}")
     fps = round(1 / ((time.time() - start_time) / infer_num), 1)
     print(f"model: {cfgs['model']} FPS: {fps}")
+    cal_macs_params(model.to(torch.device("cpu")), input_size=(4, 3, 224, 224))
 
 
 # -------------------------------------#
@@ -156,11 +157,11 @@ def infer_video():
 if __name__ == "__main__":
     infer_cfg = {
         "seed": 0,
-        "model": "resnet50",
+        "model": "mobilenetv2_x1_0",
         "num_classes": 5,
         "input_image_size": 224,
         "batch_size": 4,
-        "train_model_path": r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.pth",
+        "train_model_path": r"D:\workspace\data\training_data\mobilenetv2_x1_0\pths\mobilenetv2_x1_0-0.9504.pth",
         "class_file": r"D:\workspace\data\dl\flower\flower.json",
         "test_image_dir": r"D:\workspace\data\dl\flower\test"
     }

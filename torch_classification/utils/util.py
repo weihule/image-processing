@@ -4,6 +4,7 @@ import logging
 from logging import handlers
 import torch
 import json
+from thop import profile, clever_format
 
 
 def get_paths(root, mode, classes_json_file):
@@ -71,6 +72,18 @@ def load_state_dict(saved_model_path, model, excluded_layer_name=()):
             len(save_state_dict), len(filtered_state_dict)
         ))
         model.load_state_dict(filtered_state_dict, strict=False)
+
+
+def cal_macs_params(model, input_size):
+    inputs = torch.randn(input_size[0], input_size[1],
+                         input_size[2], input_size[3])
+    macs, params = profile(model, (inputs,), verbose=False)
+    macs, params = clever_format([macs, params], '%.3f')
+    print('macs: {}, params: {}'.format(
+        macs, params))
+
+    outputs = model(inputs)
+    print('outputs.shape: {}'.format(outputs.shape))
 
 
 def get_indices(root, save_path):
