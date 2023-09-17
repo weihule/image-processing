@@ -111,9 +111,10 @@ class InvertedResidual(nn.Module):
                                        kernel_size=cnf.kernel,
                                        stride=cnf.stride,
                                        groups=cnf.expanded_c,
-                                       norm_layer=norm_layer))
+                                       norm_layer=norm_layer,
+                                       activation_layer=activation_layer))
 
-        if self.use_se:
+        if cnf.use_se:
             layers.append(SqueezeExcitation(cnf.expanded_c))
 
         # project
@@ -121,7 +122,7 @@ class InvertedResidual(nn.Module):
                                        cnf.out_c,
                                        kernel_size=1,
                                        norm_layer=norm_layer,
-                                       activation_layer=activation_layer))
+                                       activation_layer=nn.Identity))
 
         self.block = nn.Sequential(*layers)
         self.out_channels = cnf.out_c
@@ -132,7 +133,7 @@ class InvertedResidual(nn.Module):
         if self.use_res_connect:
             result += x
 
-        return x
+        return result
 
 
 class MobileNetV3(nn.Module):
@@ -180,7 +181,7 @@ class MobileNetV3(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.classifier = nn.Sequential(nn.Linear(lastconv_output_c, last_channel),
                                         nn.Hardswish(inplace=True),
-                                        nn.Dropout(p=0.2, inplace=True),
+                                        nn.Dropout(p=0.4, inplace=True),
                                         nn.Linear(last_channel, num_classes))
         # initial weights
         for m in self.modules():
@@ -289,3 +290,10 @@ def mobilenet_v3_small(num_classes: int = 1000,
     return MobileNetV3(inverted_residual_setting=inverted_residual_setting,
                        last_channel=last_channel,
                        num_classes=num_classes)
+
+
+if __name__ == "__main__":
+    model = mobilenet_v3_small(num_classes=5)
+    arrs = torch.randn((4, 3, 224, 224))
+    outs = model(arrs)
+    print(outs.shape)

@@ -184,6 +184,8 @@ class OnnxInfer:
 
 def run():
     # onnx权重文件路径
+    # "D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.onnx"
+    # ""D:\workspace\data\training_data\mobilenetv2_x1_0\pths\mobilenetv2_x1_0-0.9504.onnx""
     onnx_file = r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.onnx"
 
     # 加载类别索引和类别名称映射
@@ -197,7 +199,7 @@ def run():
                    cls2idx=cls2idx,
                    image_dir=image_dir,
                    batch_size=8,
-                   provider="cuda")
+                   provider="cpu")
     oi.infer()
 
 
@@ -205,6 +207,6 @@ if __name__ == "__main__":
     import tensorrt as trt
     print(trt.__version__)
     # main()
-    # run()
+    run()
     # print(onnxruntime.get_device())
     # print(onnxruntime.get_available_providers())

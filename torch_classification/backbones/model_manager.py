@@ -1,6 +1,7 @@
 from .resnet import *
 from .vit_model import *
 from .mobilenet_v2 import *
+from .mobilenet_v3 import *
 
 
 models = [
@@ -18,7 +19,10 @@ models = [
     'vit_base_patch32_224_in21k',
 
     'mobilenetv2_x1_0',
-    'mobilenetv2_x1_4'
+    'mobilenetv2_x1_4',
+
+    'mobilenet_v3_small',
+    'mobilenet_v3_large'
 ]
 
 

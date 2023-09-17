@@ -45,13 +45,17 @@ def convert_torch2onnx_model(model, inputs, save_file_path, opset_version=14, us
 
 
 def main():
-    pth_path = r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.pth"
-    model = init_model(backbone_type="resnet50",
+    root = r"D:\workspace\data\training_data"
+    model_name = "mobilenetv2_x1_0"
+    pth_name = "mobilenetv2_x1_0-0.9504.pth"
+    # pth_path = r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.pth"
+    pth_path = os.path.join(root, model_name, "pths", pth_name)
+    model = init_model(backbone_type=model_name,
                        num_classes=5)
     model.load_state_dict(torch.load(pth_path), strict=True)
     model.eval()
     input_data = torch.randn(1, 3, 224, 224)
-    save_path = r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.onnx"
+    save_path = pth_path[:-3] + "onnx"
     convert_torch2onnx_model(model,
                              inputs=input_data,
                              save_file_path=save_path,
