@@ -1,6 +1,7 @@
 import os
 import sys
 import onnx
+import random
 from pathlib import Path
 import onnxruntime
 import json
@@ -136,7 +137,7 @@ class OnnxInfer:
         self.input_name = self.onnx_session.get_inputs()[0].name
         self.output_name = self.onnx_session.get_outputs()[0].name
 
-    def batch_images_gen(self):
+    def batch_images_gen(self, shuffle=True):
         """
         batch_images生成器
         """
@@ -144,6 +145,8 @@ class OnnxInfer:
             images_path = []
             for i in Path(self.image_dir).iterdir():
                 images_path.append(i)
+            if shuffle:
+                random.shuffle(images_path)
             batch_images_path = [images_path[s: s+self.batch_size] for
                                  s in range(0, len(images_path), self.batch_size)]
             for bis in batch_images_path:
@@ -177,7 +180,7 @@ class OnnxInfer:
             preds = softmax(preds)
             scores, indices = np.max(preds, axis=-1), np.argmax(preds, axis=-1)
             for ii, s, i in zip(image_infos, scores, indices):
-                print(f"file_name: {ii.name} pred_class: {self.idx2cls[int(i)]} pred_score: {s}")
+                print(f"file_name: {ii.name:20s} pred_class: {self.idx2cls[int(i)]:10s} pred_score: {s}")
         cost_time = time.time() - start_time
         print(f"inference time: {cost_time:.2f} s  fps: {1 / (cost_time / len_dataset):.2f}")
 
@@ -197,6 +200,8 @@ def run():
     image_dir = r"D:\workspace\data\dl\flower\test"
     oi = OnnxInfer(onnx_file=onnx_file,
                    cls2idx=cls2idx,
+                   img_h=224,
+                   img_w=224,
                    image_dir=image_dir,
                    batch_size=8,
                    provider="cpu")
