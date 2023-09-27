@@ -20,7 +20,7 @@ def convert_torch2onnx_model(model, inputs, save_file_path, opset_version=14, us
                       inputs,
                       save_file_path,
                       export_params=True,
-                      verbose=False,
+                      verbose=True,
                       input_names=['input'],
                       output_names=['output'],
                       opset_version=opset_version,
@@ -29,6 +29,7 @@ def convert_torch2onnx_model(model, inputs, save_file_path, opset_version=14, us
     # load and check onnx model
     onnx_model = onnx.load(save_file_path)
     onnx.checker.check_model(onnx_model)
+    print("ONNX model is valid.")
 
     # Simplify onnx model
     if use_onnxsim:
@@ -46,9 +47,12 @@ def convert_torch2onnx_model(model, inputs, save_file_path, opset_version=14, us
 
 def main():
     root = r"D:\workspace\data\training_data"
-    model_name = "mobilenetv2_x1_0"
-    pth_name = "mobilenetv2_x1_0-0.9504.pth"
-    # pth_path = r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.pth"
+    # model_name = "mobilenetv2_x1_0"
+    # pth_name = "mobilenetv2_x1_0-0.9504.pth"
+
+    model_name = "resnet50"
+    pth_name = "resnet50-0.9421.pth"
+    # pth_path = r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.9421.pth"
     pth_path = os.path.join(root, model_name, "pths", pth_name)
     model = init_model(backbone_type=model_name,
                        num_classes=5)
@@ -56,6 +60,7 @@ def main():
     model.eval()
     input_data = torch.randn(1, 3, 224, 224)
     save_path = pth_path[:-3] + "onnx"
+
     convert_torch2onnx_model(model,
                              inputs=input_data,
                              save_file_path=save_path,

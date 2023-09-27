@@ -1,6 +1,7 @@
 import os
 import sys
 import onnx
+from onnx import numpy_helper
 import random
 from pathlib import Path
 import onnxruntime
@@ -185,12 +186,7 @@ class OnnxInfer:
         print(f"inference time: {cost_time:.2f} s  fps: {1 / (cost_time / len_dataset):.2f}")
 
 
-def run():
-    # onnx权重文件路径
-    # "D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.onnx"
-    # ""D:\workspace\data\training_data\mobilenetv2_x1_0\pths\mobilenetv2_x1_0-0.9504.onnx""
-    onnx_file = r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.onnx"
-
+def run(onnx_file_path):
     # 加载类别索引和类别名称映射
     class_file = r"D:\workspace\data\dl\flower\flower.json"
     with open(class_file, "r", encoding="utf-8") as fr:
@@ -208,10 +204,68 @@ def run():
     oi.infer()
 
 
+"""
+# 定义ONNX数据类型及其相应的数值表示
+DATA_TYPES = {
+    "FLOAT": 1,
+    "UINT8": 2,
+    "INT8": 3,
+    "UINT16": 4,
+    "INT16": 5,
+    "INT32": 6,
+    "INT64": 7,
+    "STRING": 8,
+    "BOOL": 9,
+    "FLOAT16": 10,
+    "DOUBLE": 11
+}
+"""
+
+
+def show_onnx(onnx_file_path):
+    # 加载ONNX模型
+    onnx_model = onnx.load(onnx_file_path)
+
+    # 遍历模型的权重节点并打印其数据类型
+    for node in onnx_model.graph.initializer:
+        print(f"Name: {node.name}, Data Type: {node.data_type}")
+
+
+def convert_type_onnx(src, dst):
+    # 使用 ONNX 模型文件修改权重数据类型
+    onnx_model = onnx.load(src)
+
+    # 找到要修改的节点名称
+    node_to_modify = "Concat_124"  # 替换为你的节点名称
+
+    # 修改与节点连接的输入张量的数据类型
+    for node in onnx_model.graph.node:
+        if node.name == node_to_modify:
+            for input_name in node.input:
+                for i in onnx_model.graph.input:
+                    if i.name == input_name:
+                        i.type.tensor_type.elem_type = onnx.TensorProto.INT32  # 设置为 INT32 或其他合适的数据类型
+    print("***")
+
+    # 找到和修改初始化器的数据类型
+    initializer_to_modify = "onnx::Concat_662"  # 替换为你的初始化器名称
+
+    for initializer in onnx_model.graph.initializer:
+        if initializer.name == initializer_to_modify:
+            initializer.data_type = onnx.TensorProto.INT32  # 设置为 INT32 或其他合适的数据类型
+
+    # 保存修改后的 ONNX 模型
+    onnx.save(onnx_model, dst)
+    print(f"The address of the modified model is: {dst}")
+
+
 if __name__ == "__main__":
-    import tensorrt as trt
-    print(trt.__version__)
+    # onnx权重文件路径
+    # "D:\workspace\data\training_data\resnet50\pths\resnet50-0.934.onnx"
+    # ""D:\workspace\data\training_data\mobilenetv2_x1_0\pths\mobilenetv2_x1_0-0.9504.onnx""
+    onnx_file = r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.9421.onnx"
+    new_onnx_file = r"D:\workspace\data\training_data\resnet50\pths\resnet50-0.9421-new.onnx"
     # main()
-    run()
-    # print(onnxruntime.get_device())
-    # print(onnxruntime.get_available_providers())
+    run(new_onnx_file)
+    # show_onnx(new_onnx_file)
+    # convert_type_onnx(src=onnx_file, dst=new_onnx_file)
