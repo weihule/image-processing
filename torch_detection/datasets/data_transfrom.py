@@ -111,3 +111,10 @@ class RandomTranslate:
             annots[:, [1, 3]] = annots[:, [1, 3]] + ty
 
         return {'img': image, 'annot': annots, 'scale': scale}
+
+
+if __name__ == "__main__":
+    arr = [[12, 10, 4, 5, 0], [1, 2, 47, 56, 0],
+           [2, 3, 5, 8, 1]]
+    arr = np.array(arr)
+    print(arr[:, 0].shape)
