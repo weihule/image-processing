@@ -1,7 +1,7 @@
 import os
 import sys
 import torch.nn as nn
-from network_blocks import BaseConv, CSPLayer, SPPBottleneck, DWConv, Focus, ResLayer
+from .network_blocks import BaseConv, CSPLayer, SPPBottleneck, DWConv, Focus, ResLayer
 
 sys.path.append(os.path.dirname(
     os.path.dirname(

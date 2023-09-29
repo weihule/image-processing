@@ -37,7 +37,7 @@ VOC_CLASSES = [
 #                      (0, 64, 0), (128, 64, 0), (0, 192, 0), (128, 192, 0),
 #                      (0, 64, 128)]
 
-VOC_CLASSES_COLOR = colors = [
+VOC_CLASSES_COLOR = [
     (255, 0, 0),      # 红色
     (0, 255, 0),      # 绿色
     (0, 0, 255),      # 蓝色
@@ -210,5 +210,30 @@ def test():
         plt.show()
 
 
+def gen_json():
+    """
+    把上述的voc各类别名称和颜色写进json文件
+    Returns:
+
+    """
+    import json
+    json_path = "./pascal_voc.json"
+
+    cat_to_voc = {cat: i for i, cat in enumerate(VOC_CLASSES)}
+    d1 = {"class": cat_to_voc}
+    voc_to_color = {i: color for i, color in enumerate(VOC_CLASSES_COLOR)}
+    d2 = {"color": voc_to_color}
+
+    d = {"class": cat_to_voc, "color": voc_to_color}
+    print(d)
+
+    results = [{"A": 1}, {"B": 2}, {"C": 3}]
+    # ensure_ascii=False 可以写入中文
+    json_str = json.dumps(d, indent=4)
+    with open(json_path, "w") as json_file:
+        json_file.write(json_str)
+
+
 if __name__ == "__main__":
-    test()
+    # test()
+    gen_json()

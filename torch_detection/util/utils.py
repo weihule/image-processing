@@ -64,9 +64,6 @@ def load_pretrained_weights(model, weight_path=None):
         return
     pretrain_dict = torch.load(weight_path)
     model_dict = model.state_dict()
-    # print(pretrain_dict.keys())
-    # print('++++++')
-    # print(model_dict.keys())
 
     valid_pretrain_dict = {
         k: v for k, v in pretrain_dict.items()

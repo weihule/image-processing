@@ -89,3 +89,25 @@ class RetinaAnchors:
 
         # feature_map_anchors format: [h,w,9,4],4:[x_min,y_min,x_max,y_max]
         return feature_map_anchors
+
+
+class RetinaAnchors2:
+    def __init__(self,
+                 areas=([32, 32], [64, 64], [128, 128], [256, 256], [512, 512]),
+                 ratios=(0.5, 1, 2),
+                 scales=(2**0, 2**(1.0 / 3.0), 2**(2.0 / 3.0)),
+                 strides=(8, 16, 32, 64, 128)):
+        self.areas = np.array(areas, dtype=np.float32)
+        self.ratios = np.array(ratios, dtype=np.float32)
+        self.scales = np.array(scales, dtype=np.float32)
+        self.strides = np.array(strides, dtype=np.float32)
+
+    def __call__(self, fpn_feature_sizes):
+        """
+        generate one image anchors
+        Args:
+            fpn_feature_sizes:
+
+        Returns:
+
+        """

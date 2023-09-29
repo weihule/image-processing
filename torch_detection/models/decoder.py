@@ -86,7 +86,6 @@ class DetNMSMethod:
 
 
 class DecodeMethod:
-
     def __init__(self,
                  max_object_num=100,
                  min_score_threshold=0.05,

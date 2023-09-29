@@ -1,9 +1,10 @@
 import os
-import sys
+import math
 import glob
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import random
 import warnings
 from tqdm import tqdm
 from PIL import Image, ImageDraw, ImageFont
@@ -12,106 +13,138 @@ from torch.backends import cudnn
 import json
 
 import models
+import decodes
 from models.decoder import RetinaDecoder
-from util.utils import mkdir_if_missing
-
-warnings.filterwarnings('ignore')
+from utils.util import mkdir_if_missing, load_state_dict
+from datasets.voc import VOC_CLASSES, VOC_CLASSES_COLOR
 
 
 class InferResizer:
-    def __init__(self, resize=640):
+    def __init__(self, resize=640, divisor=32):
         self.resize = resize
+        self.divisor = 32
 
     def __call__(self, image):
         h, w, c = image.shape
         size = np.array([h, w]).astype(np.float32)
         scale = self.resize / max(h, w)
-        resize_h, resize_w = int(round(scale * h)), int(round(scale * w))
+        resize_h, resize_w = math.ceil(h * scale), math.ceil(w * scale)
 
         resize_img = cv2.resize(image, (resize_w, resize_h))
-        padded_img = np.zeros((self.resize, self.resize, 3), dtype=np.float32)
+        pad_w = 0 if resize_w % self.divisor == 0 else self.divisor - resize_w % self.divisor
+        pad_h = 0 if resize_h % self.divisor == 0 else self.divisor - resize_h % self.divisor
+
+        padded_img = np.zeros((resize_h + pad_h, resize_w + pad_w, 3),
+                              dtype=np.float32)
         padded_img[:resize_h, :resize_w, :] = resize_img
-        padded_img = torch.from_numpy(padded_img)
 
-        return {'img': padded_img, 'scale': np.array(scale).astype(np.float32), 'size': size}
+        return {'image': padded_img, 'scale': np.array(scale).astype(np.float32), 'size': size}
 
 
-def infer_folder(mode):
-    img_root1 = '/workshop/weihule/data/detection_data/test_images/*.jpg'
-    img_root2 = 'D:\\workspace\\data\\dl\\test_images\\*.jpg'
+def load_image(cfgs, divisor=32):
+    assert cfgs["image_resize_style"] in ['retinastyle',
+                                          'yolostyle'], 'wrong style!'
+    image = cv2.imread(cfgs["image_path"])
+    origin_image = image.copy()
+    h, w, _ = image.shape
 
-    model_path1 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/resnet50_retinanet-metric80.558.pth'
-    model_path2 = 'D:\\Desktop\\tempfile\\best_model.pth'
-    model_path3 = '/workshop/weihule/data/detection_data/retinanet/checkpoints/latest.pth'
+    # normalize
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(
+        np.float32) / np.float(255.)
+    if cfgs["image_resize_style"] == "yolostyle":
+        scale = cfgs["input_image_size"] / max(h, w)
+        resize_h, resize_w = math.ceil(h * scale), math.ceil(w * scale)
 
-    save_root1 = 'D:\\Desktop\\shows'
-    save_root2 = '/workshop/weihule/code/study/torch_detection/retinanet/infer_shows'
+        image = cv2.resize(image, (resize_w, resize_h))
 
-    if mode == 'local':
-        img_root = img_root2
-        model_path = model_path2
-        save_root = save_root1
-    elif mode == 'company':
-        img_root = img_root1
-        model_path = model_path3
-        save_root = save_root2
+        pad_w = 0 if resize_w % divisor == 0 else divisor - resize_w % divisor
+        pad_h = 0 if resize_h % divisor == 0 else divisor - resize_h % divisor
+
+        padded_img = np.zeros((resize_h + pad_h, resize_w + pad_w, 3),
+                              dtype=np.float32)
+        padded_img[:resize_h, :resize_w, :] = image
     else:
-        raise 'wrong value'
+        padded_img = ""
+        scale = ""
+
+    return padded_img, origin_image, scale
+
+
+def inference(cfgs, ):
+    assert cfgs["trained_dataset_name"] in ['COCO', 'VOC'], 'Unsupported dataset!'
+    assert cfgs["model"] in models.__dict__.keys(), 'Unsupported model!'
+    assert cfgs["decoder"] in decodes.__dict__.keys(), 'Unsupported decoder!'
+    if cfgs["seed"]:
+        seed = cfgs["seed"]
+        os.environ['PYTHONHASHSEED'] = str(seed)
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+
+    model = models.__dict__[cfgs["model"]](
+        **{"num_classes": cfgs["trained_num_classes"]}
+    )
+    decoder = decoder.__dict__[cfgs["decoder"]]()
+
+
+def infer_folder():
+    img_root = r'D:\workspace\data\dl\test_images\*.jpg'
+    model_path = r'D:\Desktop\resnet50_retinanet-voc-yoloresize640-metric80.674.pth'
+    save_root = r'D:\Desktop\shows'
+
     mkdir_if_missing(save_root)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    infer_resizer = InferResizer(resize=400)
-    dataset_name = 'coco2017'
+    infer_resizer = InferResizer(resize=640)
+    dataset_name = 'voc'
     if dataset_name == 'voc':
-        with open('datasets/others/pascal_voc_classes.json', 'r', encoding='utf-8') as fr:
+        with open('./datasets/pascal_voc.json', 'r', encoding='utf-8') as fr:
             infos = json.load(fr)
-            name2id = infos['classes']
-            colors = infos['colors']
-        id2name = {v: k for k, v in name2id.items()}
+        cat2idx = infos['class']
+        idx2color = infos['color']
+        idx2cat = {v: k for k, v in cat2idx.items()}
         mean = [0.485, 0.456, 0.406]
         std = [0.229, 0.224, 0.225]
         num_classes = 20
     elif dataset_name == 'coco2017':
         with open('datasets/others/coco_classes.json', 'r', encoding='utf-8') as fr:
             infos = json.load(fr)
-            name2id = infos['COCO_CLASSES']
-            colors = infos['colors']
-        id2name = {v: k for k, v in name2id.items()}
+        cat2idx = infos['class']
+        idx2color = infos['colors']
+        idx2cat = {v: k for k, v in cat2idx.items()}
         mean = [0.471, 0.448, 0.408]
         std = [0.234, 0.239, 0.242]
         num_classes = 80
     else:
         raise ValueError(f'Unsuppoerted {dataset_name} type')
+
     mean = torch.tensor(mean, dtype=torch.float32, device=device).tile(1, 1, 1, 1)
     std = torch.tensor(std, dtype=torch.float32, device=device).tile(1, 1, 1, 1)
 
-    infer_batch = 2
+    infer_batch = 1
     cudnn.benchmark = True
     cudnn.deterministic = False
 
     use_gpu = True
 
     model = models.init_model(name='resnet50_retinanet',
-                              num_classes=num_classes,
-                              pre_train_load_dir=None
-                              )
+                              num_classes=num_classes)
+    model = load_state_dict(saved_model_path=model_path, model=model)
     if use_gpu:
         model = model.cuda()
 
-    checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
-    # checkpoint = checkpoint['model_state_dict']
-
-    model.load_state_dict(checkpoint)
+    # checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
+    # model.load_state_dict(checkpoint)
     model.eval()
 
-    decoder = RetinaDecoder(min_score_threshold=0.21,
+    decoder = RetinaDecoder(min_score_threshold=0.5,
                             nms_type='diou_python_nms')
     img_lists = glob.glob(img_root)
     img_spilt_lists = [img_lists[start: start + infer_batch] for start in range(0, len(img_lists), infer_batch)]
     print(len(img_spilt_lists))
 
     # 预热, GPU 平时可能为了节能而处于休眠状态, 因此需要预热
-    dummy_input = torch.rand(1, 3, 256, 256).to(device)
+    dummy_input = torch.rand(1, 3, 640, 640).to(device)
     print('warm up ...\n')
     with torch.no_grad():
         for _ in range(100):
@@ -122,7 +155,10 @@ def infer_folder(mode):
 
     starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
-    times = torch.zeros(len(img_spilt_lists))   # # 存储每轮的时间
+    times = torch.zeros(len(img_spilt_lists))  # 存储每轮的时间
+
+    font_size = 16
+    font = ImageFont.truetype("./datasets/simhei.ttf", size=font_size)
 
     with torch.no_grad():
         for idx, img_spilt_list in enumerate(tqdm(img_spilt_lists)):
@@ -134,7 +170,7 @@ def infer_folder(mode):
             sizes = []
             for img in images_src:
                 infos = infer_resizer(img)
-                images.append(infos['img'])
+                images.append(torch.from_numpy(infos['image']))
                 scales.append(infos['scale'])
                 sizes.append(infos['size'])
             images_tensor = torch.stack(images, dim=0).to(device)
@@ -160,8 +196,6 @@ def infer_folder(mode):
 
                 image = Image.fromarray(img)
                 draw = ImageDraw.Draw(image)
-                font_size = 16
-                font = ImageFont.truetype("./utils/simhei.ttf", size=font_size)
 
                 mask = classes >= 0
                 scores, classes, pred_bboxes = scores[mask], classes[mask], pred_bboxes[mask]
@@ -175,10 +209,10 @@ def infer_folder(mode):
                 for class_id, bbox, score in zip(classes, pred_bboxes, scores):
                     bbox = bbox / scale
                     score = round(score, 3)
-                    category_name = id2name[int(class_id)]
+                    category_name = idx2cat[int(class_id)]
                     text = category_name + ' ' + str(score)
                     chars_w, chars_h = font.getsize(text)
-                    category_color = tuple(colors[int(class_id)])
+                    category_color = tuple(idx2color[str(int(class_id))])
                     draw.rectangle(bbox[:4], outline=category_color, width=2)  # 绘制预测框
                     draw.rectangle((bbox[0], bbox[1] - chars_h, bbox[0] + chars_w, bbox[1]),
                                    fill=category_color)  # 文本填充框
@@ -215,6 +249,8 @@ def main_video():
 
 
 from models.backbones.network_blocks import SiLU
+
+
 def show_func():
     import torch.nn.functional as F
     x = torch.range(start=-15, end=15, step=0.25)
@@ -234,12 +270,4 @@ def show_func():
 
 if __name__ == "__main__":
     mode_type = 'local'  # company    autodl
-    # infer_folder(mode=mode_type)
-
-    # show_func()
-    arr1 = torch.randn(3, 4)
-    arr2 = torch.randn(3, 4)
-    print(torch.stack([arr1, arr2], dim=0).shape)
-    print(torch.cat([arr1, arr2], dim=0).shape)
-
-
+    infer_folder()
