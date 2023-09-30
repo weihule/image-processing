@@ -26,6 +26,12 @@ class DetNMSMethod:
         sorted_bboxes:[anchor_nums,4], 4:x_min, y_min, x_max, y_max
         sorted_scores:[anchor_nums], classification predict scores
         """
+        if self.nms_type == "python_nms":
+            keep = self.my_nms(sorted_bboxes, sorted_scores, self.nms_threshold)
+        else:
+            keep = self.torch_nms(sorted_bboxes, sorted_scores, self.nms_threshold)
+
+        return keep
 
     @staticmethod
     def torch_nms(sorted_bboxes, sorted_scores, nms_threshold):
@@ -39,7 +45,7 @@ class DetNMSMethod:
     @staticmethod
     def my_nms(sorted_bboxes, sorted_scores, nms_threshold):
         """
-        ²»·ÖÀà±ğ, ¶ÔËùÓĞµÄ¿ò½øĞĞnms
+        ä¸åˆ†ç±»åˆ«, å¯¹æ‰€æœ‰çš„æ¡†è¿›è¡Œnms
         """
         # [anchor_num, 2]
         sorted_bboxes_wh = sorted_bboxes[:, 2:4] - sorted_bboxes[:, 0:2]
@@ -59,7 +65,7 @@ class DetNMSMethod:
                 break
             keep_box_area = sorted_bboxes_areas[keep_idx]
 
-            # ¼ÆËãÖØµş²¿·ÖµÄËÄµã
+            # è®¡ç®—é‡å éƒ¨åˆ†çš„å››ç‚¹
             overlap_area_top_left = np.maximum(
                 sorted_bboxes[keep_idx, 0:2], sorted_bboxes[indexes, 0:2])
             overlap_area_bot_right = np.minimum(
@@ -68,15 +74,15 @@ class DetNMSMethod:
                 overlap_area_bot_right - overlap_area_top_left, 0)
             overlap_area = overlap_area_sizes[:, 0] * overlap_area_sizes[:, 1]
 
-            # ¼ÆËãtop1ºÍÆäËû¿òÖ®¼äµÄiou
+            # è®¡ç®—top1å’Œå…¶ä»–æ¡†ä¹‹é—´çš„iou
             union_area = keep_box_area + sorted_bboxes_areas[indexes] - overlap_area
             union_area = np.maximum(union_area, 1e-4)
             ious = overlap_area / union_area
 
             # np.where(condition)
-            # ÕâÖÖÓÃ·¨·µ»ØÂú×ãÌõ¼şµÄÔªËØµÄË÷Òı¡£
-            # Ë÷ÒıÒÔÔª×éµÄĞÎÊ½·µ»Ø£¬ÆäÖĞ°üº¬Âú×ãÌõ¼şµÄÔªËØµÄĞĞË÷ÒıºÍÁĞË÷Òı£¨¶ÔÓÚ¶àÎ¬Êı×é£©
-            # ËùÒÔÕâÀïÈ¡[0], Ö±½ÓÈ¡ĞĞË÷Òı
+            # è¿™ç§ç”¨æ³•è¿”å›æ»¡è¶³æ¡ä»¶çš„å…ƒç´ çš„ç´¢å¼•ã€‚
+            # ç´¢å¼•ä»¥å…ƒç»„çš„å½¢å¼è¿”å›ï¼Œå…¶ä¸­åŒ…å«æ»¡è¶³æ¡ä»¶çš„å…ƒç´ çš„è¡Œç´¢å¼•å’Œåˆ—ç´¢å¼•ï¼ˆå¯¹äºå¤šç»´æ•°ç»„ï¼‰
+            # æ‰€ä»¥è¿™é‡Œå–[0], ç›´æ¥å–è¡Œç´¢å¼•
             candidate_indexes = np.where(ious < nms_threshold)[0]
             indexes = indexes[candidate_indexes]
         keep = np.array(keep)
@@ -98,4 +104,55 @@ class DecodeMethod:
                                          nms_threshold=nms_threshold)
 
     def __call__(self, cls_scores, cls_classes, pred_bboxes):
-        pass
+        """
+
+        Args:
+            cls_scores: [B, anchor_num]   æ¯ä¸ªanchorè¡¨ç¤ºçš„ç±»åˆ«ç½®ä¿¡åº¦
+            cls_classes: [B, anchor_num]  æ¯ä¸ªanchorè¡¨ç¤ºçš„ç±»åˆ«
+            pred_bboxes: [B, anchor_num, 4]
+
+        Returns:
+
+        """
+        batch_size = cls_scores.shape[0]
+        batch_scores = np.ones((batch_size, self.max_object_num), dtype=np.float32) * (-1)
+        batch_classes = np.ones((batch_size, self.max_object_num), dtype=np.float32) * (-1)
+        batch_bboxes = np.zeros((batch_size, self.max_object_num, 4), dtype=np.float32)
+        for i, (per_image_scores,
+                per_image_score_classes,
+                per_image_pred_bboxes) in enumerate(zip(cls_scores, cls_classes, pred_bboxes)):
+            score_classes = per_image_score_classes[per_image_scores > self.min_score_threshold].astype(np.float32)
+            bboxes = per_image_pred_bboxes[per_image_scores > self.min_score_threshold].astype(np.float32)
+            scores = per_image_scores[per_image_scores > self.min_score_threshold].astype(np.float32)
+            # score_classes: [anchor_num, num_classes]
+            # bboxes: [anchor_num, 4]
+            # scores: [anchor_num]
+            # æ³¨æ„è¿™é‡Œçš„anchor_numæŒ‡çš„æ˜¯é€šè¿‡é˜ˆå€¼è¿‡æ»¤åçš„æ•°é‡
+
+            if scores.shape[0] != 0:
+                # descending sort
+                sorted_indexes = np.argsort(-scores)
+                sorted_scores = scores[sorted_indexes]
+                sorted_score_classes = score_classes[sorted_indexes]
+                sorted_bboxes = bboxes[sorted_indexes]
+
+                if sorted_scores.shape[0] > self.topn:
+                    sorted_scores = sorted_scores[0:self.topn]
+                    sorted_score_classes = sorted_score_classes[0:self.topn]
+                    sorted_bboxes = sorted_bboxes[0:self.topn]
+
+                # NMS
+                keep = self.nms_function(sorted_bboxes, sorted_scores)
+                keep_scores = sorted_scores[keep]
+                keep_classes = sorted_score_classes[keep]
+                keep_bboxes = sorted_bboxes[keep]
+
+                final_detection_num = min(self.max_object_num, keep_scores.shape[0])
+                batch_scores[i, 0:final_detection_num] = keep_scores[0:final_detection_num]
+                batch_classes[i, 0:final_detection_num] = keep_classes[0:final_detection_num]
+                batch_bboxes[i, 0:final_detection_num, :] = keep_bboxes[0:final_detection_num, :]
+
+        # batch_scores shape:[batch_size,max_object_num]
+        # batch_classes shape:[batch_size,max_object_num]
+        # batch_bboxes shape[batch_size,max_object_num,4]
+        return [batch_scores, batch_classes, batch_bboxes]

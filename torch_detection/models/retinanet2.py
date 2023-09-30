@@ -1,8 +1,27 @@
+import os
+import sys
 import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from . import backbones
+
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))
+# BASE_DIR = D:\workspace\code\image-processing
+sys.path.append(BASE_DIR)
+
+from torch_detection.models import backbones
+from torch_detection.utils.util import load_state_dict
+
+
+__all__ = [
+    "resnet18_retinanet",
+    "resnet34_retinanet",
+    "resnet50_retinanet",
+    "resnet101_retinanet",
+    "resnet152_retinanet"
+]
 
 
 class RetinaFPN(nn.Module):
@@ -146,8 +165,8 @@ class RetinaRegHead(nn.Module):
                     nn.init.constant_(m.bias, val=0)
 
     def forward(self, x):
-        x = self.reg_head(x)
-        x = self.reg_out(x)
+        x = self.reg_head(x)    # [B, C, H, W]
+        x = self.reg_out(x)     # [B, 9 * 4, H, W]
 
         return x
 
@@ -166,7 +185,8 @@ class RetinaNet(nn.Module):
         self.num_classes = num_classes
 
         self.backbone = backbones.__dict__[backbone_type]()
-        # TODO: 考虑下怎么加载backbone的权重信息
+        # TODO: 加载backbone的预训练权重信息
+        self.backbone = load_state_dict(backbone_pretrained_path, self.backbone)
 
         self.fpn = RetinaFPN(self.backbone.out_channels,
                              self.planes,
@@ -188,4 +208,76 @@ class RetinaNet(nn.Module):
 
         cls_heads, reg_heads = [], []
         for feature in features:
-            cls_head = self.cls_
+            cls_head = self.cls_head(feature)
+            # [N,9*num_classes,H,W] -> [N,H,W,9*num_classes] -> [N,H,W,9,num_classes]
+            cls_head = cls_head.permute(0, 2, 3, 1).contiguous()
+            cls_head = cls_head.view(cls_head.shape[0], cls_head.shape[1],
+                                     cls_head.shape[2], -1, self.num_classes)
+            cls_heads.append(cls_head)
+
+            reg_head = self.reg_head(feature)
+            # [N, 9*4,H,W] -> [N,H,W,9*4] -> [N,H,W,9,4]
+            reg_head = reg_head.permute(0, 2, 3, 1).contiguous()
+            reg_head = reg_head.view(reg_head.shape[0], reg_head.shape[1],
+                                     reg_head.shape[2], -1, 4)
+            reg_heads.append(reg_head)
+
+        del features
+        # if input size:[B,3,640,640]
+        # features shape:[[B, 256, 80, 80],[B, 256, 40, 40],[B, 256, 20, 20],[B, 256, 10, 10],[B, 256, 5, 5]]
+        # cls_heads shape:[[B, 80, 80, 9, 80],[B, 40, 40, 9, 80],[B, 20, 20, 9, 80],[B, 10, 10, 9, 80],[B, 5, 5, 9, 80]]
+        # reg_heads shape:[[B, 80, 80, 9, 4],[B, 40, 40, 9, 4],[B, 20, 20, 9, 4],[B, 10, 10, 9, 4],[B, 5, 5, 9, 4]]
+        return [cls_heads, reg_heads]
+
+
+def _retinanet(backbone_type, backbone_pretrained_path, **kwargs):
+    model = RetinaNet(backbone_type,
+                      backbone_pretrained_path=backbone_pretrained_path,
+                      **kwargs)
+
+    return model
+
+
+def resnet18_retinanet(backbone_pretrained_path='', **kwargs):
+    return _retinanet('resnet18backbone',
+                      backbone_pretrained_path=backbone_pretrained_path,
+                      **kwargs)
+
+
+def resnet34_retinanet(backbone_pretrained_path='', **kwargs):
+    return _retinanet('resnet34backbone',
+                      backbone_pretrained_path=backbone_pretrained_path,
+                      **kwargs)
+
+
+def resnet50_retinanet(backbone_pretrained_path='', **kwargs):
+    return _retinanet('resnet50backbone',
+                      backbone_pretrained_path=backbone_pretrained_path,
+                      **kwargs)
+
+
+def resnet101_retinanet(backbone_pretrained_path='', **kwargs):
+    return _retinanet('resnet101backbone',
+                      backbone_pretrained_path=backbone_pretrained_path,
+                      **kwargs)
+
+
+def resnet152_retinanet(backbone_pretrained_path='', **kwargs):
+    return _retinanet('resnet152backbone',
+                      backbone_pretrained_path=backbone_pretrained_path,
+                      **kwargs)
+
+
+if __name__ == "__main__":
+    i = torch.randn((4, 3, 640, 640))
+    pre_weight = r"D:\workspace\data\training_data\resnet50\resnet50-acc76.264.pth"
+    model = resnet50_retinanet(backbone_pretrained_path=pre_weight,
+                               num_classes=20)
+    cls, reg = model(i)
+    for c, r in zip(cls, reg):
+        print(c.shape, r.shape)
+
+
+
+
+
