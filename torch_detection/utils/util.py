@@ -1,11 +1,36 @@
 import os
 import sys
-import logging
-from logging import handlers
+import numpy as np
+import random
 from thop import profile, clever_format
 import errno
 import torch
+import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
+
+__all__ = [
+    "set_seed",
+    "Logger",
+    "mkdir_if_missing",
+    "load_state_dict",
+    "compute_macs_and_params",
+    "AverageMeter"
+]
+
+
+def set_seed(seed):
+    # for hash
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    # for python and numpy
+    random.seed(seed)
+    np.random.seed(seed)
+    # for cpu gpu
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    # for cudnn
+    cudnn.benchmark = False
+    cudnn.deterministic = True
 
 
 class Logger(object):
@@ -106,65 +131,35 @@ def compute_macs_and_params(input_image_size, model, device):
     return macs, params
 
 
-def custom_cross_entropy(input_data, target, num_class, use_custom=True):
+class AverageMeter:
     """
-    :param use_custom: bool
-    :param input_data: [N, num_class]
-    :param target: [N]
-    :param num_class: int
-    :return:
+    Compute and stores the average and current value
     """
-    if use_custom:
-        one_hot = F.one_hot(target, num_classes=num_class).float()  # [N, num_class]
-        custom_softmax = torch.exp(input_data) / torch.sum(torch.exp(input_data), dim=1).reshape((-1, 1))
-        losses = -torch.sum(one_hot * torch.log(custom_softmax)) / input_data.shape[0]
-    else:
-        # 1
-        # log_soft = F.log_softmax(input_data, dim=1)
-        # losses = F.nll_loss(log_soft, target)
+    def __init__(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
 
-        # 2
-        losses = F.cross_entropy(input_data, target)
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
 
-    return losses
-
-
-def custom_bce(input_data, target, num_class, use_custom=True):
-    one_hot_target = F.one_hot(target, num_classes=num_class).float()
-
-    if use_custom:
-        print(input_data)
-        print(one_hot_target)
-        losses = -one_hot_target * torch.log(torch.sigmoid(input_data)) \
-                 - (1 - one_hot_target) * (torch.log(1 - torch.sigmoid(input_data)))
-        losses = losses.mean()
-    else:
-        # losses = F.binary_cross_entropy(input_data, one_hot_target)
-        losses = F.binary_cross_entropy_with_logits(input_data, one_hot_target)
-
-    return losses
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
 
 
 if __name__ == "__main__":
-    inputs = torch.rand((3, 4))
-    labels = torch.tensor([0, 2, 3])
-    custom_ce_loss = custom_cross_entropy(input_data=inputs,
-                                          target=labels,
-                                          num_class=4,
-                                          use_custom=True)
-    offical_ce_loss = custom_cross_entropy(input_data=inputs,
-                                           target=labels,
-                                           num_class=4,
-                                           use_custom=False)
+    ave = AverageMeter()
+    ave.update(15, 2)
+    print(ave.val, ave.avg, ave.sum)
 
-    custom_bce_loss = custom_bce(input_data=inputs,
-                                 target=labels,
-                                 num_class=4,
-                                 use_custom=True)
-    offical_bce_loss = custom_bce(input_data=inputs,
-                                 target=labels,
-                                 num_class=4,
-                                 use_custom=False)
-    print(custom_bce_loss, offical_bce_loss)
+    ave.update(17, 1)
+    print(ave.val, ave.avg, ave.sum)
 
     
