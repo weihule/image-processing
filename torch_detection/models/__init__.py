@@ -1,5 +1,3 @@
-# from .retinanet import resnet50_retinanet
-# from .retinanet import resnet34_retinanet
 from .retinanet2 import *
 
 

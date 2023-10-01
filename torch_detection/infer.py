@@ -12,9 +12,10 @@ import torch
 from torch.backends import cudnn
 import json
 
+from models.decoder import RetinaDecoder
+
 import models
 import decodes
-from models.decoder import RetinaDecoder
 from utils.util import mkdir_if_missing, load_state_dict, compute_macs_and_params
 from datasets.voc import VOC_CLASSES, VOC_CLASSES_COLOR
 
@@ -202,36 +203,15 @@ def main_video():
     cv2.destroyAllWindows()
 
 
-from models.backbones.network_blocks import SiLU
-
-
-def show_func():
-    import torch.nn.functional as F
-    x = torch.range(start=-15, end=15, step=0.25)
-    # y = F.sigmoid(x)
-    # y = F.tanh(x)
-    y1 = F.relu(x)
-
-    f = SiLU()
-    y = f(x)
-
-    plt.plot(x.detach(), y.detach(), color='r')
-    plt.plot(x.detach(), y1.detach(), color='b')
-    # plt.imshow()
-    plt.grid()
-    plt.show()
-
-
 def load_image(cfgs, divisor=32):
     assert cfgs["image_resize_style"] in ['retinastyle',
                                           'yolostyle'], 'wrong style!'
     image = cv2.imread(cfgs["image_path"])
-    origin_image = image.copy()
+    origin_image = image
     h, w, _ = image.shape
 
     # normalize
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(
-        np.float32) / np.float(255.)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(np.float32) / np.float32(255.)
     if cfgs["image_resize_style"] == "yolostyle":
         scale = cfgs["input_image_size"] / max(h, w)
         resize_h, resize_w = math.ceil(h * scale), math.ceil(w * scale)
@@ -255,6 +235,7 @@ def inference(cfgs):
     assert cfgs["trained_dataset_name"] in ['COCO', 'VOC'], 'Unsupported dataset!'
     assert cfgs["model"] in models.__dict__.keys(), 'Unsupported model!'
     assert cfgs["decoder"] in decodes.__dict__.keys(), 'Unsupported decoder!'
+    device = torch.device("cuda") if torch.cuda.is_available() else  torch.device("cpu")
     if cfgs["seed"]:
         seed = cfgs["seed"]
         os.environ['PYTHONHASHSEED'] = str(seed)
@@ -265,6 +246,7 @@ def inference(cfgs):
     model = models.__dict__[cfgs["model"]](
         **{"num_classes": cfgs["trained_num_classes"]}
     )
+    model = model.to(device)
     decoder = decodes.__dict__[cfgs["decoder"]](
         **{
             "nms_type": 'python_nms',
@@ -278,7 +260,7 @@ def inference(cfgs):
 
     model.eval()
 
-    macs, params = compute_macs_and_params(cfgs["input_image_size"], model)
+    macs, params = compute_macs_and_params(cfgs["input_image_size"], model, device)
     print(f'model: {cfgs["model"]}, macs: {macs}, params: {params}')
 
     resized_img, origin_img, scale = load_image(cfgs)
@@ -287,7 +269,7 @@ def inference(cfgs):
     # features shape:[[B, 256, 80, 80],[B, 256, 40, 40],[B, 256, 20, 20],[B, 256, 10, 10],[B, 256, 5, 5]]
     # cls_heads shape:[[B, 80, 80, 9, 80],[B, 40, 40, 9, 80],[B, 20, 20, 9, 80],[B, 10, 10, 9, 80],[B, 5, 5, 9, 80]]
     # reg_heads shape:[[B, 80, 80, 9, 4],[B, 40, 40, 9, 4],[B, 20, 20, 9, 4],[B, 10, 10, 9, 4],[B, 5, 5, 9, 4]]
-    outputs = model(resized_img.permute(2, 0, 1).float().unsqueeze(0))
+    outputs = model(resized_img.permute(2, 0, 1).float().unsqueeze(0).to(device))
 
     # batch_scores shape:[batch_size,max_object_num]
     # batch_classes shape:[batch_size,max_object_num]
@@ -296,6 +278,7 @@ def inference(cfgs):
 
     boxes /= scale
 
+    # 去掉batch维度
     scores = scores.squeeze(0)
     classes = classes.squeeze(0)
     boxes = boxes.squeeze(0)
@@ -328,11 +311,9 @@ def inference(cfgs):
         per_class_index = per_class_index.astype(np.int32)
         per_box = per_box.astype(np.int32)
 
-        class_name, class_color = dataset_classes_name[
-            per_class_index], dataset_classes_color[per_class_index]
+        class_name, class_color = dataset_classes_name[per_class_index], dataset_classes_color[per_class_index]
 
-        left_top, right_bottom = (per_box[0], per_box[1]), (per_box[2],
-                                                            per_box[3])
+        left_top, right_bottom = (per_box[0], per_box[1]), (per_box[2], per_box[3])
         cv2.rectangle(origin_img,
                       left_top,
                       right_bottom,
@@ -374,12 +355,15 @@ if __name__ == "__main__":
     cfgs_dict = {
         "trained_dataset_name": "VOC",
         "model": "resnet50_retinanet",
+        "image_path": r"D:\workspace\data\dl\test_images\image.jpg",
+        "image_resize_style": "yolostyle",
+        "input_image_size": 640,
         "decoder": "RetinaDecoder",
         "seed": 0,
         "trained_num_classes": 20,
         "trained_model_path": r"D:\Desktop\resnet50_retinanet-voc-yoloresize640-metric80.674.pth",
-        "input_image_size": 640,
         "min_score_threshold": 0.5,
         "save_image_path": r"D:\Desktop\shows",
         "show_image": True
     }
+    inference(cfgs_dict)

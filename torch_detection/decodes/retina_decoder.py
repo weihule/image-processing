@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from decode_method import DetNMSMethod, DecodeMethod
+from .decode_method import DetNMSMethod, DecodeMethod
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -99,7 +99,6 @@ class RetinaDecoder:
         ], axis=0)
 
         pred_bboxes = self.snap_txtytwth_to_x1y1x2y2(reg_preds, batch_anchors)
-        print(f"cls_scores.shape={cls_scores.shape}, cls_classes.shape={cls_classes.shape}, pred_bboxes.shape={pred_bboxes.shape}")
         [batch_scores, batch_classes, batch_bboxes] = \
             self.decode_function(cls_scores, cls_classes, pred_bboxes)
 
@@ -118,7 +117,7 @@ class RetinaDecoder:
 
         """
         anchors_wh = anchors[:, :, 2:4] - anchors[:, :, 0:2]
-        anchors_ctr = anchors[:, :, 2:4] + 0.5 * anchors_wh
+        anchors_ctr = anchors[:, :, 0:2] + 0.5 * anchors_wh
 
         pred_bboxes_wh = np.exp(reg_preds[:, :, 2:4]) * anchors_wh
         pred_bboxes_ctr = reg_preds[:, :, :2] * anchors_wh + anchors_ctr

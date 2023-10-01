@@ -186,7 +186,8 @@ class RetinaNet(nn.Module):
 
         self.backbone = backbones.__dict__[backbone_type]()
         # TODO: 加载backbone的预训练权重信息
-        self.backbone = load_state_dict(backbone_pretrained_path, self.backbone)
+        if backbone_pretrained_path:
+            self.backbone = load_state_dict(backbone_pretrained_path, self.backbone)
 
         self.fpn = RetinaFPN(self.backbone.out_channels,
                              self.planes,

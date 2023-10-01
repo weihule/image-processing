@@ -90,17 +90,17 @@ def load_state_dict(saved_model_path, model, excluded_layer_name=()):
         return model
 
 
-def compute_macs_and_params(input_image_size, model):
+def compute_macs_and_params(input_image_size, model, device):
     assert isinstance(input_image_size, int) or isinstance(input_image_size, tuple)\
         or isinstance(input_image_size, list), "Illegal input_image_size type!"
     if isinstance(input_image_size, int):
         macs_input = torch.randn(1, 3, input_image_size,
-                                 input_image_size).cpu()
+                                 input_image_size).to(device)
     else:
         macs_input = torch.randn(1, 3, input_image_size[0],
-                                 input_image_size[1]).cpu()
+                                 input_image_size[1]).to(device)
 
-    model = model.cpu()
+    model = model.to(device)
     macs, params = profile(model, inputs=(macs_input, ), verbose=False)
     macs, params = clever_format([macs, params], '%.3f')
     return macs, params

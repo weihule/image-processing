@@ -156,3 +156,5 @@ class DecodeMethod:
         # batch_classes shape:[batch_size,max_object_num]
         # batch_bboxes shape[batch_size,max_object_num,4]
         return [batch_scores, batch_classes, batch_bboxes]
+
+
