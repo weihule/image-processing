@@ -14,6 +14,10 @@ sys.path.append(BASE_DIR)
 
 from torch_detection.models.anchors import RetinaAnchor
 
+__all__ = [
+    "RetinaDecoder"
+]
+
 
 class RetinaDecoder:
     def __init__(self,
