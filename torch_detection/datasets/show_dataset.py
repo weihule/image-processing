@@ -10,9 +10,6 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.utils import make_grid
 from pycocotools.coco import COCO
-from custom_dataste import VOCDataset, COCODataset
-from data_transfrom import RandomFlip, RandomCrop
-from collater_func import MultiScaleCollater
 
 
 def test_make_grid():

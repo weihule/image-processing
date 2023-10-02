@@ -2,6 +2,7 @@ import os
 import sys
 import numpy as np
 import random
+import time
 from thop import profile, clever_format
 import errno
 import torch
@@ -10,6 +11,7 @@ import torch.nn.functional as F
 
 __all__ = [
     "set_seed",
+    "worker_seed_init_fn",
     "Logger",
     "mkdir_if_missing",
     "load_state_dict",
@@ -31,6 +33,15 @@ def set_seed(seed):
     # for cudnn
     cudnn.benchmark = False
     cudnn.deterministic = True
+
+
+def worker_seed_init_fn(worker_id, num_workers, local_rank, seed):
+    # worker_seed_init_fn function will be called at the beginning of each epoch
+    # for each epoch the same worker has same seed value,so we add the current time to the seed
+    worker_seed = num_workers * local_rank + worker_id + seed + int(
+        time.time())
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 
 class Logger(object):

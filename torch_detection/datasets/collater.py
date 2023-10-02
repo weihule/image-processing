@@ -1,6 +1,9 @@
 import numpy as np
-
 import torch
+
+__all__ = [
+    "DetectionCollater"
+]
 
 
 class DetectionCollater:

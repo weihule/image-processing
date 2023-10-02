@@ -6,6 +6,13 @@ import numpy as np
 from pycocotools.coco import COCO
 from torch.utils.data import Dataset
 
+__all__ = [
+    "COCO_CLASSES",
+    "COCO_CLASSES_COLOR",
+    "CocoDetection"
+]
+
+
 COCO_CLASSES = [
     'person',
     'bicycle',

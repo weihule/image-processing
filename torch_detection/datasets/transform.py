@@ -9,7 +9,10 @@ __all__ = [
     "RandomHorizontalFlip",
     "RandomCrop",
     "RandomTranslate",
-    "Normalize"
+    "Normalize",
+
+    "YoloStyleResize",
+    "RetinaStyleResize"
 ]
 
 
@@ -118,6 +121,7 @@ class RandomTranslate:
             'size': size,
         }
 
+
 class Normalize:
     def __init__(self):
         pass
@@ -182,6 +186,70 @@ class YoloStyleResize:
         padded_image[:resize_h, :resize_w, :] = image
 
         factor = np.float(factor)
+        annots[:, :4] *= factor
+        scale *= factor
+
+        return {
+            'image': padded_image,
+            'annots': annots,
+            'scale': scale,
+            'size': size,
+        }
+
+
+class RetinaStyleResize:
+    def __init__(self,
+                 resize=400,
+                 divisor=32,
+                 stride=32,
+                 multi_scale=False,
+                 multi_scale_range=(0.8, 1.0)):
+        self.resize = resize
+        self.divisor = divisor
+        self.stride = stride
+        self.multi_scale = multi_scale
+        self.multi_scale_range = multi_scale_range
+        self.ratio = 1333. / 800
+
+    def __call__(self, sample):
+        '''
+        sample must be a dict,contains 'image'、'annots'、'scale' keys.
+        '''
+        image, annots, scale, size = sample['image'], sample['annots'], sample[
+            'scale'], sample['size']
+        h, w, _ = image.shape
+
+        if self.multi_scale:
+            scale_range = [
+                int(self.multi_scale_range[0] * self.resize),
+                int(self.multi_scale_range[1] * self.resize)
+            ]
+            resize_list = [
+                i // self.stride * self.stride
+                for i in range(scale_range[0], scale_range[1] + self.stride)
+            ]
+            resize_list = list(set(resize_list))
+
+            random_idx = np.random.randint(0, len(resize_list))
+            scales = (resize_list[random_idx],
+                      int(round(self.resize * self.ratio)))
+        else:
+            scales = (self.resize, int(round(self.resize * self.ratio)))
+
+        max_long_edge, max_short_edge = max(scales), min(scales)
+        factor = min(max_long_edge / max(h, w), max_short_edge / min(h, w))
+
+        resize_h, resize_w = int(round(h * factor)), int(round(w * factor))
+        image = cv2.resize(image, (resize_w, resize_h))
+
+        pad_w = 0 if resize_w % self.divisor == 0 else self.divisor - resize_w % self.divisor
+        pad_h = 0 if resize_h % self.divisor == 0 else self.divisor - resize_h % self.divisor
+
+        padded_image = np.zeros((resize_h + pad_h, resize_w + pad_w, 3),
+                                dtype=np.float32)
+        padded_image[:resize_h, :resize_w, :] = image
+
+        factor = np.float32(factor)
         annots[:, :4] *= factor
         scale *= factor
 

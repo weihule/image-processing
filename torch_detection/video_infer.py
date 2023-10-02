@@ -1,22 +1,13 @@
 import os
 import math
-import glob
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import random
-import warnings
-from tqdm import tqdm
-from PIL import Image, ImageDraw, ImageFont
 import torch
-from torch.backends import cudnn
-import json
-
-from models.decoder import RetinaDecoder
 
 import models
 import decodes
-from utils.util import mkdir_if_missing, load_state_dict, compute_macs_and_params
+from utils.util import compute_macs_and_params
 from datasets.coco import COCO_CLASSES, COCO_CLASSES_COLOR
 from datasets.voc import VOC_CLASSES, VOC_CLASSES_COLOR
 
