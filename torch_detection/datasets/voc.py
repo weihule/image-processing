@@ -176,7 +176,7 @@ class VOCDetection(Dataset):
 def test():
     from PIL import Image, ImageFont, ImageDraw
     import matplotlib.pyplot as plt
-    voc = VOCDataset(root_dir=r"D:\workspace\data\dl\VOCdataset")
+    voc = VOCDetection(root_dir=r"D:\workspace\data\dl\VOCdataset")
     # 使用合适的字体
     font = ImageFont.truetype("./simhei.ttf", 15)
     for idx in range(15):

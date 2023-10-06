@@ -8,7 +8,7 @@ sys.path.append(os.path.dirname(
         os.path.dirname(os.path.abspath(__file__))
     )))
 
-from util.utils import load_pretrained_weights
+from utils.util import load_pretrained_weights
 
 __all__ = [
     'dark53backbone',

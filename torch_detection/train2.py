@@ -11,7 +11,7 @@ from torchvision import transforms
 
 from utils.util import Logger, AverageMeter, set_seed, worker_seed_init_fn
 from datasets.coco import CocoDetection
-from datasets.voc import VOCDataset
+from datasets.voc import VOCDetection
 from datasets.transform import *
 from datasets.collater import DetectionCollater
 
@@ -21,9 +21,6 @@ os.environ['RANK'] = '0'  # 第一个进程的排名
 os.environ['WORLD_SIZE'] = '4'  # 总共两个进程
 os.environ['MASTER_ADDR'] = 'localhost'  # 主机地址
 os.environ['MASTER_PORT'] = '12345'  # 主机端口
-
-COCO2017_path = '/root/autodl-tmp/COCO2017'
-VOCdataset_path = '/root/autodl-tmp/VOCdataset'
 
 
 def main(cfgs):
@@ -65,35 +62,23 @@ def main(cfgs):
                                 local_rank=local_rank,
                                 seed=cfgs["seed"])
 
-    input_image_size = [640, 640]
-    train_dataset = CocoDetection(COCO2017_path,
-                                  set_name='train2017',
-                                  transform=transforms.Compose([
-                                      RandomHorizontalFlip(prob=0.5),
-                                      RandomCrop(prob=0.5),
-                                      RandomTranslate(prob=0.5),
-                                      YoloStyleResize(
-                                          resize=input_image_size[0],
-                                          divisor=32,
-                                          stride=32,
-                                          multi_scale=True,
-                                          multi_scale_range=[0.8, 1.0]),
-                                      Normalize(),
-                                  ]))
-
-    test_dataset = CocoDetection(COCO2017_path,
-                                 set_name='val2017',
-                                 transform=transforms.Compose([
-                                     YoloStyleResize(
-                                         resize=input_image_size[0],
-                                         divisor=32,
-                                         stride=32,
-                                         multi_scale=False,
-                                         multi_scale_range=[0.8, 1.0]),
-                                     Normalize(),
-                                 ]))
-    train_collater = DetectionCollater()
-    test_collater = DetectionCollater()
+    train_sampler = torch.utils.data.distributed.DistributedSampler(
+        train_dataset, shuffle=True)
+    train_loader = DataLoader(train_dataset,
+                              batch_size=batch_size,
+                              shuffle=False,
+                              pin_memory=True,
+                              drop_last=True,
+                              num_workers=num_workers,
+                              collate_fn=train_collater,
+                              sampler=train_sampler,
+                              worker_init_fn=init_fn)
+    test_loader = DataLoader(test_dataset,
+                             batch_size=batch_size,
+                             shuffle=False,
+                             pin_memory=True,
+                             num_workers=num_workers,
+                             collate_fn=test_collater)
 
 
 if __name__ == "__main__":

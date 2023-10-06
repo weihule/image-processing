@@ -16,6 +16,7 @@ print(BASE_DIR)
 from models.anchor import RetinaAnchors
 from util.iou_methods import IoUMethod
 
+
 __all__ = [
     'RetinaLoss'
 ]

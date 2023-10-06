@@ -67,7 +67,7 @@ class RandomCrop:
                 np.max(annots[:, 2:4], axis=0)
             ], axis=-1)
             max_left_trans, max_up_trans = max_bbox[0], max_bbox[1]
-            max_right_trans, max_down_trans = w-max_bbox[2], h-max_bbox[3]
+            max_right_trans, max_down_trans = w - max_bbox[2], h - max_bbox[3]
             crop_xmin = max(
                 0, int(max_bbox[0] - np.random.uniform(0, max_left_trans)))
             crop_ymin = max(
@@ -106,7 +106,7 @@ class RandomTranslate:
                 np.max(annots[:, 2:4], axis=0)
             ], axis=-1)
             max_left_trans, max_up_trans = max_bbox[0], max_bbox[1]
-            max_right_trans, max_down_trans = w-max_bbox[2], h-max_bbox[3]
+            max_right_trans, max_down_trans = w - max_bbox[2], h - max_bbox[3]
             tx = np.random.uniform(-(max_left_trans - 1),
                                    (max_right_trans - 1))
             ty = np.random.uniform(-(max_up_trans - 1), (max_down_trans - 1))
@@ -163,15 +163,13 @@ class YoloStyleResize:
                 int(self.multi_scale_range[0] * self.resize),
                 int(self.multi_scale_range[1] * self.resize)
             ]
-            print(scale_range)
             resize_list = [
                 i // self.stride * self.stride
-                for i in range(scale_range[0], scale_range[1]+self.stride)
+                for i in range(scale_range[0], scale_range[1] + self.stride)
             ]
             resize_list = list(set(resize_list))
             random_idx = np.random.randint(0, len(resize_list))
             final_resize = resize_list[random_idx]
-            print(final_resize)
         else:
             final_resize = self.resize
 
@@ -181,11 +179,10 @@ class YoloStyleResize:
 
         pad_w = 0 if resize_w % self.divisor == 0 else self.divisor - resize_w % self.divisor
         pad_h = 0 if resize_h % self.divisor == 0 else self.divisor - resize_h % self.divisor
-        padded_image = np.zeros((resize_h + pad_h, resize_w + pad_w, 3),
-                                dtype=np.float32)
+        padded_image = np.zeros((resize_h + pad_h, resize_w + pad_w, 3), dtype=np.float32)
         padded_image[:resize_h, :resize_w, :] = image
 
-        factor = np.float(factor)
+        factor = np.float32(factor)
         annots[:, :4] *= factor
         scale *= factor
 
@@ -265,15 +262,24 @@ def test():
     arr = [[12, 10, 4, 5, 0], [1, 2, 47, 56, 0],
            [2, 3, 5, 8, 1]]
     arr = np.array(arr)
-    print(arr[:, 0:2])
-    print(arr[:, [0, 2]])
-    yolo = YoloStyleResize(multi_scale=True)
-    yolo({"image": np.random.random((640, 640, 3)),
-          "annots": "",
-          "scale": "",
-          "size": ""})
+    yolo = YoloStyleResize(multi_scale=False)
+    im = cv2.imread(r"D:\workspace\data\dl\test_images\dog.jpg")
+    print(f"origin_h = {im.shape[0]} origin_w = {im.shape[1]}")
+    datas = yolo({"image": im,
+                  "annots": np.float32([
+                      [1, 1, 12, 13, 0],
+                      [10, 10, 31, 33, 1],
+                      [5, 5, 12, 13, 0],
+                  ]),
+                  "scale": np.array(1.).astype(np.float32),
+                  "size": np.array([640, 640]).astype(np.float32)})
+    for k, v in datas.items():
+        print(k, v.shape)
+    print(datas["scale"])
+
+    cv2.imshow("res", np.uint8(datas["image"]))
+    cv2.waitKey(0)
 
 
 if __name__ == "__main__":
     test()
-

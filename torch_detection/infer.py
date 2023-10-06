@@ -12,11 +12,10 @@ import torch
 from torch.backends import cudnn
 import json
 
-from models.decoder import RetinaDecoder
-
 import models
 import decodes
 from utils.util import mkdir_if_missing, load_state_dict, compute_macs_and_params
+from datasets.coco import COCO_CLASSES, COCO_CLASSES_COLOR
 from datasets.voc import VOC_CLASSES, VOC_CLASSES_COLOR
 
 
@@ -92,8 +91,8 @@ def infer_folder():
     # model.load_state_dict(checkpoint)
     model.eval()
 
-    decoder = RetinaDecoder(min_score_threshold=0.5,
-                            nms_type='diou_python_nms')
+    decoder = decodes.RetinaDecoder(min_score_threshold=0.5,
+                                    nms_type='diou_python_nms')
     img_lists = glob.glob(img_root)
     img_spilt_lists = [img_lists[start: start + infer_batch] for start in range(0, len(img_lists), infer_batch)]
     print(len(img_spilt_lists))
@@ -235,7 +234,7 @@ def inference(cfgs):
     assert cfgs["trained_dataset_name"] in ['COCO', 'VOC'], 'Unsupported dataset!'
     assert cfgs["model"] in models.__dict__.keys(), 'Unsupported model!'
     assert cfgs["decoder"] in decodes.__dict__.keys(), 'Unsupported decoder!'
-    device = torch.device("cuda") if torch.cuda.is_available() else  torch.device("cpu")
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     if cfgs["seed"]:
         seed = cfgs["seed"]
         os.environ['PYTHONHASHSEED'] = str(seed)
@@ -299,8 +298,8 @@ def inference(cfgs):
     boxes[:, 3] = np.minimum(boxes[:, 3], origin_h)
 
     if cfgs["trained_dataset_name"] == 'COCO':
-        dataset_classes_name = "COCO_CLASSES"
-        dataset_classes_color = "COCO_CLASSES_COLOR"
+        dataset_classes_name = COCO_CLASSES
+        dataset_classes_color = COCO_CLASSES_COLOR
     else:
         dataset_classes_name = VOC_CLASSES
         dataset_classes_color = VOC_CLASSES_COLOR
@@ -353,15 +352,15 @@ def inference(cfgs):
 
 if __name__ == "__main__":
     cfgs_dict = {
-        "trained_dataset_name": "VOC",
+        "trained_dataset_name": "COCO",
         "model": "resnet50_retinanet",
-        "image_path": r"D:\workspace\data\dl\test_images\image.jpg",
+        "image_path": r"D:\workspace\data\dl\test_images\dog.jpg",
         "image_resize_style": "yolostyle",
         "input_image_size": 640,
         "decoder": "RetinaDecoder",
         "seed": 0,
-        "trained_num_classes": 20,
-        "trained_model_path": r"D:\Desktop\resnet50_retinanet-voc-yoloresize640-metric80.674.pth",
+        "trained_num_classes": 80,
+        "trained_model_path": r"D:\Desktop\resnet50_retinanet-coco-yoloresize640-metric33.493.pth",
         "min_score_threshold": 0.5,
         "save_image_path": r"D:\Desktop\shows",
         "show_image": True

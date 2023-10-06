@@ -21,18 +21,21 @@ class DetectionCollater:
 
         pad_h = 0 if max_h % self.divisor == 0 else self.divisor - max_h % self.divisor
         pad_w = 0 if max_w % self.divisor == 0 else self.divisor - max_w % self.divisor
+
         input_images = np.zeros((len(images), max_h + pad_h, max_w + pad_w, 3),
                                 dtype=np.float32)
+
+        for i, image in enumerate(images):
+            input_images[i, 0:image.shape[0], 0:image.shape[1], :] = image
+
         input_images = torch.from_numpy(input_images)
-        # [B,H,W,3] -> [B,3,H,W]
-        input_images = input_images.permute(0, 3, 1, 2).contiguous()
+        # B H W 3 ->B 3 H W
+        input_images = input_images.permute(0, 3, 1, 2)
 
         max_annots_num = max(annot.shape[0] for annot in annots)
         if max_annots_num > 0:
-            input_annots = np.ones(
-                (len(annots), max_annots_num, 5), dtype=np.float32
-            )*(-1)
-            for i, annot in annots:
+            input_annots = np.ones((len(annots), max_annots_num, 5), dtype=np.float32) * (-1)
+            for i, annot in enumerate(annots):
                 if annot.shape[0] > 0:
                     input_annots[i, :annot.shape[0], :] = annot
         else:
