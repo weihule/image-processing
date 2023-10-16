@@ -6,10 +6,14 @@ import torch
 
 class IoUMethod:
     def __init__(self, iou_type="IoU", box_type='xyxy'):
+        """
+        xyxy type: [x_min, y_min, x_max. y_max]
+        xywh type: [x_center, y_center, w, h]
+        """
         assert iou_type in ['IoU', 'GIoU', 'CIoU', 'DIoU'], 'Wrong IoU Type'
         assert box_type in ['xyxy', 'xywh'], 'Wrong box_type'
         self.iou_type = iou_type
-        self.box_type = 'xyxy'
+        self.box_type = box_type
 
     def __call__(self, bboxes1, bboxes2):
         """
@@ -21,58 +25,33 @@ class IoUMethod:
             raise ValueError('two Tensor device should sample')
         res = torch.zeros((bboxes2.shape[0], bboxes1.shape[0])).to(bboxes2.device)
         if self.box_type == 'xywh':
-            pass
+            # transform format from [x_ctr,y_ctr,w,h] to xyxy
+            bboxes1_x1y1 = bboxes1[..., 0:2] - bboxes1[..., 2:4] / 2
+            bboxes1_x2y2 = bboxes1[..., 0:2] + bboxes1[..., 2:4] / 2
+            boxes1 = torch.cat([bboxes1_x1y1, bboxes1_x2y2], dim=1)
 
-        bboxes1_wh = torch.clamp(bboxes1[:, 2:] - bboxes1[:, :2], min=0)  # [N, 2]
-        bboxes2_wh = torch.clamp(bboxes2[:, 2:] - bboxes2[:, :2], min=0)  # [M, 2]
-        bboxes1_ctr = bboxes1[:, :2] + 0.5 * bboxes1_wh  # [N, 2]
-        bboxes2_ctr = bboxes2[:, :2] + 0.5 * bboxes2_wh  # [M, 2]
+            bboxes2_x1y1 = bboxes2[..., 0:2] - bboxes2[..., 2:4] / 2
+            bboxes2_x2y2 = bboxes2[..., 0:2] + bboxes2[..., 2:4] / 2
+            boxes2 = torch.cat([bboxes2_x1y1, bboxes2_x2y2], dim=1)
 
-        bboxes1_areas = bboxes1_wh[:, 0] * bboxes1_wh[:, 1]  # [N]
-        bboxes2_areas = bboxes2_wh[:, 0] * bboxes2_wh[:, 1]  # [M]
+        overlap_area_xymin = torch.max(boxes1[..., 0:2], boxes2[..., 0:2])
+        overlap_area_xymax = torch.min(boxes1[..., 2:4], boxes2[..., 2:4])
+        overlap_area_sizes = torch.clamp(overlap_area_xymax-overlap_area_xymin,
+                                         min=0)
+        overlap_area = overlap_area_sizes[..., 0] * overlap_area_sizes[..., 1]
 
-        for index, bb2 in enumerate(bboxes2):
-            overlap_xmin, overlap_ymin = torch.max(bboxes1[:, 0], bb2[0]), torch.max(bboxes1[:, 1], bb2[1])
-            overlap_xmax, overlap_ymax = torch.min(bboxes1[:, 2], bb2[2]), torch.min(bboxes1[:, 3], bb2[3])
-            overlap_size_w = torch.clamp(overlap_xmax - overlap_xmin, min=0)
-            overlap_size_h = torch.clamp(overlap_ymax - overlap_ymin, min=0)
-            overlap_areas = overlap_size_w * overlap_size_h
+        boxes1_wh = torch.clamp(boxes1[..., 2:4]-boxes1[..., 0:2], min=0)
+        boxes2_wh = torch.clamp(boxes2[..., 2:4]-boxes2[..., 0:2], min=0)
 
-            unions = bboxes1_areas + torch.tile(bboxes2_areas[index], (len(overlap_areas),)) - overlap_areas
-            ious = overlap_areas / unions
-            res[index, :] = ious
-        ious_src = res.clone()  # keep origin ious
+        boxes1_area = boxes1_wh[..., 0] * boxes1_wh[..., 1]
+        boxes2_area = boxes2_wh[..., 0] * boxes2_wh[..., 1]
+
+        union_area = boxes1_area + boxes2_area - overlap_area
+        union_area = torch.clamp(union_area, min=1e-4)
+        ious = overlap_area / union_area
 
         if self.iou_type == "IoU":
-            return res
-
-        if self.iou_type in ['GIoU', 'DIoU', 'CIoU', 'EIoU']:
-            if self.iou_type in ['DIoU', 'CIoU']:
-                for index2, bb2 in enumerate(bboxes2):
-                    enclose_xmin, enclose_ymin = torch.min(bboxes1[:, 0], bb2[0]), torch.min(bboxes1[:, 1], bb2[1])
-                    enclose_xmax, enclose_ymax = torch.max(bboxes1[:, 2], bb2[2]), torch.max(bboxes1[:, 3], bb2[3])
-
-                    # compute p1 and p2
-                    p2 = torch.pow(enclose_xmax - enclose_xmin, 2) + torch.pow(enclose_ymax - enclose_ymin, 2)
-                    p1 = torch.pow(bboxes1_ctr[:, 0] - bboxes2_ctr[index2][0], 2) + \
-                         torch.pow(bboxes1_ctr[:, 1] - bboxes2_ctr[index2][1], 2)
-                    # p1, p2 = p1.to(bboxes2.device), p2.to(bboxes2.device)
-                    res[index2] = res[index2] - p1 / p2
-                    if self.iou_type == 'CIoU':
-                        # compute v and alpha
-                        with torch.no_grad():
-                            v = (4 / (math.pi ** 2)) * \
-                                torch.pow(torch.arctan(bboxes2_wh[index2][0] / bboxes2_wh[index2][1]) -
-                                          torch.arctan(bboxes1_wh[:, 0] / bboxes1_wh[:, 1]), 2)  # [N]
-                            alpha = v / torch.clamp(1 - ious_src[index2] + v, min=1e-4)  # [N]
-                        v = (4 / (math.pi ** 2)) * \
-                            torch.pow(torch.arctan(bboxes2_wh[index2][0] / bboxes2_wh[index2][1]) -
-                                      torch.arctan(bboxes1_wh[:, 0] / bboxes1_wh[:, 1]), 2)  # [N]
-                        res[index2] = res[index2] - alpha * v
-                if self.iou_type == 'DIoU':
-                    return res
-                elif self.iou_type == 'CIoU':
-                    return res
+            return ious
 
 
 class IoUMethodNumpy:

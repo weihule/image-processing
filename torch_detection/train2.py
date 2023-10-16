@@ -15,6 +15,7 @@ from datasets.voc import VOCDetection
 from datasets.transform import *
 from datasets.collater import DetectionCollater
 
+
 # 设置环境变量
 os.environ['LOCAL_RANK'] = '1'
 os.environ['RANK'] = '0'  # 第一个进程的排名
