@@ -218,7 +218,7 @@ def test_video():
 
 
 if __name__ == "__main__":
-    video_p = r"D:\workspace\data\dl\test_images\1.mp4"
+    video_p = r"D:\workspace\data\dl\test_images\car.mp4"
     # video_p = 0
     cfgs_dict = {
         "trained_dataset_name": "COCO",
@@ -229,9 +229,9 @@ if __name__ == "__main__":
         "decoder": "RetinaDecoder",
         "seed": 0,
         "trained_num_classes": 80,
-        "trained_model_path": r"D:\Desktop\resnet50_retinanet-coco-yoloresize640-metric33.493.pth",
+        "trained_model_path": r"D:\Desktop\tempfile\weights\resnet50_retinanet-coco-yoloresize640-metric33.493.pth",
         "min_score_threshold": 0.5,
-        "save_video_path": r"D:\Desktop\shows",
+        "save_video_path": r"D:\Desktop\tempfile\shows",
         "show_video": True
     }
     inference(cfgs_dict)
