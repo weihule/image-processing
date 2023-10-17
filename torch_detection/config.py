@@ -1,23 +1,27 @@
 import os
 import sys
 
-from utils.util import Logger, AverageMeter, set_seed, worker_seed_init_fn, load_state_dict
+import torch
+import torchvision.transforms as transforms
+
 import models
 import decodes
+import losses
 from datasets.coco import CocoDetection
 from datasets.voc import VOCDetection
 from datasets.transform import *
 from datasets.collater import DetectionCollater
+from utils.util import Logger, AverageMeter, set_seed, worker_seed_init_fn, load_state_dict
 
-import torch
-import torchvision.transforms as transforms
 
+# COCO2017_path = '/root/autodl-tmp/COCO2017'
+# VOCdataset_path = '/root/autodl-tmp/VOCdataset'
 
 COCO2017_path = '/root/autodl-tmp/COCO2017'
-VOCdataset_path = '/root/autodl-tmp/VOCdataset'
+VOCdataset_path = r'D:\workspace\data\dl\VOCdataset'
 
 
-class config:
+class Cfg:
     network = 'resnet50_retinanet'
     num_classes = 80
     input_image_size = [640, 640]
@@ -29,10 +33,10 @@ class config:
     })
 
     # load total pretrained model or not
-    trained_model_path = ''
+    trained_model_path = None
     load_state_dict(trained_model_path, model)
 
-    train_criterion = losses.__dict__['RetinaLoss'](
+    train_criterion = losses.__dict__['RetinaLoss2'](
         **{
             'areas': [[32, 32], [64, 64], [128, 128], [256, 256], [512, 512]],
             'ratios': [0.5, 1, 2],
@@ -46,7 +50,7 @@ class config:
             'box_loss_weight': 1.,
             'box_loss_type': 'CIoU',
         })
-    test_criterion = losses.__dict__['RetinaLoss'](
+    test_criterion = losses.__dict__['RetinaLoss2'](
         **{
             'areas': [[32, 32], [64, 64], [128, 128], [256, 256], [512, 512]],
             'ratios': [0.5, 1, 2],
@@ -140,6 +144,7 @@ class config:
     batch_size = 8
     # num_workers is total workers
     num_workers = 16
+    gpus_num = 1
     accumulation_steps = 1
 
     optimizer = (
@@ -173,9 +178,13 @@ class config:
         0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95
     ]
     save_model_metric = 'IoU=0.50:0.95,area=all,maxDets=100,mAP'
+    work_dir = r"D:\workspace\data\training_data\retinanet"
+    save_dir = r"D:\workspace\data\training_data\retinanet"
 
     sync_bn = False
     apex = True
 
     use_ema_model = False
     ema_model_decay = 0.9999
+
+

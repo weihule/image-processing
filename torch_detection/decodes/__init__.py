@@ -1,4 +1,4 @@
-from .retina_decoder import *
+from .retina_decoder import RetinaDecoder
 from .decode_method import *
 
 
