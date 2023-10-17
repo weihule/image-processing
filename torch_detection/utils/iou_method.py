@@ -28,20 +28,20 @@ class IoUMethod:
             # transform format from [x_ctr,y_ctr,w,h] to xyxy
             bboxes1_x1y1 = bboxes1[..., 0:2] - bboxes1[..., 2:4] / 2
             bboxes1_x2y2 = bboxes1[..., 0:2] + bboxes1[..., 2:4] / 2
-            boxes1 = torch.cat([bboxes1_x1y1, bboxes1_x2y2], dim=1)
+            bboxes1 = torch.cat([bboxes1_x1y1, bboxes1_x2y2], dim=1)
 
             bboxes2_x1y1 = bboxes2[..., 0:2] - bboxes2[..., 2:4] / 2
             bboxes2_x2y2 = bboxes2[..., 0:2] + bboxes2[..., 2:4] / 2
-            boxes2 = torch.cat([bboxes2_x1y1, bboxes2_x2y2], dim=1)
+            bboxes2 = torch.cat([bboxes2_x1y1, bboxes2_x2y2], dim=1)
 
-        overlap_area_xymin = torch.max(boxes1[..., 0:2], boxes2[..., 0:2])
-        overlap_area_xymax = torch.min(boxes1[..., 2:4], boxes2[..., 2:4])
+        overlap_area_xymin = torch.max(bboxes1[..., 0:2], bboxes2[..., 0:2])
+        overlap_area_xymax = torch.min(bboxes1[..., 2:4], bboxes2[..., 2:4])
         overlap_area_sizes = torch.clamp(overlap_area_xymax-overlap_area_xymin,
                                          min=0)
         overlap_area = overlap_area_sizes[..., 0] * overlap_area_sizes[..., 1]
 
-        boxes1_wh = torch.clamp(boxes1[..., 2:4]-boxes1[..., 0:2], min=0)
-        boxes2_wh = torch.clamp(boxes2[..., 2:4]-boxes2[..., 0:2], min=0)
+        boxes1_wh = torch.clamp(bboxes1[..., 2:4]-bboxes1[..., 0:2], min=0)
+        boxes2_wh = torch.clamp(bboxes2[..., 2:4]-bboxes2[..., 0:2], min=0)
 
         boxes1_area = boxes1_wh[..., 0] * boxes1_wh[..., 1]
         boxes2_area = boxes2_wh[..., 0] * boxes2_wh[..., 1]
@@ -229,22 +229,33 @@ class IoUMethodMultiple:
 
 
 if __name__ == "__main__":
-    bb1s = torch.tensor([[10, 6, 15, 14], [5, 2, 10, 9], [7, 4, 12, 12], [17, 14, 20, 18],
-                             [6, 10, 18, 18], [8, 9, 14, 15], [2, 20, 5, 25], [11, 7, 15, 16],
-                             [8, 6, 13, 14], [10, 8, 23, 16], [10, 9, 24, 16]], dtype=torch.float32)
-    bb2s = torch.tensor([[6., 5., 17., 11.], [9., 8., 19., 15.]])
+    bb1s = torch.tensor([[10, 6, 15, 14],
+                         [5, 2, 10, 9],
+                         [7, 4, 12, 12],
+                         [17, 14, 20, 18],
+                         [6, 10, 18, 18],
+                         [8, 9, 14, 15],
+                         [2, 20, 5, 25],
+                         [11, 7, 15, 16],
+                         [8, 6, 13, 14],
+                         [10, 8, 23, 16],
+                         [10, 9, 24, 16]], dtype=torch.float32)
+    bb2s = torch.tensor([[6., 5., 17., 11.],
+                         [9., 8., 19., 15.]])
 
-    print(bb1s.unsqueeze(1).shape, bb2s.unsqueeze(0).shape)
     iou_method1 = IoUMethodMultiple()
     ious1 = iou_method1(bb1s.unsqueeze(1), bb2s.unsqueeze(0))
+    print(ious1, ious1.shape)
 
     iou_method2 = IoUMethodNumpy()
-    ious2 = iou_method2(bb1s, bb2s)
+    ious2 = iou_method2(bb1s.numpy(), bb2s.numpy())
     ious2 = ious2.transpose(1, 0)
-
-    # print(ious1, ious1.shape)
     print(ious2, ious2.shape)
-    # print(ious1 == ious2)
+
+    iou_method3 = IoUMethod()
+    ious3 = iou_method3(bb1s, bb2s)
+    print(ious3, ious3.shape)
+
     arr = [[0, 1, 2, 3], [4, 6, 7, 8]]
     arr += [[2, 3, 4, 5]]
     arr = np.stack(arr, axis=0)
