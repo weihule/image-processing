@@ -188,3 +188,17 @@ class Cfg:
     ema_model_decay = 0.9999
 
 
+if __name__ == "__main__":
+    from torch.utils.data import DataLoader
+    cfg = Cfg()
+    train_loader = DataLoader(cfg.train_dataset,
+                              batch_size=8,
+                              shuffle=True,
+                              pin_memory=True,
+                              drop_last=True,
+                              num_workers=2,
+                              collate_fn=cfg.train_collater)
+    for ds in train_loader:
+        print(type(ds))
+
+

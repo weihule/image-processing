@@ -36,7 +36,7 @@ class RandomHorizontalFlip:
             x2 = annots[:, 2].copy()
 
             annots[:, 0] = w - x2
-            annots[:, 1] = w - x1
+            annots[:, 2] = w - x1
 
         return {
             'image': image,
@@ -77,7 +77,7 @@ class RandomCrop:
             crop_ymax = min(
                 h, int(max_bbox[3] + np.random.uniform(0, max_down_trans)))
 
-            image = image[crop_ymin:crop_ymax, crop_xmin:crop_xmax, :]
+            image = image[crop_ymin:crop_ymax, crop_xmin:crop_xmax]
             # x_min 和 x_max
             annots[:, [0, 2]] = annots[:, [0, 2]] - crop_xmin
             annots[:, [1, 3]] = annots[:, [1, 3]] - crop_ymin

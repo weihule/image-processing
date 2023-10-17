@@ -12,7 +12,7 @@ BASE_DIR = os.path.dirname(
     os.path.dirname(
         os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
-print(BASE_DIR)
+# print(BASE_DIR)
 from models.anchor import RetinaAnchors
 from utils.iou_method import IoUMethod
 

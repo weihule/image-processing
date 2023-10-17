@@ -52,3 +52,6 @@ class DetectionCollater:
             'scale': scales,
             'size': sizes,
         }
+
+
+

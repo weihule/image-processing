@@ -95,8 +95,11 @@ class VOCDetection(Dataset):
         self.image_path = []
         self.annot_path = []
         for x1, x2 in self.ids:
-            self.image_path.append(Path(x1) / "JPEGImages" / (x2+".jpg"))
-            self.annot_path.append(Path(x1) / "Annotations" / (x2 + ".xml"))
+            img_p = Path(x1) / "JPEGImages" / (x2 + ".jpg")
+            ann_p = Path(x1) / "Annotations" / (x2 + ".xml")
+            assert img_p.exists(), f"{img_p} not exists !"
+            self.image_path.append(img_p)
+            self.annot_path.append(ann_p)
 
         self.transform = transform
 
@@ -154,7 +157,12 @@ class VOCDetection(Dataset):
                 continue
 
             # 剔除框超过图像边界的
-            if target[0] < 0 or target[1] < 0 or target[2] > w or target[3] > h:
+            if (target[0] < 0 or
+                    target[1] < 0 or
+                    target[2] > w or
+                    target[3] > h or
+                    target[2] < 0 or
+                    target[3] < 0):
                 continue
 
             if class_name not in self.cats:
@@ -170,6 +178,110 @@ class VOCDetection(Dataset):
             targets = np.array(targets)
 
         # [[x1, y1, x2, y2, voc_label], ...]
+        return targets.astype(np.float32)
+
+
+class VOCDetection2(Dataset):
+
+    def __init__(self,
+                 root_dir,
+                 image_sets=[('2007', 'trainval'), ('2012', 'trainval')],
+                 transform=None,
+                 keep_difficult=False):
+
+        self.annotpath = os.path.join('%s', 'Annotations', '%s.xml')
+        self.imagepath = os.path.join('%s', 'JPEGImages', '%s.jpg')
+
+        self.cats = VOC_CLASSES
+        self.num_classes = len(self.cats)
+
+        self.cat_to_voc_label = {cat: i for i, cat in enumerate(self.cats)}
+        self.voc_label_to_cat = {i: cat for i, cat in enumerate(self.cats)}
+
+        self.keep_difficult = keep_difficult
+
+        self.ids = []
+        for (year, name) in image_sets:
+            rootpath = os.path.join(root_dir, 'VOC' + year)
+            for line in open(
+                    os.path.join(rootpath, 'ImageSets', 'Main',
+                                 name + '.txt')):
+                self.ids.append((rootpath, line.strip()))
+
+        self.transform = transform
+
+        print(f'Dataset Size:{len(self.ids)}')
+        print(f'Dataset Class Num:{self.num_classes}')
+
+    def __len__(self):
+        return len(self.ids)
+
+    def __getitem__(self, idx):
+        image = self.load_image(idx)
+        annots = self.load_annots(idx)
+
+        scale = np.array(1.).astype(np.float32)
+        size = np.array([image.shape[0], image.shape[1]]).astype(np.float32)
+
+        sample = {
+            'image': image,
+            'annots': annots,
+            'scale': scale,
+            'size': size,
+        }
+
+        if self.transform:
+            sample = self.transform(sample)
+
+        return sample
+
+    def load_image(self, idx):
+        image = cv2.imdecode(
+            np.fromfile(self.imagepath % self.ids[idx], dtype=np.uint8),
+            cv2.IMREAD_COLOR)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        return image.astype(np.float32)
+
+    def load_annots(self, idx):
+        annots = ET.parse(self.annotpath % self.ids[idx]).getroot()
+
+        targets = []
+        size = annots.find('size')
+        h, w = int(size.find('height').text), int(size.find('width').text)
+        for obj in annots.iter('object'):
+            difficult = (int(obj.find('difficult').text) == 1)
+            if not self.keep_difficult and difficult:
+                continue
+
+            class_name = obj.find('name').text.lower().strip()
+            bbox = obj.find('bndbox')
+
+            pts = ['xmin', 'ymin', 'xmax', 'ymax']
+            target = []
+            for pt in pts:
+                cur_pt = float(bbox.find(pt).text)
+                target.append(cur_pt)
+
+            if target[2] - target[0] < 1 or target[3] - target[1] < 1:
+                continue
+
+            if target[0] < 0 or target[1] < 0 or target[2] > w or target[3] > h:
+                continue
+
+            if class_name not in self.cats:
+                continue
+
+            target.append(self.cat_to_voc_label[class_name])
+            # [xmin, ymin, xmax, ymax, voc_label]
+            targets += [target]
+
+        if len(targets) == 0:
+            targets = np.zeros((0, 5))
+        else:
+            targets = np.array(targets)
+
+        # format:[[x1, y1, x2, y2, voc_label], ... ]
         return targets.astype(np.float32)
 
 
