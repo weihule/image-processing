@@ -4,39 +4,79 @@ import torch.nn as nn
 import math
 
 __all__ = [
-    'init_scheduler',
-    'adjust_learning_rate'
+    'Scheduler'
 ]
 
+"""
+scheduler = (
+    'MultiStepLR',
+    {
+        'warm_up_epochs': 0,
+        'gamma': 0.1,
+        'milestones': [8, 12],
+    },
+)
 
-def adjust_learning_rate(optimizer, current_epoch, max_epoch, lr_min=0., lr_max=0.1, warmup_epoch=3, warmup=True):
-    if warmup:
-        warmup_epoch = warmup_epoch
-    else:
-        warmup_epoch = 0
-
-    if current_epoch < warmup_epoch:
-        # 如果当前epoch为0, current_epoch就赋值为0.1
-        current_epoch = 0.1 if current_epoch == 0 else current_epoch
-        lr = lr_max * current_epoch / warmup_epoch
-    else:
-        lr = lr_min + (lr_max - lr_min) * (
-                    1 + math.cos(math.pi * (current_epoch - warmup_epoch) / (max_epoch - warmup_epoch))) / 2
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+optimizer = (
+    'AdamW',
+    {
+        'lr': 1e-4,
+        'global_weight_decay': False,
+        # if global_weight_decay = False
+        # all bias, bn and other 1d params weight set to 0 weight decay
+        'weight_decay': 1e-3,
+        'no_weight_decay_layer_name_list': [],
+    },
+)
+"""
 
 
-def init_scheduler(scheduler, optimizer, step_size, gamma, args):
-    if scheduler == 'step_lr':
-        # 每 step 个epoch之后, lr 衰减为 lr * gamma (gamma一般为0.1)
-        return torch.optim.lr_scheduler.StepLR(optimizer=optimizer,
-                                               step_size=step_size,
-                                               gamma=gamma)
-    elif scheduler == 'cosine_annealing_lr':
-        return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                          T_max=args.max_epoch)
-    else:
-        raise KeyError('Unsupported scheduler: {}'.format(scheduler))
+class Scheduler:
+    def __init__(self, cfgs):
+        self.scheduler_name = cfgs.scheduler[0]
+        self.scheduler_parameters = cfgs.scheduler[1]
+        self.warm_up_epochs = self.scheduler_parameters['warm_up_epochs']
+
+        self.epochs = cfgs.epochs
+
+        self.optimizer_parameters = cfgs.optimizer[1]
+        self.lr = self.optimizer_parameters['lr']
+        self.current_lr = self.lr
+
+        assert self.scheduler_name in ['MultiStepLR', 'CosineLR',
+                                       'PolyLR'], 'Unsupported scheduler!'
+        assert self.warm_up_epochs >= 0, 'Illegal warm_up_epochs!'
+        assert self.epochs > 0, 'Illegal epochs!'
+
+    def step(self, optimizer, epoch):
+        if self.scheduler_name == 'MultiStepLR':
+            gamma = self.scheduler_parameters['gamma']
+            milestones = self.scheduler_parameters['milestones']
+            if epoch < self.warm_up_epochs:
+                self.current_lr = epoch / self.warm_up_epochs * self.lr
+            else:
+                self.current_lr = gamma**len([m for m in milestones if m <= epoch]) * self.lr
+
+        elif self.scheduler_name == 'CosineLR':
+            min_lr = 0. if 'min_lr' not in self.scheduler_parameters.keys() else self.scheduler_parameters['min_lr']
+            if epoch < self.warm_up_epochs:
+                self.current_lr = epoch / self.warm_up_epochs * self.lr
+            else:
+                self.current_lr = 0.5 * (math.cos((epoch - self.warm_up_epochs) / (
+                        self.epochs - self.warm_up_epochs) * math.pi) + 1) * (
+                        self.lr - min_lr) + min_lr
+
+        for param_group in optimizer.param_groups:
+            if "lr_scale" in param_group:
+                param_group["lr"] = self.current_lr * param_group["lr_scale"]
+            else:
+                param_group["lr"] = self.current_lr
+
+    def state_dict(self):
+        return {key: value for key, value in self.__dict__.items()}
+
+    def load_state_dict(self, state_dict):
+        self.__dict__.update(state_dict)
 
 
 class DeBugModel(nn.Module):
@@ -100,6 +140,17 @@ def de_bug_main():
     plt.show()
 
 
+class MyClass:
+    def __init__(self):
+        self.my_attribute = 42
+
+
+def test():
+    dd = MyClass()
+    print(dd.__dict__)
+
+
 if __name__ == "__main__":
-    de_bug_main()
+    # de_bug_main()
+    test()
 
