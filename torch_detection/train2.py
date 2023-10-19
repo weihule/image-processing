@@ -14,15 +14,15 @@ from datasets.coco import CocoDetection
 from datasets.voc import VOCDetection
 from datasets.transform import *
 from datasets.collater import DetectionCollater
-from config import Cfg
+import config as cfg
 
 
 def main():
     assert torch.cuda.is_available(), "need gpu to train network!"
     torch.cuda.empty_cache()
     print("start")
-    cfg = Cfg()
     log_dir = os.path.join(cfg.work_dir, 'log')
+    print("work_dir = ", cfg.work_dir)
     checkpoint_dir = os.path.join(cfg.work_dir, 'checkpoints')
     resume_model = os.path.join(checkpoint_dir, 'latest.pth')
     sys.stdout = Logger(os.path.join(cfg.save_dir, 'train.log'))
@@ -30,17 +30,18 @@ def main():
     gpus_type = torch.cuda.get_device_name()
     gpus_num = torch.cuda.device_count()
 
-    set_seed(cfg.seed)
+    set_seed(0)
 
     os.makedirs(
         checkpoint_dir) if not os.path.exists(checkpoint_dir) else None
     os.makedirs(log_dir) if not os.path.exists(log_dir) else None
 
-    batch_size, num_workers = cfg.batch_size, cfg.num_workers
-    assert cfg.batch_size % cfg.gpus_num == 0, 'config.batch_size is not divisible by config.gpus_num!'
-    assert cfg.num_workers % cfg.gpus_num == 0, 'config.num_workers is not divisible by config.gpus_num!'
-    batch_size = int(cfg.batch_size // cfg.gpus_num)
-    num_workers = int(cfg.num_workers // cfg.gpus_num)
+    batch_size, num_workers = 8, 4
+    # batch_size, num_workers = cfg.batch_size, cfg.num_workers
+    assert batch_size % gpus_num == 0, 'config.batch_size is not divisible by config.gpus_num!'
+    assert num_workers % gpus_num == 0, 'config.num_workers is not divisible by config.gpus_num!'
+    batch_size = int(batch_size // gpus_num)
+    num_workers = int(num_workers // gpus_num)
 
     train_loader = DataLoader(cfg.train_dataset,
                               batch_size=batch_size,
@@ -49,17 +50,19 @@ def main():
                               drop_last=True,
                               num_workers=num_workers,
                               collate_fn=cfg.train_collater)
-    # test_loader = DataLoader(cfg.test_dataset,
-    #                          batch_size=batch_size,
-    #                          shuffle=False,
-    #                          pin_memory=True,
-    #                          num_workers=num_workers,
-    #                          collate_fn=cfg.test_collater)
-
-    train_dataset = cfg.train_dataset
-    print(len(train_dataset))
-    d = train_dataset[2]
-    print(type(d))
+    test_loader = DataLoader(cfg.test_dataset,
+                             batch_size=batch_size,
+                             shuffle=False,
+                             pin_memory=True,
+                             num_workers=num_workers,
+                             collate_fn=cfg.test_collater)
+    model = cfg.model.cuda()
+    decoder = cfg.decoder
+    print('---', len(train_loader))
+    for idx, ds in enumerate(train_loader):
+        print(idx, len(ds))
+        if idx == 2:
+            break
 
 
 if __name__ == "__main__":
