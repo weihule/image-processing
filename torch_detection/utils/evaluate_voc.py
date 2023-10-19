@@ -3,9 +3,7 @@ from torch import Tensor
 import numpy as np
 from PIL import Image, ImageDraw
 import matplotlib.pylab as plt
-from custom_dataset import DataPrefetcher, collater
 from torch.utils.data import DataLoader
-from iou_method import IoUMethod, IoUMethodNumpy, IoUMethodDemo
 
 
 def get_iou(bbox1, bbox2):

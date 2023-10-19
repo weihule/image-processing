@@ -44,7 +44,6 @@ class RetinaDecoder:
             topn=topn,
             nms_type=nms_type,
             nms_threshold=nms_threshold)
-        print("in RetinaDecoder")
 
     def __call__(self, preds):
         # cls_heads shape:[[B, 80, 80, 9, 80],[B, 40, 40, 9, 80],[B, 20, 20, 9, 80],[B, 10, 10, 9, 80],[B, 5, 5, 9, 80]]
