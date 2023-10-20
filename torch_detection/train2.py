@@ -19,7 +19,9 @@ from utils.schedulers import Scheduler
 from utils.evaluate_coco import evaluate_coco_detection
 
 
-def train_detection(train_loader: DataLoader, model, criterion, optimizer, config):
+def train_detection(train_loader: DataLoader,
+                    model,
+                    criterion, optimizer, scheduler, epoch, config):
     losses = AverageMeter()
     model.train()
 
@@ -61,8 +63,6 @@ def train_detection(train_loader: DataLoader, model, criterion, optimizer, confi
 
         loss.backward()
 
-        losses.update(loss.item(), images.size(0))
-
         if hasattr(config, 'accumulation_steps') and config.accumulation_steps > 1:
             if iter_index % config.accumulation_steps == 0:
                 optimizer.step()
@@ -70,6 +70,20 @@ def train_detection(train_loader: DataLoader, model, criterion, optimizer, confi
         else:
             optimizer.step()
             optimizer.zero_grad()
+
+        losses.update(loss.item(), images.size(0))
+
+        if hasattr(config, 'accumulation_steps') and config.accumulation_steps > 1:
+            if iter_index % config.accumulation_steps == 0:
+                scheduler.step(optimizer, iter_index / iters + (epoch - 1))
+        else:
+            scheduler.step(optimizer, iter_index / iters + (epoch - 1))
+
+        if iter_index % config.print_interval == 0:
+            log_info = f'train: epoch {epoch:0>4d}, iter [{iter_index:0>5d}, {iters:0>5d}], lr: {scheduler.current_lr:.6f}, total_loss: {loss:.4f}, '
+            for key, value in loss_value.items():
+                log_info += f'{key}: {value:.4f}, '
+            print(log_info)
 
         iter_index += 1
 
