@@ -17,7 +17,7 @@ def init_optimizer(optim, params, lr, weight_decay):
 
 
 """
-optsµÄ¸ñÊ½:
+opts:
 optimizer = (
     'AdamW',
     {
