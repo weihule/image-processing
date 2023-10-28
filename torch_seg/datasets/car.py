@@ -2,6 +2,7 @@ import torch
 import cv2
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
 import os
 from pathlib import Path
 from torch.utils.data import Dataset
@@ -40,7 +41,6 @@ class CarDataset(Dataset):
             res = unique_mask_values(i, self.mask_dir, self.mask_suffix)
             unique.append(res)
         self.mask_values = list(sorted(np.unique(np.concatenate(unique), axis=0).tolist()))
-        print(self.mask_values)
 
     def __getitem__(self, idx):
         name = self.ids[idx]
@@ -53,8 +53,20 @@ class CarDataset(Dataset):
         mask = load_image(mask_file[0])
         img = load_image(img_file[0])
 
+        # 如果两者尺寸不一致报错
         assert img.size == mask.size, \
             f'Image and mask {name} should be the same size, but are {img.size} and {mask.size}'
+
+        img = self.preprocess(self.mask_values, img, self.scale, is_mask=False)
+        mask = self.preprocess(self.mask_values, mask, self.scale, is_mask=True)
+
+        img = torch.as_tensor(img.copy()).float().contiguous()
+        mask = torch.as_tensor(mask.copy()).long().contiguous()
+
+        return {
+            'image': img,
+            'mask': mask
+        }
 
     def __len__(self):
         return len(self.ids)
@@ -70,7 +82,7 @@ class CarDataset(Dataset):
         img = np.array(pil_img)
 
         if is_mask:
-            mask = np.zeros((new_w, new_h), dtype=np.int64)
+            mask = np.zeros((new_h, new_w), dtype=np.int64)
             for i, v in enumerate(mask_values):
                 if img.ndim == 2:
                     mask[img == v] = i
@@ -83,6 +95,7 @@ class CarDataset(Dataset):
             else:
                 img = img.transpose((2, 0, 1))
 
+            # TODO： 这里应该是已经做了标准化
             if (img > 1).any():
                 img = img / 255.
 
@@ -93,4 +106,9 @@ if __name__ == "__main__":
     car = CarDataset(images_dir=r"D:\workspace\data\dl\car\img",
                      mask_dir=r"D:\workspace\data\dl\car\mask",
                      mask_suffix="_mask")
-    car[10]
+    data = car[10]
+    image = data["image"]
+    print(image.shape)
+    print(image)
+
+
