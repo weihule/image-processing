@@ -31,8 +31,7 @@ def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')
     parser.add_argument('--epochs', '-e', metavar='E', type=int, default=5, help='Number of epochs')
     parser.add_argument('--batch-size', '-b', type=int, default=2, help='Batch size')
-    parser.add_argument('--learning-rate', '-l', type=float, default=1e-5,
-                        help='Learning rate', dest='lr')
+    parser.add_argument('--learning-rate', '-l', type=float, default=1e-5, help='Learning rate')
     parser.add_argument('--load', '-f', type=str, default=False, help='Load model from a .pth file')
     parser.add_argument('--scale', '-s', type=float, default=0.5, help='Downscaling factor of the images')
     parser.add_argument('--validation', '-v', dest='val', type=float, default=10.0,
@@ -105,15 +104,36 @@ def main(args):
                             pin_memory=True,
                             drop_last=False)
 
+    save_checkpoint = True
+    img_scale = 0.5
     experiment = wandb.init(project="U-Net", resume="")
-    for ds in train_loader:
-        image = ds["image"]
-        mask = ds["mask"]
-        print(image.shape, mask.shape)
+    experiment.config.update(
+        dict(epochs=args.epochs, batch_size=args.batch_size,
+             learning_rate=args.learning_rate,
+             val_percent=val_percent,
+             save_checkpoint=save_checkpoint,
+             img_scale=img_scale, amp=args.amp)
+    )
+
+    logging.info(f'''Starting training:
+        Epochs:          {args.epochs}
+        Batch size:      {args.batch_size}
+        Learning rate:   {args.learning_rate}
+        Training size:   {n_train}
+        Validation size: {n_val}
+        Checkpoints:     {save_checkpoint}
+        Device:          {device}
+        Images scaling:  {img_scale}
+        Mixed Precision: {args.amp}
+    ''')
+
+
+
 
 
 def run():
     args = get_args()
+    print(args)
     main(args)
 
 

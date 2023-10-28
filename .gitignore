@@ -12,6 +12,7 @@ __pycache__/
 */.idea/
 */*/runs/
 torch_detection/*/show_images/*
+torch_seg/wandb/
 torch_reID/deep-person-reid/reid-data/*/*/
 */*.log
 */*/*.log
