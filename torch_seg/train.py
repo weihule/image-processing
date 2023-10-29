@@ -46,6 +46,7 @@ def get_args():
 def train_model(
         model,
         device,
+        train_loader,
         epochs: int = 5,
         batch_size: int = 1,
         learning_rate: float = 1e-5,
@@ -57,8 +58,21 @@ def train_model(
         momentum: float = 0.999,
         gradient_clipping: float = 1.0,
 ):
-    pass
+    model.train()
+    epoch_loss = 0
+    for batch in tqdm(train_loader):
+        images, true_masks = batch['image'], batch['mask']
+        assert images.shape[1] == model.n_channels, \
+            f'Network has been defined with {model.n_channels} input channels, ' \
+            f'but loaded images have {images.shape[1]} channels. Please check that ' \
+            'the images are loaded correctly.'
+        images = images.to(device=device)
+        true_masks = true_masks.to(device=device)
 
+        with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
+            masks_pred = model(images)
+            print(masks_pred.shape)
+        break
 
 def main(args):
     logger.add("my_log.log", rotation="500 MB", level="INFO")
@@ -106,7 +120,9 @@ def main(args):
 
     save_checkpoint = True
     img_scale = 0.5
-    experiment = wandb.init(project="U-Net", resume="")
+
+    # Initialize logging
+    experiment = wandb.init(project="U-Net", resume="allow", anonymous='must')
     experiment.config.update(
         dict(epochs=args.epochs, batch_size=args.batch_size,
              learning_rate=args.learning_rate,
@@ -127,8 +143,27 @@ def main(args):
         Mixed Precision: {args.amp}
     ''')
 
+    # set up the optimizer and scheduler
+    weight_decay = 1e-8
+    momentum = 0.99
+    optimizer = optim.Adam(model.parameters(),
+                           lr=args.learning_rate,
+                           weight_decay=weight_decay)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
+    grad_scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
+    criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
+    global_step = 0
 
-
+    epochs = 5
+    for epoch in range(1, epochs + 1):
+        train_model(
+            model=model,
+            device=device,
+            train_loader=train_loader,
+            epochs=epochs,
+            batch_size=args.batch_size,
+            learning_rate=args.learning_rate,
+        )
 
 
 def run():
