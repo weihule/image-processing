@@ -5,7 +5,6 @@ import os
 import random
 import sys
 from tqdm import tqdm
-import wandb
 from loguru import logger
 
 import torch
@@ -17,20 +16,26 @@ from torch.utils.data import DataLoader, random_split
 
 from datasets import CarDataset
 from models import UNet
+from losses import dice_loss
 
 # dir_img = r'/root/autodl-tmp/car/img'
 # dir_mask = r'/root/autodl-tmp/car/mask'
 # dir_checkpoint = './checkpoints/'
 
-dir_img = r'D:\workspace\data\dl\car\img'
-dir_mask = r'D:\workspace\data\dl\car\mask'
+dir_img = r'/home/8TDISK/weihule/data/car/img'
+dir_mask = r'/home/8TDISK/weihule/data/car/mask'
 dir_checkpoint = './checkpoints/'
+
+
+# dir_img = r'D:\workspace\data\dl\car\img'
+# dir_mask = r'D:\workspace\data\dl\car\mask'
+# dir_checkpoint = './checkpoints/'
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')
     parser.add_argument('--epochs', '-e', metavar='E', type=int, default=5, help='Number of epochs')
-    parser.add_argument('--batch-size', '-b', type=int, default=2, help='Batch size')
+    parser.add_argument('--batch-size', '-b', type=int, default=1, help='Batch size')
     parser.add_argument('--learning-rate', '-l', type=float, default=1e-5, help='Learning rate')
     parser.add_argument('--load', '-f', type=str, default=False, help='Load model from a .pth file')
     parser.add_argument('--scale', '-s', type=float, default=0.5, help='Downscaling factor of the images')
@@ -47,12 +52,10 @@ def train_model(
         model,
         device,
         train_loader,
-        epochs: int = 5,
-        batch_size: int = 1,
-        learning_rate: float = 1e-5,
-        val_percent: float = 0.1,
-        save_checkpoint: bool = True,
-        img_scale: float = 0.5,
+        criterion,
+        optimizer,
+        scheduler,
+        grad_scaler,
         amp: bool = False,
         weight_decay: float = 1e-8,
         momentum: float = 0.999,
@@ -71,8 +74,47 @@ def train_model(
 
         with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
             masks_pred = model(images)
-            print(masks_pred.shape)
+            print(masks_pred.shape, true_masks.shape)
+            if model.n_classes == 1:
+                loss = criterion(masks_pred.squeeze(1), true_masks.float())
+                loss += dice_loss(F.sigmoid(masks_pred.squeeze(1)),
+                                  true_masks.float(),
+                                  multiclass=False)
+            else:
+                loss = criterion(masks_pred, true_masks)
+                loss += dice_loss(
+                    F.softmax(masks_pred, dim=1).float(),
+                    F.one_hot(true_masks, model.n_classes).permute(0, 3, 1, 2).float(),
+                    multiclass=True
+                )
+        optimizer.zero_grad(set_to_none=True)
+        grad_scaler.scale(loss).backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping)
+        grad_scaler.step(optimizer)
+        grad_scaler.update()
+
+        epoch_loss += loss.item()
         break
+    return epoch_loss
+
+
+@torch.inference_mode()
+def evaluate(model, dataloader, device, amp):
+    # 验证模式
+    model.eval()
+    num_val_batches = len(dataloader)
+
+    with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
+        for batch in tqdm(dataloader, total=num_val_batches, desc='Validation round', unit='batch', leave=False):
+            image, mask_true = batch['image'], batch['mask']
+            image, mask_true = image.to(device), mask_true.to(device)
+
+            mask_pred = model(image)
+
+            if model.n_classes == 1:
+                assert mask_true.min() >= 0 and mask_true.max() <= 1, 'True mask indices should be in [0, 1]'
+                mask_pred = (F.sigmoid(mask_pred) > 0.5).float()
+                dice_sacre += dice_coeff()
 
 def main(args):
     logger.add("my_log.log", rotation="500 MB", level="INFO")
@@ -121,16 +163,6 @@ def main(args):
     save_checkpoint = True
     img_scale = 0.5
 
-    # Initialize logging
-    experiment = wandb.init(project="U-Net", resume="allow", anonymous='must')
-    experiment.config.update(
-        dict(epochs=args.epochs, batch_size=args.batch_size,
-             learning_rate=args.learning_rate,
-             val_percent=val_percent,
-             save_checkpoint=save_checkpoint,
-             img_scale=img_scale, amp=args.amp)
-    )
-
     logging.info(f'''Starting training:
         Epochs:          {args.epochs}
         Batch size:      {args.batch_size}
@@ -156,14 +188,19 @@ def main(args):
 
     epochs = 5
     for epoch in range(1, epochs + 1):
-        train_model(
+        mean_loss = train_model(
             model=model,
             device=device,
             train_loader=train_loader,
+            criterion=criterion,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            grad_scaler=grad_scaler,
             epochs=epochs,
             batch_size=args.batch_size,
             learning_rate=args.learning_rate,
         )
+        break
 
 
 def run():
@@ -172,5 +209,13 @@ def run():
     main(args)
 
 
+def test(num):
+    num = num - 5
+    return num
+
+
 if __name__ == "__main__":
-    run()
+    # run()
+    a = 10
+    n = test(a)
+    print(f"a = {a}  n = {n}")
