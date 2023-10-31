@@ -3,7 +3,8 @@ from torch import Tensor
 
 __all__ = [
     "dice_loss",
-    "dice_coeff"
+    "dice_coeff",
+    "multiclass_dice_coeff"
 ]
 
 

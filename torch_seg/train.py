@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader, random_split
 
 from datasets import CarDataset
 from models import UNet
-from losses import dice_loss
+from losses import dice_loss, dice_coeff, multiclass_dice_coeff
 
 # dir_img = r'/root/autodl-tmp/car/img'
 # dir_mask = r'/root/autodl-tmp/car/mask'
@@ -24,7 +24,7 @@ from losses import dice_loss
 
 dir_img = r'/home/8TDISK/weihule/data/car/img'
 dir_mask = r'/home/8TDISK/weihule/data/car/mask'
-dir_checkpoint = './checkpoints/'
+dir_checkpoint = '/home/8TDISK/weihule/training_data/seg/unet_1.0/'
 
 
 # dir_img = r'D:\workspace\data\dl\car\img'
@@ -55,10 +55,9 @@ def train_model(
         criterion,
         optimizer,
         scheduler,
+        epoch,
         grad_scaler,
         amp: bool = False,
-        weight_decay: float = 1e-8,
-        momentum: float = 0.999,
         gradient_clipping: float = 1.0,
 ):
     model.train()
@@ -94,7 +93,7 @@ def train_model(
         grad_scaler.update()
 
         epoch_loss += loss.item()
-        break
+        # break
     return epoch_loss
 
 
@@ -103,6 +102,7 @@ def evaluate(model, dataloader, device, amp):
     # 验证模式
     model.eval()
     num_val_batches = len(dataloader)
+    dice_score = 0
 
     with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
         for batch in tqdm(dataloader, total=num_val_batches, desc='Validation round', unit='batch', leave=False):
@@ -113,8 +113,18 @@ def evaluate(model, dataloader, device, amp):
 
             if model.n_classes == 1:
                 assert mask_true.min() >= 0 and mask_true.max() <= 1, 'True mask indices should be in [0, 1]'
-                mask_pred = (F.sigmoid(mask_pred) > 0.5).float()
-                dice_sacre += dice_coeff()
+                mask_pred = (F.sigmoid(mask_pred) > 0.5)
+                dice_score += dice_coeff(mask_pred, mask_true, reduce_batch_first=False)
+            else:
+                assert mask_true.min() >= 0 and mask_true.max() < model.n_classes, 'True mask indices should be in [0, n_classes['
+                # convert to one-hot format
+                mask_true = F.one_hot(mask_true, model.n_classes).permute(0, 3, 1, 2).float()
+                mask_pred = F.one_hot(mask_pred.argmax(dim=1), model.n_classes).permute(0, 3, 1, 2).float()
+                # compute the Dice score, ignoring background
+                dice_score += multiclass_dice_coeff(mask_pred[:, 1:], mask_true[:, 1:], reduce_batch_first=False)
+
+    return dice_score / max(num_val_batches, 1)
+
 
 def main(args):
     logger.add("my_log.log", rotation="500 MB", level="INFO")
@@ -163,7 +173,7 @@ def main(args):
     save_checkpoint = True
     img_scale = 0.5
 
-    logging.info(f'''Starting training:
+    logger.info(f'''Starting training:
         Epochs:          {args.epochs}
         Batch size:      {args.batch_size}
         Learning rate:   {args.learning_rate}
@@ -186,6 +196,7 @@ def main(args):
     criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
     global_step = 0
 
+    save_interval = 2
     epochs = 5
     for epoch in range(1, epochs + 1):
         mean_loss = train_model(
@@ -196,16 +207,23 @@ def main(args):
             optimizer=optimizer,
             scheduler=scheduler,
             grad_scaler=grad_scaler,
-            epochs=epochs,
-            batch_size=args.batch_size,
-            learning_rate=args.learning_rate,
+            epoch=epoch,
         )
-        break
+        if epoch % save_interval == 0 or epoch == epochs:
+            val_score = evaluate(model, val_loader, device, args.amp)
+            scheduler.step(val_score)
+            logger.info('Validation Dice score: {}'.format(val_score))
+
+        if save_checkpoint:
+            Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
+            state_dict = model.state_dict()
+            state_dict['mask_values'] = dataset.mask_values
+            torch.save(state_dict, str(Path(dir_checkpoint) / 'checkpoint_epoch{}.pth'.format(epoch)))
+            logger.info(f'Checkpoint {epoch} saved!')
 
 
 def run():
     args = get_args()
-    print(args)
     main(args)
 
 
@@ -215,7 +233,4 @@ def test(num):
 
 
 if __name__ == "__main__":
-    # run()
-    a = 10
-    n = test(a)
-    print(f"a = {a}  n = {n}")
+    run()
