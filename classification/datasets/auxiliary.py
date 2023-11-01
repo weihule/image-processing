@@ -5,23 +5,38 @@ import numpy as np
 import cv2
 from torch.utils.data import Dataset
 
+AuxiliaryClass = [
+    "人员照片",
+    "偏航减速机",
+    "偏航制动盘",
+    "冷却管路",
+    "动力电缆",
+    "发电机散热器上",
+    "发电机散热器下",
+    "发电机集油盒",
+    "变桨轴承",
+    "变流器检查",
+    "塔基水冷系统与发电机水冷压力表",
+    "塔筒螺栓",
+    "润滑油量",
+    "滑环",
+    "联轴器",
+    "齿轮箱润滑管路",
+]
 
-class Flower5(Dataset):
+
+class AuxiliaryDataset(Dataset):
     def __init__(self,
                  root_dir,
                  set_name='train',
-                 class_file=None,
                  transform=None):
-        super(Flower5, self).__init__()
+        super(AuxiliaryDataset, self).__init__()
         assert set_name in ["train", "val"], "wrong set_name !"
         if not Path(root_dir).exists():
             raise FileExistsError(f"{root_dir} not exists !")
 
-        if class_file is None or not Path(class_file).exists():
-            raise FileNotFoundError(f"{class_file} not found !")
-
-        img_paths, labels, idx2cls = self.prepare_data(root_dir, set_name, class_file)
-        self.img_paths, self.labels, self.idx2cls = img_paths, labels, idx2cls
+        img_paths, labels = self.prepare_data(root_dir, set_name)
+        self.img_paths, self.labels = img_paths, labels
 
         self.transform = transform
         print("=> {}".format(set_name))
@@ -46,23 +61,18 @@ class Flower5(Dataset):
         return len(self.img_paths)
 
     @staticmethod
-    def prepare_data(root_dir, set_name, class_file):
-        # 获取各类别的索引
-        with open(class_file, "r", encoding="utf-8") as fr:
-            cls2idx = json.load(fr)
-        idx2cls = {v: k for k, v in cls2idx.items()}
-
+    def prepare_data(root_dir, set_name):
         # 获取图片路径 和 对应的label
         paths, labels = [], []
         for idx, sub_class_dir in enumerate(Path(root_dir).joinpath(set_name).iterdir()):
-            label = cls2idx[sub_class_dir.parts[-1]]
-            labels.extend([label] * len(list(sub_class_dir.glob("*"))))
+            label = AuxiliaryClass.index(sub_class_dir.parts[-1])
             for per_image_path in sub_class_dir.iterdir():
                 if per_image_path.exists():
                     paths.append(str(per_image_path))
+                    labels.append(label)
                 else:
-                    paths.append(-1)
-        return paths, labels, idx2cls
+                    continue
+        return paths, labels
 
     def load_image(self, item):
         image_path = self.img_paths[item]
@@ -77,17 +87,16 @@ class Flower5(Dataset):
         return np.asarray(label, dtype=np.float32)
 
 
-def test02():
-    root_dir = r"D:\workspace\data\dl\flower"
+def test():
+    image_root = r"D:\workspace\MyData\巡检230104test1"
     set_name = "train"
     class_file = r"D:\workspace\data\dl\flower\flower.json"
-    flower5 = Flower5(root_dir=root_dir,
-                      set_name=set_name,
-                      transform=None,
-                      class_file=class_file)
-    sample = flower5[0]
+    aux = AuxiliaryDataset(root_dir=image_root,
+                           set_name=set_name,
+                           transform=None)
+    sample = aux[10]
     image, label = sample["image"], sample["label"]
-    print(label, flower5.idx2cls[int(label)], image.shape)
+    print(label, AuxiliaryClass[int(label)], image.shape)
     image = image.astype(np.uint8)
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     cv2.imshow("res", image)
@@ -95,4 +104,4 @@ def test02():
 
 
 if __name__ == "__main__":
-    test02()
+    test()

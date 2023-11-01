@@ -219,7 +219,7 @@ def main(args):
             state_dict = model.state_dict()
             state_dict['mask_values'] = dataset.mask_values
             torch.save(state_dict, str(Path(dir_checkpoint) / 'checkpoint_epoch{}.pth'.format(epoch)))
-            logger.info(f'Checkpoint {epoch} saved!')
+            logger.info(f'{len(state_dict.keys())} Checkpoint {epoch} saved!')
 
 
 def run():
