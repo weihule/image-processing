@@ -54,47 +54,54 @@ def train_model(
         train_loader,
         criterion,
         optimizer,
-        scheduler,
         epoch,
+        epochs,
+        n_train,
         grad_scaler,
         amp: bool = False,
         gradient_clipping: float = 1.0,
 ):
     model.train()
-    epoch_loss = 0
-    for batch in tqdm(train_loader):
-        images, true_masks = batch['image'], batch['mask']
-        assert images.shape[1] == model.n_channels, \
-            f'Network has been defined with {model.n_channels} input channels, ' \
-            f'but loaded images have {images.shape[1]} channels. Please check that ' \
-            'the images are loaded correctly.'
-        images = images.to(device=device)
-        true_masks = true_masks.to(device=device)
+    mean_loss = 0.
+    with tqdm(total=n_train, desc=f"Epoch {epoch}/{epochs}", unit="image") as pbar:
+        for batch in train_loader:
+            images, true_masks = batch['image'], batch['mask']
+            assert images.shape[1] == model.n_channels, \
+                f'Network has been defined with {model.n_channels} input channels, ' \
+                f'but loaded images have {images.shape[1]} channels. Please check that ' \
+                'the images are loaded correctly.'
+            images = images.to(device=device)
+            true_masks = true_masks.to(device=device)
 
-        with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
-            masks_pred = model(images)
-            print(masks_pred.shape, true_masks.shape)
-            if model.n_classes == 1:
-                loss = criterion(masks_pred.squeeze(1), true_masks.float())
-                loss += dice_loss(F.sigmoid(masks_pred.squeeze(1)),
-                                  true_masks.float(),
-                                  multiclass=False)
-            else:
-                loss = criterion(masks_pred, true_masks)
-                loss += dice_loss(
-                    F.softmax(masks_pred, dim=1).float(),
-                    F.one_hot(true_masks, model.n_classes).permute(0, 3, 1, 2).float(),
-                    multiclass=True
-                )
-        optimizer.zero_grad(set_to_none=True)
-        grad_scaler.scale(loss).backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping)
-        grad_scaler.step(optimizer)
-        grad_scaler.update()
+            with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
+                masks_pred = model(images)
+                # masks_pred.shape, true_masks.shape
+                # torch.Size([1, 2, 1280, 1918]) torch.Size([1, 1280, 1918])
+                if model.n_classes == 1:
+                    loss = criterion(masks_pred.squeeze(1), true_masks.float())
+                    loss += dice_loss(F.sigmoid(masks_pred.squeeze(1)),
+                                      true_masks.float(),
+                                      multiclass=False)
+                else:
+                    loss = criterion(masks_pred, true_masks)
+                    loss += dice_loss(
+                        F.softmax(masks_pred, dim=1).float(),
+                        F.one_hot(true_masks, model.n_classes).permute(0, 3, 1, 2).float(),
+                        multiclass=True
+                    )
+            optimizer.zero_grad(set_to_none=True)
+            grad_scaler.scale(loss).backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping)
+            grad_scaler.step(optimizer)
+            grad_scaler.update()
 
-        epoch_loss += loss.item()
+            pbar.update(images.shape[0])
+            pbar.set_postfix(**{'loss (batch)': loss.item()})
+
+            mean_loss += loss.item()
         # break
-    return epoch_loss
+    mean_loss = mean_loss / len(train_loader)
+    return mean_loss
 
 
 @torch.inference_mode()
@@ -191,6 +198,7 @@ def main(args):
     optimizer = optim.Adam(model.parameters(),
                            lr=args.learning_rate,
                            weight_decay=weight_decay)
+    # 这里的mode是max, 传入的是val_score, 我们希望val_score越大越好
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
     grad_scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
     criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
@@ -205,10 +213,15 @@ def main(args):
             train_loader=train_loader,
             criterion=criterion,
             optimizer=optimizer,
-            scheduler=scheduler,
             grad_scaler=grad_scaler,
             epoch=epoch,
+            epochs=epochs,
+            n_train=n_train
         )
+        logger.info(f"""
+            loss:  {mean_loss}
+            epoch: {epoch}
+        """)
         if epoch % save_interval == 0 or epoch == epochs:
             val_score = evaluate(model, val_loader, device, args.amp)
             scheduler.step(val_score)

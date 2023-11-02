@@ -25,6 +25,7 @@ def dice_coeff(inputs: Tensor, targets: Tensor, reduce_batch_first: bool = False
 
     sum_dim = (-1, -2) if inputs.dim() == 2 or not reduce_batch_first else (-1, -2, -3)
 
+    # 计算2|X ∩ Y|, 因为要计算所有通道的相加和, 所以这里的sum_dim是所有通道
     inter = 2 * (inputs * targets).sum(dim=sum_dim)
     sets_sum = inputs.sum(dim=sum_dim) + targets.sum(dim=sum_dim)
     sets_sum = torch.where(sets_sum == 0, inter, sets_sum)
