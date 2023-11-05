@@ -1,9 +1,44 @@
 import os
 from pathlib import Path
+
+import torch
 from PIL import Image
 import numpy as np
 from torch.utils.data import Dataset
 import matplotlib.pyplot as plt
+
+
+def collate_fn(batch):
+    """
+    在collate_fn中将PIL转为numpy, 再转为Tensor
+    Args:
+        batch:
+
+    Returns:
+
+    """
+    max_size_w = max(pi["image"].size(0) for pi in batch)
+    max_size_h = max(pi["image"].size(1) for pi in batch)
+
+    images = []
+    labels = []
+    for d in batch:
+        # 创建一个新的空白图像，用0值填充
+        new_img = Image.new('RGB', (max_size_w, max_size_h),
+                            color=(0, 0, 0))
+
+        # 将原始图像粘贴到新图像上
+        new_img.paste(d["image"], (0, 0))
+        images.append(np.array(new_img))
+
+        new_mask = Image.new('L', (max_size_w, max_size_h),
+                             color=(255, 255, 255))
+        new_mask.paste(d["mask"], (0, 0))
+        labels.append(np.array(new_mask))
+
+    batch_images = np.stack(images, axis=0).transpose((0, 3, 1, 2))
+    batch_masks = np.stack(labels, axis=0)
+    return {"image": batch_images, "mask": batch_masks}
 
 
 class EyeballDataset(Dataset):
@@ -32,8 +67,9 @@ class EyeballDataset(Dataset):
         mask = Image.fromarray(mask)
 
         if self.transform:
-            img, mask = self.transform(img, mask)
+            image, mask = self.transform(image, mask)
 
+        return {"image": image, "mask": mask}
 
     def __len__(self):
         return len(self.img_list)
@@ -42,7 +78,17 @@ class EyeballDataset(Dataset):
 if __name__ == "__main__":
     ro = r"D:\workspace\data\dl\DRIVE"
     eye = EyeballDataset(root=ro)
-    eye[10]
+    ds = eye[10]
+    i, m = ds["image"], ds["mask"]
+    fig, axes = plt.subplots(1, 3, figsize=(10, 5))
+    # 在第一个子图上绘制 data1
+    axes[0].imshow(m)
+    axes[0].axis('off')  # 隐藏坐标轴信息
 
+    axes[1].imshow(m.transpose(Image.FLIP_LEFT_RIGHT))
+    axes[1].axis('off')
 
+    axes[2].imshow(m.transpose(Image.FLIP_TOP_BOTTOM))
+    axes[2].axis('off')
 
+    plt.show()
