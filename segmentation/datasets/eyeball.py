@@ -55,12 +55,15 @@ class EyeballDataset(Dataset):
     def __getitem__(self, item):
         image = Image.open(self.img_list[item]).convert("RGB")
         manual = Image.open(self.manual[item]).convert("L")
+
+        # 把血丝部分(白色255)的像素变为1, 其余部分是黑色, 所以还是0
         manual = np.array(manual) / 255
 
         roi_mask = Image.open(self.roi_mask[item]).convert('L')
+        # 把眼球(白色)变为0, 其余部分为255 - 0 = 255
         roi_mask = 255 - np.array(roi_mask)
 
-        # 眼球部分为0, 血丝部分为1，背景为255
+        # 眼球部分为0, 血丝部分为1，背景为255(白)
         mask = np.clip(manual + roi_mask, a_min=0, a_max=255)
 
         # 传为PIL格式
@@ -76,19 +79,19 @@ class EyeballDataset(Dataset):
 
 
 if __name__ == "__main__":
-    ro = r"D:\workspace\data\dl\DRIVE"
+    ro = r"D:\workspace\data\dl\eyeball"
     eye = EyeballDataset(root=ro)
     ds = eye[10]
     i, m = ds["image"], ds["mask"]
     fig, axes = plt.subplots(1, 3, figsize=(10, 5))
     # 在第一个子图上绘制 data1
-    axes[0].imshow(m)
+    axes[0].imshow(i)
     axes[0].axis('off')  # 隐藏坐标轴信息
 
-    axes[1].imshow(m.transpose(Image.FLIP_LEFT_RIGHT))
+    axes[1].imshow(i.transpose(Image.FLIP_LEFT_RIGHT))
     axes[1].axis('off')
 
-    axes[2].imshow(m.transpose(Image.FLIP_TOP_BOTTOM))
+    axes[2].imshow(i.transpose(Image.FLIP_TOP_BOTTOM))
     axes[2].axis('off')
 
     plt.show()
