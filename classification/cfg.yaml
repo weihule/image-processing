@@ -1,9 +1,9 @@
 # company autodl
 mode: local
 local:
-    root_dir: 'D:\workspace\data\dl\flower'
+    root_dir: 'D:\workspace\data\dl\eye_com'
     class_file: 'D:\workspace\data\dl\flower\flower.json'
-    pre_weight_path: 'D:\workspace\data\training_data\mobilenet_v3_small\mobilenet_v3_large-8738ca79.pth'
+    pre_weight_path: 'D:\workspace\data\training_data\resnet50\resnet50-acc76.264.pth'
     save_root: 'D:\workspace\data\training_data'
 
 autodl:
@@ -12,12 +12,14 @@ autodl:
     pre_weight_path: '/root/autodl-nas/classification_data/resnet/pths/resnet50_imagenet100_acc56.pth'
     save_root: '/root/autodl-nas/classification_data/resnet'
 
+train_csv: 'D:\workspace\data\dl\eye_com\Train\Train.csv'
+
 # model
-backbone_type: mobilenet_v3_small
+backbone_type: resnet50
 num_classes: 5
 
 # dataset
-dataset_name: flower5
+dataset_name: eye
 train_set_name: train
 val_set_name: val
 image_size: 224

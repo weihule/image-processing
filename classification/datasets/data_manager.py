@@ -1,5 +1,6 @@
 from .imagenet100 import ImageNet100Dataset, ImageNet100
 from .flower5 import Flower5
+from .eye_multi_label import EyeDataset
 
 
 def init_dataset(name, root_dir, set_name, class_file, transform, **kwargs):
@@ -24,6 +25,9 @@ def init_dataset(name, root_dir, set_name, class_file, transform, **kwargs):
                           set_name=set_name,
                           class_file=class_file,
                           transform=transform)
+    elif name == "eye":
+        dataset = EyeDataset(root=root_dir,
+                             train_csv=kwargs["train_csv"])
     else:
         dataset = None
 
