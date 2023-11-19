@@ -163,26 +163,26 @@ def main(cfgs, logger):
                        num_classes=cfgs["num_classes"])
     model.to(device)
 
-    # # 载入预训练权重
-    # load_state_dict(saved_model_path=cfgs[cfgs["mode"]]["pre_weight_path"],
-    #                 model=model)
+    # 载入预训练权重
+    load_state_dict(saved_model_path=cfgs[cfgs["mode"]]["pre_weight_path"],
+                    model=model)
 
-    # # 设置优化器
-    # params = [p for p in model.parameters() if p.requires_grad]
-    # optimizer = init_optimizer(optim="sgd",
-    #                            params=params,
-    #                            lr=cfgs["lr"],
-    #                            weight_decay=cfgs["weight_decay"],
-    #                            momentum=cfgs["momentum"])
-    # scheduler = init_scheduler(scheduler="cosine_annealing_lr",
-    #                            optimizer=optimizer,
-    #                            T_max=cfgs["epochs"])
+    # 设置优化器
+    params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = init_optimizer(optim="sgd",
+                               params=params,
+                               lr=cfgs["lr"],
+                               weight_decay=cfgs["weight_decay"],
+                               momentum=cfgs["momentum"])
+    scheduler = init_scheduler(scheduler="cosine_annealing_lr",
+                               optimizer=optimizer,
+                               T_max=cfgs["epochs"])
 
-    # # 损失函数
-    # criterion = nn.BCEWithLogitsLoss()
+    # 损失函数
+    criterion = nn.BCEWithLogitsLoss()
 
-    # best_acc = 0.
-    # start_epoch = 1
+    best_acc = 0.
+    start_epoch = 1
 
     # # 断点重续
     # resume = os.path.join(cfgs[cfgs["mode"]]["save_root"],
