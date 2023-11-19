@@ -149,7 +149,7 @@ def transform_func(image_size, use_random_erase):
             'train': transforms.Compose([
                 OpenCV2PIL(),
                 TorchResize(resize=image_size),
-                TorchRandomHorizontalFlip(prob=0.5),
+                # TorchRandomHorizontalFlip(prob=0.5),
                 TorchColorJitter(),
                 PIL2OpenCV(),
             ]),

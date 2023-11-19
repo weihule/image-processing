@@ -31,29 +31,28 @@ def run():
     with open("cfg.yaml", "r", encoding='utf-8') as fr:
         cfgs = yaml.load(fr, Loader=yaml.FullLoader)
 
-    # # 日志和权重文件等的保存根路径
-    # total_save_root = cfgs[cfgs["mode"]]["save_root"]
-    # make_dir(total_save_root)
+    # 日志和权重文件等的保存根路径
+    total_save_root = cfgs[cfgs["mode"]]["save_root"]
+    make_dir(total_save_root)
 
-    # # 各个模型对应的保存根目录
-    # model_name = cfgs["backbone_type"]
-    # save_root = os.path.join(total_save_root, model_name)
-    # make_dir(save_root)
+    # 各个模型对应的保存根目录
+    model_name = cfgs["backbone_type"]
+    save_root = os.path.join(total_save_root, model_name)
+    make_dir(save_root)
 
-    # # 日志文件保存路径
-    # log = os.path.join(save_root, 'log')
-    # make_dir(log)
+    # 日志文件保存路径
+    log = os.path.join(save_root, 'log')
+    make_dir(log)
 
-    # # checkpoints文件保存路径
-    # checkpoints = os.path.join(save_root, 'checkpoints')
-    # make_dir(checkpoints)
+    # checkpoints文件保存路径
+    checkpoints = os.path.join(save_root, 'checkpoints')
+    make_dir(checkpoints)
 
-    # # 权重文件保存路径
-    # pth_path = os.path.join(save_root, 'pths')
-    # make_dir(pth_path)
+    # 权重文件保存路径
+    pth_path = os.path.join(save_root, 'pths')
+    make_dir(pth_path)
 
-    # logger_writer = get_logger(name=model_name, log_dir=log)
-    print(cfgs)
+    logger_writer = get_logger(name=model_name, log_dir=log)
     main(logger=logger, cfgs=cfgs)
 
 
@@ -71,7 +70,7 @@ def train(cfgs, logger, model, train_loader, criterion, optimizer, scheduler, ep
 
         # [B, num_classes]
         preds = model(images)
-        loss = criterion(preds, labels)
+        loss = criterion(preds, labels.float())
         mean_loss += loss.item()
 
         # 损失回传
@@ -101,7 +100,7 @@ def evaluate_acc(model, val_dataset_len, val_loader, device):
         images, labels = ds["image"], ds["label"]
         images, labels = images.to(device), labels.to(device)
         preds = model(images)
-        preds = F.softmax(preds, dim=-1)
+        preds = F.sigmoid(preds)
         _, max_indices = torch.max(preds, dim=-1)
         correct += torch.eq(labels, max_indices).sum().item()
     val_acc = round(correct / val_dataset_len, 4)
@@ -137,7 +136,7 @@ def main(cfgs, logger):
                            root_dir=cfgs[cfgs["mode"]]["root_dir"],
                            set_name=cfgs["train_set_name"],
                            class_file=cfgs[cfgs["mode"]]["class_file"],
-                           transform=transform,
+                           transform=transform["train"],
                            train_csv=cfgs["train_csv"])
     # 划分训练集和验证集
     train_ratio = 0.8
@@ -156,12 +155,12 @@ def main(cfgs, logger):
                             shuffle=False,
                             num_workers=cfgs["num_workers"],
                             collate_fn=collater)
-    print(len(train_loader), len(val_loader))
 
     # 设置模型
     model = init_model(backbone_type=cfgs["backbone_type"],
                        num_classes=cfgs["num_classes"])
     model.to(device)
+    print("======device = ", device)
 
     # 载入预训练权重
     load_state_dict(saved_model_path=cfgs[cfgs["mode"]]["pre_weight_path"],
@@ -184,65 +183,65 @@ def main(cfgs, logger):
     best_acc = 0.
     start_epoch = 1
 
-    # # 断点重续
-    # resume = os.path.join(cfgs[cfgs["mode"]]["save_root"],
-    #                       cfgs["backbone_type"],
-    #                       "checkpoints",
-    #                       "resume.pth")
-    # if os.path.exists(resume):
-    #     logger.info(f"start resume model from {resume}")
-    #     checkpoint = torch.load(resume, map_location=torch.device('cpu'))
-    #     start_epoch += checkpoint['epoch']
-    #     best_acc = checkpoint['best_acc']
-    #     model.load_state_dict(checkpoint['model_state_dict'])
-    #     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    #     scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-    #     logger.info(f"epoch {checkpoint['epoch']}, best_acc: {checkpoint['best_acc']}, loss: {checkpoint['loss']}")
-    #     logger.info('finish resume model !')
+    # 断点重续
+    resume = os.path.join(cfgs[cfgs["mode"]]["save_root"],
+                          cfgs["backbone_type"],
+                          "checkpoints",
+                          "resume.pth")
+    if os.path.exists(resume):
+        logger.info(f"start resume model from {resume}")
+        checkpoint = torch.load(resume, map_location=torch.device('cpu'))
+        start_epoch += checkpoint['epoch']
+        best_acc = checkpoint['best_acc']
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        logger.info(f"epoch {checkpoint['epoch']}, best_acc: {checkpoint['best_acc']}, loss: {checkpoint['loss']}")
+        logger.info('finish resume model !')
 
-    # pths_dir = os.path.join(cfgs[cfgs["mode"]]["save_root"],
-    #                         cfgs["backbone_type"],
-    #                         "pths")
-    # logger.info(f"Starting training from the {start_epoch} epoch")
-    # for epoch in range(start_epoch, cfgs["epochs"] + 1):
-    #     mean_loss = train(cfgs=cfgs,
-    #                       logger=logger,
-    #                       model=model,
-    #                       train_loader=train_loader,
-    #                       criterion=criterion,
-    #                       optimizer=optimizer,
-    #                       scheduler=scheduler,
-    #                       epoch=epoch,
-    #                       device=device)
-    #     logger.info(f"train: epoch: {epoch}, loss: {mean_loss:.3f}")
-    #     if epoch % cfgs["save_interval"] == 0 or epoch == cfgs["epochs"]:
-    #         val_acc = evaluate_acc(model=model,
-    #                                val_dataset_len=len(val_dataset),
-    #                                val_loader=val_loader,
-    #                                device=device)
-    #         logger.info(f"epoch = {epoch}, val_acc = {val_acc}")
-    #         print('epoch: {}  mean_loss: {:.3f} val_acc: {:.3f}%'.format(epoch, mean_loss, val_acc * 100))
+    pths_dir = os.path.join(cfgs[cfgs["mode"]]["save_root"],
+                            cfgs["backbone_type"],
+                            "pths")
+    logger.info(f"Starting training from the {start_epoch} epoch")
+    for epoch in range(start_epoch, cfgs["epochs"] + 1):
+        mean_loss = train(cfgs=cfgs,
+                          logger=logger,
+                          model=model,
+                          train_loader=train_loader,
+                          criterion=criterion,
+                          optimizer=optimizer,
+                          scheduler=scheduler,
+                          epoch=epoch,
+                          device=device)
+        logger.info(f"train: epoch: {epoch}, loss: {mean_loss:.3f}")
+        if epoch % cfgs["save_interval"] == 0 or epoch == cfgs["epochs"]:
+            val_acc = evaluate_acc(model=model,
+                                   val_dataset_len=len(val_dataset),
+                                   val_loader=val_loader,
+                                   device=device)
+            logger.info(f"epoch = {epoch}, val_acc = {val_acc}")
+            print('epoch: {}  mean_loss: {:.3f} val_acc: {:.3f}%'.format(epoch, mean_loss, val_acc * 100))
 
-    #         if val_acc > best_acc:
-    #             # 先删除历史权重
-    #             for i in Path(pths_dir).glob("*.pth"):
-    #                 i.unlink(missing_ok=True)
-    #             best_acc = val_acc
-    #             best_weight_name = cfgs["backbone_type"] + "-" + str(best_acc) + ".pth"
-    #             best_weight_path = os.path.join(pths_dir,
-    #                                             best_weight_name)
-    #             torch.save(model.state_dict(), best_weight_path)
+            if val_acc > best_acc:
+                # 先删除历史权重
+                for i in Path(pths_dir).glob("*.pth"):
+                    i.unlink(missing_ok=True)
+                best_acc = val_acc
+                best_weight_name = cfgs["backbone_type"] + "-" + str(best_acc) + ".pth"
+                best_weight_path = os.path.join(pths_dir,
+                                                best_weight_name)
+                torch.save(model.state_dict(), best_weight_path)
 
-    #             torch.save({
-    #                 'epoch': epoch,
-    #                 'best_acc': best_acc,
-    #                 'loss': mean_loss,
-    #                 'model_state_dict': model.state_dict(),
-    #                 'optimizer_state_dict': optimizer.state_dict(),
-    #                 'scheduler_state_dict': scheduler.state_dict()
-    #             }, resume)
-    #     train_time = (time.time() - start_time) / 60
-    #     logger.info(f'finish training, total training time: {train_time:.2f} mins')
+                torch.save({
+                    'epoch': epoch,
+                    'best_acc': best_acc,
+                    'loss': mean_loss,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict()
+                }, resume)
+        train_time = (time.time() - start_time) / 60
+        logger.info(f'finish training, total training time: {train_time:.2f} mins')
 
 
 if __name__ == "__main__":

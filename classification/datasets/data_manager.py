@@ -27,7 +27,8 @@ def init_dataset(name, root_dir, set_name, class_file, transform, **kwargs):
                           transform=transform)
     elif name == "eye":
         dataset = EyeDataset(root=root_dir,
-                             train_csv=kwargs["train_csv"])
+                             train_csv=kwargs["train_csv"],
+                             transform=transform)
     else:
         dataset = None
 

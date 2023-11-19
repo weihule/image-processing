@@ -31,10 +31,12 @@ impression = ['uveitis',
 
 
 class EyeDataset(Dataset):
-    def __init__(self, root, train_csv):
+    def __init__(self, root, train_csv, transform=None):
         self.root = root
         self.train_csv = train_csv
         self.imglabels = self.get_imglabel()
+        if transform is not None:
+            self.transform = transform
 
     def __getitem__(self, item):
         image = cv2.imread(str(self.imglabels[item][0]))
@@ -44,6 +46,9 @@ class EyeDataset(Dataset):
             "image": image,
             "label": label
         }
+
+        if self.transform:
+            sample = self.transform(sample)
         
         return sample
     

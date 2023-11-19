@@ -9,7 +9,7 @@ MY:
     root_dir: '/home/8TDISK/weihule/data/eye_competition'
     class_file: 'D:\workspace\data\dl\flower\flower.json'
     pre_weight_path: '/home/8TDISK/weihule/data/training_data/resnet50/resnet50-acc76.264.pth'
-    save_root: 'D:\workspace\data\training_data'
+    save_root: '/home/8TDISK/weihule/data/training_data/resnet50_multi'
 
 autodl:
     root_dir: '/root/autodl-tmp/imagenet100'
@@ -22,7 +22,7 @@ train_csv: '/home/8TDISK/weihule/data/eye_competition/Train/Train.csv'
 
 # model
 backbone_type: resnet50
-num_classes: 5
+num_classes: 23
 
 # dataset
 dataset_name: eye
@@ -41,7 +41,7 @@ std:
 # data
 seed: 0
 epochs: 30
-batch_size: 8
+batch_size: 32
 lr: 0.004
 weight_decay: 0.00004
 momentum: 0.9
