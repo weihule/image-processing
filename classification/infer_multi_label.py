@@ -4,20 +4,21 @@ import cv2
 import torch
 import random
 import numpy as np
-import json
+from tqdm import tqdm
+import pandas as pd
 from pathlib import Path
 import torch.nn.functional as F
 from utils.util import cal_macs_params
 from backbones.model_manager import init_model
 import time
 from PIL import Image
+from collections import Counter
 
 from datasets.eye_multi_label import (impression, HyperF_Type, HyperF_Area_DA,
                                       HyperF_Fovea, HyperF_ExtraFovea, HyperF_Y,
                                       HypoF_Type, HypoF_Area_DA,
                                       HypoF_Fovea, HypoF_ExtraFovea, HypoF_Y,
                                       CNV, Vascular_abnormality_DR, Pattern)
-
 
 feature_dict = {
     "impression": "Impression",
@@ -85,7 +86,7 @@ def inference(cfgs):
     for img_name in os.listdir(cfgs["test_image_dir"]):
         image_paths.append(os.path.join(cfgs["test_image_dir"], img_name))
     infer_num = len(image_paths)
-    image_paths = [image_paths[s: s+cfgs["batch_size"]] for
+    image_paths = [image_paths[s: s + cfgs["batch_size"]] for
                    s in range(0, len(image_paths), cfgs["batch_size"])]
 
     # 加载类别索引和类别名称映射
@@ -112,9 +113,9 @@ def inference(cfgs):
 
         batch_images = torch.from_numpy(batch_images).float().to(device)
 
-        output = model(batch_images)
-        output = F.sigmoid(output)
-        output = (output > 0.5).int()
+        pred = model(batch_images)
+        pred = F.sigmoid(pred)
+        output = (pred > 0.5).int()
 
         res.append(output)
 
@@ -129,6 +130,22 @@ def inference(cfgs):
     result_tensor = torch.tensor([int(digit) for digit in most_frequent_row])
 
     indices = torch.nonzero(result_tensor).reshape((-1)).numpy().tolist()
+
+    if not indices:
+        try:
+            # 找出每行中值为 1 的索引位置
+            indices_ = [row.nonzero().squeeze().tolist() for row in res]
+            indices_ = [row for row in indices_ if row]
+            # 使用 Counter 统计元素出现次数
+            counter = Counter(indices_)
+
+            # 找到重复次数最多的元素
+            most_common_element = counter.most_common(1)[0][0]
+        except:
+            most_common_element = 0
+
+        indices = [most_common_element]
+
     names = [eval(symptoms)[i] for i in indices]
 
     return {symptoms: names}
@@ -153,12 +170,33 @@ def detect_single_image(model, image, mean, std, device):
     return preds[:3], indices[:3]
 
 
-if __name__ == "__main__":
-    # val_root = "/home/8TDISK/weihule/data/eye_competition/Validation/Validation_images"
-    val_root = "/home/8TDISK/weihule/data/eye_competition/Train/Train"
-    for val_dir in Path(val_root).iterdir():
+def run():
+    val_root = "/home/8TDISK/weihule/data/eye_competition/Validation/Validation_images"
+    # val_root = "/home/8TDISK/weihule/data/eye_competition/Train/Train"\
+    folders = list(pd.read_csv("./submit_sample.csv")["Folder"])
+    writer_info = {"Impression": [],
+                   "HyperF_Type": [],
+                   "HyperF_Area(DA)": [],
+                   "HyperF_Fovea": [],
+                   "HyperF_ExtraFovea": [],
+                   "HyperF_Y": [],
+                   "HypoF_Type": [],
+                   "HypoF_Area(DA)": [],
+                   "HypoF_Fovea": [],
+                   "HypoF_ExtraFovea": [],
+                   "HypoF_Y": [],
+                   "CNV": [],
+                   "Vascular abnormality (DR)": [],
+                   "Pattern": [],
+                   "ID": [],
+                   "Folder": []}
+    for folder in tqdm(folders):
+        val_dir = Path(val_root) / folder
+        ID = folder.split("_")[0]
+        writer_info["ID"].append(ID)
+        writer_info["Folder"].append(folder)
         # 调用14个分类模型
-        for idx, k in enumerate(feature_dict.keys()):
+        for k in feature_dict.keys():
             model_dir = f"resnet50_multi_{k}"
             train_model_path = Path("/home/8TDISK/weihule/data/training_data") / model_dir / "resnet50/pths"
             train_model_path = list(train_model_path.glob("*.pth"))[0]
@@ -173,7 +211,16 @@ if __name__ == "__main__":
                 "class_file": r"D:\workspace\data\dl\flower\flower.json",
                 "test_image_dir": str(val_dir)
             }
-            res = inference(infer_cfg)
-            print(val_dir, res)
-        # break
+            infer_res = inference(infer_cfg)
+            temp_k = list(infer_res.keys())[0]
+            temp_v = infer_res[temp_k]
+            temp_v = ",".join(temp_v)
 
+            writer_info[feature_dict[temp_k]].append(temp_v)
+
+    writer_info = pd.DataFrame(writer_info)
+    writer_info.to_csv("./submit.csv", index=False)
+
+
+if __name__ == "__main__":
+    run()

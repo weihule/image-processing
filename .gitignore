@@ -1,7 +1,8 @@
-torch_classification/*/__pycache__/
-torch_classification/*/*/__pycache__/
-torch_detection/*/__pycache__/
-torch_detection/*/*/__pycache__/
+classification/*/__pycache__/
+classification/*/*/__pycache__/
+classification/*.csv
+detection/*/__pycache__/
+detection/*/*/__pycache__/
 __pycache__/
 */__pycache__/
 */*/__pycache__/
@@ -11,9 +12,9 @@ __pycache__/
 .idea/
 */.idea/
 */*/runs/
-torch_detection/*/show_images/*
-torch_seg/wandb/
-torch_reID/deep-person-reid/reid-data/*/*/
+detection/*/show_images/*
+segmentation/wandb/
+reid/deep-person-reid/reid-data/*/*/
 */*.log
 */*/*.log
 */*/*/*.log
