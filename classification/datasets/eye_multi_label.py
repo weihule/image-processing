@@ -4,6 +4,23 @@ import numpy as np
 import cv2
 from torch.utils.data import Dataset
 
+__all__ = [
+    "impression",
+    "HyperF_Type",
+    "HyperF_Area_DA",
+    "HyperF_Fovea",
+    "HyperF_ExtraFovea",
+    "HyperF_Y",
+    "HypoF_Type",
+    "HypoF_Area_DA",
+    "HypoF_Fovea",
+    "HypoF_ExtraFovea",
+    "HypoF_Y",
+    "CNV",
+    "Vascular_abnormality_DR",
+    "Pattern",
+    "EyeDataset"
+]
 
 impression = ['uveitis',
               'central serous chorioretinopathy',
@@ -29,6 +46,99 @@ impression = ['uveitis',
               'epiretinal membrane',
               'pachychoroid pigment epitheliopathy']
 
+HyperF_Type = ['no', 'leakage', 'staining', 'pooling', 'window defect']
+
+HyperF_Area_DA = ['4', '5', 'no']
+
+HyperF_Fovea = ['yes', 'no']
+
+HyperF_ExtraFovea = ['inferior nasal',
+                     'disc',
+                     'diffuse',
+                     'inferior temporal',
+                     'no',
+                     'temporal',
+                     'superior nasal',
+                     'superior temporal',
+                     'inferior',
+                     'superior',
+                     'inferior to disc',
+                     'venular',
+                     'superotemporal',
+                     'periphery',
+                     'temporal to disc',
+                     'superior to disc',
+                     'nasal',
+                     'nasal to disc']
+
+HyperF_Y = ['no', 'intraretinal', 'preretinal', 'subretinal']
+
+# 单分类
+HypoF_Type = ['no', 'blockage', 'capillary non-perfusion']
+
+# 单分类
+HypoF_Area_DA = ['no', '4', '5']
+
+# 单分类
+HypoF_Fovea = ['yes', 'no']
+
+# 多分类
+HypoF_ExtraFovea = ['inferior nasal',
+                    'disc',
+                    'diffuse',
+                    'inferior temporal',
+                    'inferior to disc',
+                    'temporal',
+                    'superior nasal',
+                    'superior temporal',
+                    'inferior',
+                    'superior',
+                    'no',
+                    'periphery',
+                    'temporal to disc',
+                    'superior to disc',
+                    'nasal',
+                    'nasal to disc']
+
+# 多分类
+HypoF_Y = ['no', 'intraretinal', 'preretinal', 'subretinal']
+
+# 单分类
+CNV = ['yes', 'no']
+
+# 多分类
+Vascular_abnormality_DR = ['retinal neovascularization elsewhere',
+                           'collateral vessel',
+                           'tortuous dilate',
+                           'optociliary shunt',
+                           'no',
+                           'vasculitis',
+                           'mild tortuous vessel',
+                           'microaneurysm',
+                           'telangiectasia',
+                           'intraretinal microvascular abnormalities',
+                           'macroaneurysm',
+                           'vessel dilation',
+                           'venous beading',
+                           'tortuous',
+                           'retinal neovascularization of the disc']
+
+# 多分类
+Pattern = ['polyp',
+           'retinal pigment epithelial tear',
+           'pcv',
+           'smoke stack',
+           'branching neovascular network',
+           'laser scar',
+           'no',
+           'drusen',
+           'starry sky',
+           'ink blot',
+           'segmental panretinal photocoagulation',
+           'petaloid',
+           'panretinal photocoagulation',
+           'light bulb']
+
 
 class EyeDataset(Dataset):
     def __init__(self, root, train_csv, transform=None):
@@ -49,9 +159,9 @@ class EyeDataset(Dataset):
 
         if self.transform:
             sample = self.transform(sample)
-        
+
         return sample
-    
+
     def __len__(self):
         return len(self.imglabels)
 
@@ -61,18 +171,19 @@ class EyeDataset(Dataset):
         {'1737_R': [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
         """
         infos = pd.read_csv(self.train_csv)
-        infos = infos[["Impression", "Folder"]]
+        infos = infos[["Pattern", "Folder"]]
+        # infos["HypoF_Y"] = infos["HypoF_Y"].fillna('no')
         label_dict = {}
         for _, row in infos.iterrows():
-            labels, folder = row["Impression"], row["Folder"]
-            labels = [impression.index(i) for i in labels.split(",") if len(i) > 0]
-            mask_label = [0] * len(impression)
+            labels, folder = row["Pattern"], row["Folder"]
+            labels = [Pattern.index(i) for i in labels.split(",") if len(i) > 0]
+            mask_label = [0] * len(Pattern)
             for i in labels:
                 mask_label[i] = 1
             label_dict[folder] = mask_label
             # break
         return label_dict
-    
+
     def get_imglabel(self):
         label_dict = self.get_folder2label()
         img_path = Path(self.root) / "Train" / "Train"

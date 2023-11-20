@@ -13,6 +13,7 @@ import torch.nn.functional as F
 from torch.backends import cudnn
 from torch.optim import Adam, SGD, lr_scheduler
 from torch.utils.data import DataLoader, random_split
+from sklearn.metrics import accuracy_score
 
 from datasets.data_manager import init_dataset
 from datasets.transform import transform_func
@@ -95,16 +96,20 @@ def evaluate_acc(model, val_dataset_len, val_loader, device):
     # 验证模式
     model.eval()
     model.to(device)
-    correct = 0
+    avg_acc = 0.
     for ds in tqdm(val_loader):
         images, labels = ds["image"], ds["label"]
         images, labels = images.to(device), labels.to(device)
         preds = model(images)
         preds = F.sigmoid(preds)
-        _, max_indices = torch.max(preds, dim=-1)
-        correct += torch.eq(labels, max_indices).sum().item()
-    val_acc = round(correct / val_dataset_len, 4)
-    return val_acc
+        # 将概率值转换为二进制预测
+        preds = (preds > 0.5).float()
+
+        # 计算准确率
+        accuracy = accuracy_score(labels.cpu().numpy(), preds.cpu().numpy())
+        avg_acc += accuracy
+    avg_acc = round(avg_acc / len(val_loader), 4)
+    return avg_acc
 
 
 def main(cfgs, logger):
@@ -160,7 +165,6 @@ def main(cfgs, logger):
     model = init_model(backbone_type=cfgs["backbone_type"],
                        num_classes=cfgs["num_classes"])
     model.to(device)
-    print("======device = ", device)
 
     # 载入预训练权重
     load_state_dict(saved_model_path=cfgs[cfgs["mode"]]["pre_weight_path"],

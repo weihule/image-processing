@@ -1,0 +1,179 @@
+# -*- coding: utf-8 -*-
+import os
+import cv2
+import torch
+import random
+import numpy as np
+import json
+from pathlib import Path
+import torch.nn.functional as F
+from utils.util import cal_macs_params
+from backbones.model_manager import init_model
+import time
+from PIL import Image
+
+from datasets.eye_multi_label import (impression, HyperF_Type, HyperF_Area_DA,
+                                      HyperF_Fovea, HyperF_ExtraFovea, HyperF_Y,
+                                      HypoF_Type, HypoF_Area_DA,
+                                      HypoF_Fovea, HypoF_ExtraFovea, HypoF_Y,
+                                      CNV, Vascular_abnormality_DR, Pattern)
+
+
+feature_dict = {
+    "impression": "Impression",
+    "HyperF_Type": "HyperF_Type",
+    "HyperF_Area_DA": "HyperF_Area(DA)",
+    "HyperF_Fovea": "HyperF_Fovea",
+    "HyperF_ExtraFovea": "HyperF_ExtraFovea",
+    "HyperF_Y": "HyperF_Y",
+    "HypoF_Type": "HypoF_Type",
+    "HypoF_Area_DA": "HypoF_Area(DA)",
+    "HypoF_Fovea": "HypoF_Fovea",
+    "HypoF_ExtraFovea": "HypoF_ExtraFovea",
+    "HypoF_Y": "HypoF_Y",
+    "CNV": "CNV",
+    "Vascular_abnormality_DR": "Vascular abnormality (DR)",
+    "Pattern": "Pattern"
+}
+
+feature_num_classes = {
+    "impression": 23,
+    "HyperF_Type": 5,
+    "HyperF_Area_DA": 3,
+    "HyperF_Fovea": 2,
+    "HyperF_ExtraFovea": 18,
+    "HyperF_Y": 4,
+    "HypoF_Type": 3,
+    "HypoF_Area_DA": 3,
+    "HypoF_Fovea": 2,
+    "HypoF_ExtraFovea": 16,
+    "HypoF_Y": 4,
+    "CNV": 2,
+    "Vascular_abnormality_DR": 15,
+    "Pattern": 14
+}
+feature_idx = list(feature_dict.keys())
+
+
+def inference(cfgs):
+    """
+    以文件夹的形式推理
+    """
+    if cfgs["seed"]:
+        seed = cfgs["seed"]
+        os.environ['PYTHONHASHSEED'] = str(seed)
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)  # 为cpu设置随机数种子
+
+    device = torch.device("cuda:0")
+
+    symptoms = Path(cfgs["train_model_path"]).parts[-4].split("multi_")[-1]
+    num_classes = feature_num_classes[symptoms]
+
+    model = init_model(backbone_type=cfgs["model"],
+                       num_classes=num_classes)
+    model = model.to(device)
+
+    if cfgs["train_model_path"]:
+        weight_dict = torch.load(cfgs["train_model_path"], map_location=torch.device("cpu"))
+        model.load_state_dict(weight_dict, strict=True)
+
+    model.eval()
+
+    image_paths = list()
+    for img_name in os.listdir(cfgs["test_image_dir"]):
+        image_paths.append(os.path.join(cfgs["test_image_dir"], img_name))
+    infer_num = len(image_paths)
+    image_paths = [image_paths[s: s+cfgs["batch_size"]] for
+                   s in range(0, len(image_paths), cfgs["batch_size"])]
+
+    # 加载类别索引和类别名称映射
+    cls2idx = dict(zip(impression, range(len(impression))))
+
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    mean = np.asarray(mean, dtype=np.float32).reshape((1, 1, 1, 3))
+    std = np.asarray(std, dtype=np.float32).reshape((1, 1, 1, 3))
+
+    start_time = time.time()
+
+    res = []
+    for batch_datas in image_paths:
+        batch_images = []
+        for img_path in batch_datas:
+            image = cv2.imread(img_path)
+            image = cv2.resize(image, (cfgs["input_image_size"], cfgs["input_image_size"]))
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            batch_images.append(image)
+        batch_images = np.stack(batch_images, axis=0, dtype=np.float32)
+        batch_images = (batch_images / 255. - mean) / std
+        batch_images = batch_images.transpose(0, 3, 1, 2)
+
+        batch_images = torch.from_numpy(batch_images).float().to(device)
+
+        output = model(batch_images)
+        output = F.sigmoid(output)
+        output = (output > 0.5).int()
+
+        res.append(output)
+
+    res = torch.concatenate(res, dim=0)
+    # 将每一行转换为字符串，以便进行比较
+    str_rows = ["".join(map(str, row.cpu().numpy().tolist())) for row in res]
+
+    # 找到出现次数最多的一行
+    most_frequent_row = max(str_rows, key=str_rows.count)
+
+    # 将字符串还原为 Tensor
+    result_tensor = torch.tensor([int(digit) for digit in most_frequent_row])
+
+    indices = torch.nonzero(result_tensor).reshape((-1)).numpy().tolist()
+    names = [eval(symptoms)[i] for i in indices]
+
+    return {symptoms: names}
+
+
+# -------------------------------------#
+#       调用摄像头检测
+# -------------------------------------#
+def detect_single_image(model, image, mean, std, device):
+    # 将图像转成(B, C, H, W)的四维tensor
+    image = cv2.resize(image, (224, 224))
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = np.expand_dims(image, axis=0).astype(np.float32)
+    image = (image / 255. - mean) / std
+    image = image.transpose(0, 3, 1, 2)
+    image = torch.from_numpy(image).float().to(device)
+
+    output = model(image)
+    output = F.softmax(output, dim=1)
+    preds, indices = torch.sort(output, dim=-1, descending=True)
+    preds, indices = preds[0].detach().cpu().numpy(), indices[0].detach().cpu().numpy()
+    return preds[:3], indices[:3]
+
+
+if __name__ == "__main__":
+    # val_root = "/home/8TDISK/weihule/data/eye_competition/Validation/Validation_images"
+    val_root = "/home/8TDISK/weihule/data/eye_competition/Train/Train"
+    for val_dir in Path(val_root).iterdir():
+        # 调用14个分类模型
+        for idx, k in enumerate(feature_dict.keys()):
+            model_dir = f"resnet50_multi_{k}"
+            train_model_path = Path("/home/8TDISK/weihule/data/training_data") / model_dir / "resnet50/pths"
+            train_model_path = list(train_model_path.glob("*.pth"))[0]
+
+            infer_cfg = {
+                "seed": 0,
+                "model": "resnet50",
+                "num_classes": 23,
+                "input_image_size": 224,
+                "batch_size": 32,
+                "train_model_path": train_model_path,
+                "class_file": r"D:\workspace\data\dl\flower\flower.json",
+                "test_image_dir": str(val_dir)
+            }
+            res = inference(infer_cfg)
+            print(val_dir, res)
+        # break
+
