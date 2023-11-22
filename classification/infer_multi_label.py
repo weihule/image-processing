@@ -171,6 +171,14 @@ def detect_single_image(model, image, mean, std, device):
 
 
 def run():
+    # impression_score:3.7990
+    # hyperf_type_score:4.0460
+    # hyperf_extrafovea_score:3.6760
+    # hypof_extrafovea_score:4.7400
+    # vascular_abnormality_dr_score:5.3070
+    # pattern_score:5.2070
+    resizes_448 = ["impression", "HyperF_ExtraFovea", "HyperF_Type",
+                   "HypoF_ExtraFovea", "Pattern", "Vascular_abnormality_DR"]
     val_root = "/home/8TDISK/weihule/data/eye_competition/Validation/Validation_images"
     # val_root = "/home/8TDISK/weihule/data/eye_competition/Train/Train"\
     folders = list(pd.read_csv("./submit_sample.csv")["Folder"])
@@ -197,6 +205,10 @@ def run():
         writer_info["Folder"].append(folder)
         # 调用14个分类模型
         for k in feature_dict.keys():
+            if k in resizes_448:
+                img_resize = 448
+            else:
+                img_resize = 224
             model_dir = f"resnet50_multi_{k}"
             train_model_path = Path("/home/8TDISK/weihule/data/training_data") / model_dir / "resnet50/pths"
             train_model_path = list(train_model_path.glob("*.pth"))[0]
@@ -204,9 +216,8 @@ def run():
             infer_cfg = {
                 "seed": 0,
                 "model": "resnet50",
-                "num_classes": 23,
-                "input_image_size": 224,
-                "batch_size": 32,
+                "input_image_size": img_resize,
+                "batch_size": 16,
                 "train_model_path": train_model_path,
                 "class_file": r"D:\workspace\data\dl\flower\flower.json",
                 "test_image_dir": str(val_dir)
@@ -219,7 +230,7 @@ def run():
             writer_info[feature_dict[temp_k]].append(temp_v)
 
     writer_info = pd.DataFrame(writer_info)
-    writer_info.to_csv("./submit.csv", index=False)
+    writer_info.to_csv("./submit2.csv", index=False)
 
 
 if __name__ == "__main__":

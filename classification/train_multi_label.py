@@ -53,7 +53,9 @@ def run():
     pth_path = os.path.join(save_root, 'pths')
     make_dir(pth_path)
 
-    logger_writer = get_logger(name=model_name, log_dir=log)
+    # 配置日志输出到文件
+    log_path = Path(log) / f"{model_name}.log"
+    logger.add(log_path, rotation="500 MB", level="INFO")
     main(logger=logger, cfgs=cfgs)
 
 
@@ -250,5 +252,6 @@ def main(cfgs, logger):
 
 if __name__ == "__main__":
     run()
+
 
 

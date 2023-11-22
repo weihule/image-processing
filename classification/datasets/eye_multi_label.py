@@ -46,17 +46,17 @@ impression = ['uveitis',
               'epiretinal membrane',
               'pachychoroid pigment epitheliopathy']
 
-HyperF_Type = ['no', 'leakage', 'staining', 'pooling', 'window defect']
+HyperF_Type = ['leakage', 'no', 'staining', 'pooling', 'window defect']
 
 HyperF_Area_DA = ['4', '5', 'no']
 
 HyperF_Fovea = ['yes', 'no']
 
-HyperF_ExtraFovea = ['inferior nasal',
+HyperF_ExtraFovea = ['no',
+                     'inferior nasal',
                      'disc',
                      'diffuse',
                      'inferior temporal',
-                     'no',
                      'temporal',
                      'superior nasal',
                      'superior temporal',
@@ -83,7 +83,8 @@ HypoF_Area_DA = ['no', '4', '5']
 HypoF_Fovea = ['yes', 'no']
 
 # 多分类
-HypoF_ExtraFovea = ['inferior nasal',
+HypoF_ExtraFovea = ['no',
+                    'inferior nasal',
                     'disc',
                     'diffuse',
                     'inferior temporal',
@@ -93,7 +94,6 @@ HypoF_ExtraFovea = ['inferior nasal',
                     'superior temporal',
                     'inferior',
                     'superior',
-                    'no',
                     'periphery',
                     'temporal to disc',
                     'superior to disc',
@@ -140,6 +140,14 @@ Pattern = ['polyp',
            'light bulb']
 
 
+# impression_score:3.7990
+# hyperf_type_score:4.0460
+# hyperf_extrafovea_score:3.6760
+# hypof_extrafovea_score:4.7400
+# vascular_abnormality_dr_score:5.3070
+# pattern_score:5.2070
+
+
 class EyeDataset(Dataset):
     def __init__(self, root, train_csv, transform=None):
         self.root = root
@@ -171,13 +179,13 @@ class EyeDataset(Dataset):
         {'1737_R': [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
         """
         infos = pd.read_csv(self.train_csv)
-        infos = infos[["Pattern", "Folder"]]
-        # infos["HypoF_Y"] = infos["HypoF_Y"].fillna('no')
+        infos = infos[["HyperF_Type", "Folder"]]
+        # infos["HypoF_ExtraFovea"] = infos["HypoF_ExtraFovea"].fillna('no')
         label_dict = {}
         for _, row in infos.iterrows():
-            labels, folder = row["Pattern"], row["Folder"]
-            labels = [Pattern.index(i) for i in labels.split(",") if len(i) > 0]
-            mask_label = [0] * len(Pattern)
+            labels, folder = row["HyperF_Type"], row["Folder"]
+            labels = [HyperF_Type.index(i) for i in labels.split(",") if len(i) > 0]
+            mask_label = [0] * len(HyperF_Type)
             for i in labels:
                 mask_label[i] = 1
             label_dict[folder] = mask_label
