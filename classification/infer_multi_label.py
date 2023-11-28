@@ -151,25 +151,6 @@ def inference(cfgs):
     return {symptoms: names}
 
 
-# -------------------------------------#
-#       调用摄像头检测
-# -------------------------------------#
-def detect_single_image(model, image, mean, std, device):
-    # 将图像转成(B, C, H, W)的四维tensor
-    image = cv2.resize(image, (224, 224))
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    image = np.expand_dims(image, axis=0).astype(np.float32)
-    image = (image / 255. - mean) / std
-    image = image.transpose(0, 3, 1, 2)
-    image = torch.from_numpy(image).float().to(device)
-
-    output = model(image)
-    output = F.softmax(output, dim=1)
-    preds, indices = torch.sort(output, dim=-1, descending=True)
-    preds, indices = preds[0].detach().cpu().numpy(), indices[0].detach().cpu().numpy()
-    return preds[:3], indices[:3]
-
-
 def run():
     # impression_score:3.7990
     # hyperf_type_score:4.0460
@@ -177,8 +158,10 @@ def run():
     # hypof_extrafovea_score:4.7400
     # vascular_abnormality_dr_score:5.3070
     # pattern_score:5.2070
-    resizes_448 = ["impression", "HyperF_ExtraFovea", "HyperF_Type",
-                   "HypoF_ExtraFovea", "Pattern", "Vascular_abnormality_DR"]
+    resizes_448 = ["HypoF_ExtraFovea", "Pattern", "Vascular_abnormality_DR"]
+
+    resize_672 = ["impression", "HypoF_Type", "HyperF_Y",
+                  "HyperF_Type", "HyperF_Fovea", "HyperF_ExtraFovea", "HyperF_Area_DA"]
     val_root = "/home/8TDISK/weihule/data/eye_competition/Validation/Validation_images"
     # val_root = "/home/8TDISK/weihule/data/eye_competition/Train/Train"\
     folders = list(pd.read_csv("./submit_sample.csv")["Folder"])
@@ -205,10 +188,13 @@ def run():
         writer_info["Folder"].append(folder)
         # 调用14个分类模型
         for k in feature_dict.keys():
-            if k in resizes_448:
-                img_resize = 448
-            else:
-                img_resize = 224
+            img_resize = 672
+            # if k in resizes_448:
+            #     img_resize = 448
+            # elif k in resize_672:
+            #     img_resize = 672
+            # else:
+            #     img_resize = 224
             model_dir = f"resnet50_multi_{k}"
             train_model_path = Path("/home/8TDISK/weihule/data/training_data") / model_dir / "resnet50/pths"
             train_model_path = list(train_model_path.glob("*.pth"))[0]
@@ -217,7 +203,7 @@ def run():
                 "seed": 0,
                 "model": "resnet50",
                 "input_image_size": img_resize,
-                "batch_size": 16,
+                "batch_size": 8,
                 "train_model_path": train_model_path,
                 "class_file": r"D:\workspace\data\dl\flower\flower.json",
                 "test_image_dir": str(val_dir)
@@ -230,7 +216,7 @@ def run():
             writer_info[feature_dict[temp_k]].append(temp_v)
 
     writer_info = pd.DataFrame(writer_info)
-    writer_info.to_csv("./submit2.csv", index=False)
+    writer_info.to_csv("./submit5.csv", index=False)
 
 
 if __name__ == "__main__":

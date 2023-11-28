@@ -9,7 +9,7 @@ MY:
     root_dir: '/home/8TDISK/weihule/data/eye_competition'
     class_file: 'D:\workspace\data\dl\flower\flower.json'
     pre_weight_path: '/home/8TDISK/weihule/data/training_data/resnet50/resnet50-acc76.264.pth'
-    save_root: '/home/8TDISK/weihule/data/training_data/resnet50_multi_HyperF_Type'
+    save_root: '/home/8TDISK/weihule/data/training_data/resnet50_multi_'
 
 autodl:
     root_dir: '/root/autodl-tmp/imagenet100'
@@ -28,7 +28,7 @@ num_classes: 5
 dataset_name: eye
 train_set_name: train
 val_set_name: val
-image_size: 448
+image_size: 672
 mean:
     - 0.485
     - 0.456
@@ -40,8 +40,8 @@ std:
 
 # data
 seed: 0
-epochs: 30
-batch_size: 32
+epochs: 20
+batch_size: 16
 lr: 0.05
 weight_decay: 0.00004
 momentum: 0.9
@@ -50,7 +50,7 @@ num_workers: 4
 freeze_layer: False
 apex: False
 # 日志记录频率, 如为10, 即一个epoch内, 遍历循环10次train_loader就记录日志
-print_interval: 50
+print_interval: 350
 # 保存频率, 如为1, 即一个epoch保存一次checkpoints
 save_interval: 1
 

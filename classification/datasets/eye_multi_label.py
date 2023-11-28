@@ -149,9 +149,11 @@ Pattern = ['polyp',
 
 
 class EyeDataset(Dataset):
-    def __init__(self, root, train_csv, transform=None):
+    def __init__(self, root, train_csv, name, sick_name, transform=None):
         self.root = root
         self.train_csv = train_csv
+        self.name = name
+        self.sick_name = sick_name
         self.imglabels = self.get_imglabel()
         if transform is not None:
             self.transform = transform
@@ -179,13 +181,13 @@ class EyeDataset(Dataset):
         {'1737_R': [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
         """
         infos = pd.read_csv(self.train_csv)
-        infos = infos[["HyperF_Type", "Folder"]]
-        # infos["HypoF_ExtraFovea"] = infos["HypoF_ExtraFovea"].fillna('no')
+        infos = infos[[f"{self.sick_name}", "Folder"]]
+        infos[f"{self.sick_name}"] = infos[f"{self.sick_name}"].fillna('no')
         label_dict = {}
         for _, row in infos.iterrows():
-            labels, folder = row["HyperF_Type"], row["Folder"]
-            labels = [HyperF_Type.index(i) for i in labels.split(",") if len(i) > 0]
-            mask_label = [0] * len(HyperF_Type)
+            labels, folder = row[f"{self.sick_name}"], row["Folder"]
+            labels = [eval(f"{self.name}").index(i) for i in labels.split(",") if len(i) > 0]
+            mask_label = [0] * len(eval(f"{self.name}"))
             for i in labels:
                 mask_label[i] = 1
             label_dict[folder] = mask_label

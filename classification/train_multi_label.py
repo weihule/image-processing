@@ -15,22 +15,40 @@ from torch.optim import Adam, SGD, lr_scheduler
 from torch.utils.data import DataLoader, random_split
 from sklearn.metrics import accuracy_score
 
-from datasets.data_manager import init_dataset
+from datasets import EyeDataset
 from datasets.transform import transform_func
 from datasets.collater import Collater
-
 from backbones.model_manager import init_model
-
 from losses import CELoss
 from utils.optimers import init_optimizer
 from utils.schedulers import init_scheduler
 from utils.util import get_logger, load_state_dict, make_dir
 
 
-def run():
+feature_dict = {
+    "impression": ["Impression", 23],
+    "HyperF_Type": ["HyperF_Type", 5],
+    "HyperF_Area_DA": ["HyperF_Area(DA)", 3],
+    "HyperF_Fovea": ["HyperF_Fovea", 2],
+    "HyperF_ExtraFovea": ["HyperF_ExtraFovea", 18],
+    "HyperF_Y": ["HyperF_Y", 4],
+    "HypoF_Type": ["HypoF_Type", 3],
+    "HypoF_Area_DA": ["HypoF_Area(DA)", 3],
+    "HypoF_Fovea": ["HypoF_Fovea", 2],
+    "HypoF_ExtraFovea": ["HypoF_ExtraFovea", 16],
+    "HypoF_Y": ["HypoF_Y", 4],
+    "CNV": ["CNV", 2],
+    "Vascular_abnormality_DR": ["Vascular abnormality (DR)", 15],
+    "Pattern": ["Pattern", 14]
+}
+
+
+def run(k, v):
     # 解析并获取配置文件中的内容
     with open("cfg.yaml", "r", encoding='utf-8') as fr:
         cfgs = yaml.load(fr, Loader=yaml.FullLoader)
+    cfgs["num_classes"] = v[1]
+    cfgs["MY"]["save_root"] += k
 
     # 日志和权重文件等的保存根路径
     total_save_root = cfgs[cfgs["mode"]]["save_root"]
@@ -56,7 +74,7 @@ def run():
     # 配置日志输出到文件
     log_path = Path(log) / f"{model_name}.log"
     logger.add(log_path, rotation="500 MB", level="INFO")
-    main(logger=logger, cfgs=cfgs)
+    main(name=k, sick_name=v[0], logger=logger, cfgs=cfgs)
 
 
 def train(cfgs, logger, model, train_loader, criterion, optimizer, scheduler, epoch, device):
@@ -114,7 +132,7 @@ def evaluate_acc(model, val_dataset_len, val_loader, device):
     return avg_acc
 
 
-def main(cfgs, logger):
+def main(name, sick_name, cfgs, logger):
     torch.cuda.empty_cache()
 
     # 设置相同的随机种子, 确保实验结果可复现
@@ -139,12 +157,11 @@ def main(cfgs, logger):
                                use_random_erase=False)
     collater = Collater(mean=cfgs["mean"],
                         std=cfgs["std"])
-    dataset = init_dataset(name=cfgs["dataset_name"],
-                           root_dir=cfgs[cfgs["mode"]]["root_dir"],
-                           set_name=cfgs["train_set_name"],
-                           class_file=cfgs[cfgs["mode"]]["class_file"],
-                           transform=transform["train"],
-                           train_csv=cfgs["train_csv"])
+    dataset = EyeDataset(root=cfgs[cfgs["mode"]]["root_dir"],
+                         train_csv=cfgs["train_csv"],
+                         name=name,
+                         sick_name=sick_name,
+                         transform=transform["train"])
     # 划分训练集和验证集
     train_ratio = 0.8
     dataset_size = len(dataset)
@@ -246,12 +263,18 @@ def main(cfgs, logger):
                     'optimizer_state_dict': optimizer.state_dict(),
                     'scheduler_state_dict': scheduler.state_dict()
                 }, resume)
-        train_time = (time.time() - start_time) / 60
-        logger.info(f'finish training, total training time: {train_time:.2f} mins')
+    train_time = (time.time() - start_time) / 60
+    logger.info(f'finish training, total training time: {train_time:.2f} mins')
+
+
+def start_run():
+    ks = ["impression", "HypoF_Type", "HyperF_Y",
+          "HyperF_Type", "HyperF_Fovea", "HyperF_ExtraFovea", "HyperF_Area_DA"]
+    for k, v in feature_dict.items():
+        if k in ks:
+            continue
+        run(k, v)
 
 
 if __name__ == "__main__":
-    run()
-
-
-
+    start_run()
