@@ -162,9 +162,9 @@ def run():
 
     resize_672 = ["impression", "HypoF_Type", "HyperF_Y",
                   "HyperF_Type", "HyperF_Fovea", "HyperF_ExtraFovea", "HyperF_Area_DA"]
-    val_root = "/home/8TDISK/weihule/data/eye_competition/Validation/Validation_images"
+    val_root = "/home/8TDISK/weihule/data/eye_competition/Test/Test_images"
     # val_root = "/home/8TDISK/weihule/data/eye_competition/Train/Train"\
-    folders = list(pd.read_csv("./submit_sample.csv")["Folder"])
+    folders = list(pd.read_csv("./sublit_sample_test.csv")["Folder"])
     writer_info = {"Impression": [],
                    "HyperF_Type": [],
                    "HyperF_Area(DA)": [],
@@ -216,7 +216,7 @@ def run():
             writer_info[feature_dict[temp_k]].append(temp_v)
 
     writer_info = pd.DataFrame(writer_info)
-    writer_info.to_csv("./submit5.csv", index=False)
+    writer_info.to_csv("./submit6.csv", index=False)
 
 
 if __name__ == "__main__":
