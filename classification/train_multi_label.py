@@ -15,7 +15,7 @@ from torch.optim import Adam, SGD, lr_scheduler
 from torch.utils.data import DataLoader, random_split
 from sklearn.metrics import accuracy_score
 
-from datasets import EyeDataset
+from datasets import KitchenDataset, labels_list
 from datasets.transform import transform_func
 from datasets.collater import Collater
 from backbones.model_manager import init_model
@@ -25,30 +25,10 @@ from utils.schedulers import init_scheduler
 from utils.util import get_logger, load_state_dict, make_dir
 
 
-feature_dict = {
-    "impression": ["Impression", 23],
-    "HyperF_Type": ["HyperF_Type", 5],
-    "HyperF_Area_DA": ["HyperF_Area(DA)", 3],
-    "HyperF_Fovea": ["HyperF_Fovea", 2],
-    "HyperF_ExtraFovea": ["HyperF_ExtraFovea", 18],
-    "HyperF_Y": ["HyperF_Y", 4],
-    "HypoF_Type": ["HypoF_Type", 3],
-    "HypoF_Area_DA": ["HypoF_Area(DA)", 3],
-    "HypoF_Fovea": ["HypoF_Fovea", 2],
-    "HypoF_ExtraFovea": ["HypoF_ExtraFovea", 16],
-    "HypoF_Y": ["HypoF_Y", 4],
-    "CNV": ["CNV", 2],
-    "Vascular_abnormality_DR": ["Vascular abnormality (DR)", 15],
-    "Pattern": ["Pattern", 14]
-}
-
-
-def run(k, v):
+def run():
     # 解析并获取配置文件中的内容
     with open("cfg.yaml", "r", encoding='utf-8') as fr:
         cfgs = yaml.load(fr, Loader=yaml.FullLoader)
-    cfgs["num_classes"] = v[1]
-    cfgs["MY"]["save_root"] += k
 
     # 日志和权重文件等的保存根路径
     total_save_root = cfgs[cfgs["mode"]]["save_root"]
@@ -74,7 +54,7 @@ def run(k, v):
     # 配置日志输出到文件
     log_path = Path(log) / f"{model_name}.log"
     logger.add(log_path, rotation="500 MB", level="INFO")
-    main(name=k, sick_name=v[0], logger=logger, cfgs=cfgs)
+    main(logger=logger, cfgs=cfgs)
 
 
 def train(cfgs, logger, model, train_loader, criterion, optimizer, scheduler, epoch, device):
@@ -91,6 +71,9 @@ def train(cfgs, logger, model, train_loader, criterion, optimizer, scheduler, ep
 
         # [B, num_classes]
         preds = model(images)
+        # one hot
+        labels = F.one_hot(labels, num_classes=cfgs["num_classes"])
+
         loss = criterion(preds, labels.float())
         mean_loss += loss.item()
 
@@ -120,6 +103,7 @@ def evaluate_acc(model, val_dataset_len, val_loader, device):
     for ds in tqdm(val_loader):
         images, labels = ds["image"], ds["label"]
         images, labels = images.to(device), labels.to(device)
+        labels = F.one_hot(labels, num_classes=6)
         preds = model(images)
         preds = F.sigmoid(preds)
         # 将概率值转换为二进制预测
@@ -132,7 +116,7 @@ def evaluate_acc(model, val_dataset_len, val_loader, device):
     return avg_acc
 
 
-def main(name, sick_name, cfgs, logger):
+def main(cfgs, logger):
     torch.cuda.empty_cache()
 
     # 设置相同的随机种子, 确保实验结果可复现
@@ -157,18 +141,14 @@ def main(name, sick_name, cfgs, logger):
                                use_random_erase=False)
     collater = Collater(mean=cfgs["mean"],
                         std=cfgs["std"])
-    dataset = EyeDataset(root=cfgs[cfgs["mode"]]["root_dir"],
-                         train_csv=cfgs["train_csv"],
-                         name=name,
-                         sick_name=sick_name,
-                         transform=transform["train"])
+    dataset = KitchenDataset(root=cfgs[cfgs["mode"]]["root_dir"],
+                             transform=transform["train"])
     # 划分训练集和验证集
-    train_ratio = 0.8
+    train_ratio = 0.9
     dataset_size = len(dataset)
     train_size = int(train_ratio * dataset_size)
     val_size = dataset_size - train_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-    print(len(train_dataset), len(val_dataset))
     train_loader = DataLoader(dataset=train_dataset,
                               batch_size=cfgs["batch_size"],
                               shuffle=True,
@@ -267,14 +247,5 @@ def main(name, sick_name, cfgs, logger):
     logger.info(f'finish training, total training time: {train_time:.2f} mins')
 
 
-def start_run():
-    ks = ["impression", "HypoF_Type", "HyperF_Y",
-          "HyperF_Type", "HyperF_Fovea", "HyperF_ExtraFovea", "HyperF_Area_DA"]
-    for k, v in feature_dict.items():
-        if k in ks:
-            continue
-        run(k, v)
-
-
 if __name__ == "__main__":
-    start_run()
+    run()
