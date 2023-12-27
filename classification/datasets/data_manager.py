@@ -31,7 +31,7 @@ def init_dataset(name, root_dir, set_name, class_file, transform, **kwargs):
                              train_csv=kwargs["train_csv"],
                              transform=transform)
     elif name == "kitchen":
-        dataset = KitchenDataset(root=root_dir,
+        dataset = KitchenDataset(root_dir=root_dir,
                                  transform=transform)
     else:
         dataset = None

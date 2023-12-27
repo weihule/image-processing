@@ -13,6 +13,9 @@ from torch.backends import cudnn
 from torch.optim import Adam, SGD, lr_scheduler
 from torch.utils.data import DataLoader
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+torch.cuda.device_count()
+
 from datasets.data_manager import init_dataset
 from datasets.transform import transform_func
 from datasets.collater import Collater

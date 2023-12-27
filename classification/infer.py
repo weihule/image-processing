@@ -11,6 +11,8 @@ from backbones.model_manager import init_model
 import time
 from PIL import Image
 
+from datasets.kitchen import labels_list
+
 
 def inference(cfgs):
     """
@@ -43,9 +45,10 @@ def inference(cfgs):
                    s in range(0, len(image_paths), cfgs["batch_size"])]
 
     # 加载类别索引和类别名称映射
-    with open(cfgs["class_file"], "r", encoding="utf-8") as fr:
-        cls2idx = json.load(fr)
-    idx2cls = {v: k for k, v in cls2idx.items()}
+    idx2cls = {}
+    for k, v in enumerate(labels_list):
+        idx2cls[k] = v
+    cls2idx = {v: k for k, v in idx2cls.items()}
 
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
@@ -97,7 +100,7 @@ def detect_single_image(model, image, mean, std, device):
     return preds[:3], indices[:3]
 
 
-def infer_video():
+def infer_video(cfgs):
     # 模型部分
     seed = 0
     os.environ['PYTHONHASHSEED'] = str(seed)
@@ -105,19 +108,22 @@ def infer_video():
     np.random.seed(seed)
     torch.manual_seed(seed)  # 为cpu设置随机数种子
     device = torch.device("cuda:0")
-    model = backbones.__dict__["resnet50"](
-        **{"num_classes": 1000}
-    )
+
+    # 初始化模型并加载权重
+    model = init_model(backbone_type=cfgs["model"],
+                       num_classes=cfgs["num_classes"])
     model = model.to(device)
-    train_model_path = "D:\Desktop\resnet50-acc76.264.pth"
-    weight_dict = torch.load(train_model_path, map_location=torch.device("cpu"))
-    model.load_state_dict(weight_dict, strict=True)
+    if cfgs["train_model_path"]:
+        weight_dict = torch.load(cfgs["train_model_path"], map_location=torch.device("cpu"))
+        model.load_state_dict(weight_dict, strict=True)
+
     model.eval()
 
     # 加载类别索引和类别名称映射
-    class_file = "./utils/imagenet1000.json"
-    with open(class_file, "r", encoding="utf-8") as fr:
-        cls2idx = json.load(fr)
+    idx2cls = {}
+    for k, v in enumerate(labels_list):
+        idx2cls[k] = v
+    cls2idx = {v: k for k, v in idx2cls.items()}
 
     # 处理图像部分
     mean = (0.485, 0.456, 0.406)
@@ -125,45 +131,63 @@ def infer_video():
     mean = np.asarray(mean, dtype=np.float32).reshape((1, 1, 1, 3))
     std = np.asarray(std, dtype=np.float32).reshape((1, 1, 1, 3))
 
-    capture = cv2.VideoCapture(0)  # capture=cv2.VideoCapture("1.mp4")
+    # capture = cv2.VideoCapture(0)
+    capture=cv2.VideoCapture(cfgs["video_path"])
     # fps = 0.0
     while True:
         t1 = time.time()
-        # 读取某一帧
-        ref, frame = capture.read()
+        try:
+            # 读取某一帧
+            ref, frame = capture.read()
+            print(f"frame.shape = {frame.shape}")
 
-        # 进行检测
-        top3_preds, top3_indices = detect_single_image(model, frame, mean, std, device)
-        top3_names = [cls2idx[str(i)] for i in top3_indices]
-        print(top3_preds, top3_indices)
+            # 进行检测
+            top3_preds, top3_indices = detect_single_image(model, frame, mean, std, device)
+            top3_names = [idx2cls[i] for i in top3_indices]
 
-        # frame = cv2.cvtColor(np.asarray(frame), cv2.COLOR_RGB2BGR)
+            # frame = cv2.cvtColor(np.asarray(frame), cv2.COLOR_RGB2BGR)
 
-        # fps = (fps + (1. / (time.time() - t1))) / 2
-        fps = 1. / (time.time() - t1)
-        print("fps= %.2f" % fps)
-        frame = cv2.putText(frame, f"fps= {fps:.2f}", (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        frame = cv2.putText(frame, f"cls_name= {top3_names[0]:<15s}", (0, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        frame = cv2.putText(frame, f"cls_name= {top3_names[1]:<15s}", (0, 120), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            # fps = (fps + (1. / (time.time() - t1))) / 2
+            fps = 1. / (time.time() - t1)
+            # print("fps= %.2f" % fps)
+            frame = cv2.putText(frame, f"fps= {fps:.2f}", (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            frame = cv2.putText(frame, f"cls_name= {top3_names[0]:<15s}", (0, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-        cv2.imshow("video", frame)
-        # 按下esc键，退出
-        c = cv2.waitKey(30) & 0xff
-        if c == 27:
-            capture.release()
+            cv2.imshow("video", frame)
+            # 按下esc键，退出
+            c = cv2.waitKey(30) & 0xff
+            if c == 27:
+                capture.release()
+                break
+        except Exception as e:
             break
 
 
 if __name__ == "__main__":
+    # infer_cfg = {
+    #     "seed": 0,
+    #     "model": "mobilenetv2_x1_0",
+    #     "num_classes": 6,
+    #     "input_image_size": 224,
+    #     "batch_size": 4,
+    #     "train_model_path": r"/home/8TDISK/weihule/data/training_data/kitchen/mobilenetv2_x1_0/mobilenetv2_x1_0/pths/mobilenetv2_x1_0-1.0.pth",
+    #     "class_file": r"D:\workspace\data\dl\flower\flower.json",
+    #     "test_image_dir": r"/home/8TDISK/weihule/data/kitchen/picture",
+    #     "video_path": r"/home/8TDISK/weihule/data/kitchen/video/ele_00cfd9a2b68a27a9360090e104ff8476.ts"
+    # }
+
     infer_cfg = {
         "seed": 0,
         "model": "mobilenetv2_x1_0",
         "num_classes": 6,
-        "input_image_size": 448,
+        "input_image_size": 224,
         "batch_size": 4,
-        "train_model_path": r"D:\workspace\data\training_data\mobilenet_v3_small\pths\mobilenet_v3_small-0.7989.pth",
+        "train_model_path": r"D:\workspace\data\mobilenetv2_x1_0-1.0.pth",
         "class_file": r"D:\workspace\data\dl\flower\flower.json",
-        "test_image_dir": r"D:\workspace\data\dl\flower\test"
+        "test_image_dir": r"/home/8TDISK/weihule/data/kitchen/picture",
+        "video_path": r"D:\workspace\data\kitchen\video\ele_00cfd9a2b68a27a9360090e104ff8476.ts"
     }
-    inference(infer_cfg)
-    # infer_video()
+    # inference(infer_cfg)
+    infer_video(infer_cfg)
+
+
