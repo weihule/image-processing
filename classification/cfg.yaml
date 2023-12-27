@@ -7,7 +7,7 @@ local:
     save_root: 'D:\workspace\data\training_data'
 MY:
     root_dir: '/home/8TDISK/weihule/data/kitchen'
-    class_file: 'D:\workspace\data\dl\flower\flower.json'
+    class_file: ''
     pre_weight_path: '/home/8TDISK/weihule/data/training_data/mobilenetv2_x1_0/mobilenet_v2.pth'
     save_root: '/home/8TDISK/weihule/data/training_data/kitchen/mobilenetv2_x1_0'
 
@@ -22,7 +22,7 @@ backbone_type: mobilenetv2_x1_0
 num_classes: 6
 
 # dataset
-dataset_name: eye
+dataset_name: kitchen
 train_set_name: train
 val_set_name: val
 image_size: 448

@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader, random_split
 from sklearn.metrics import accuracy_score
 
 from datasets import KitchenDataset, labels_list
+from datasets.data_manager import init_dataset
 from datasets.transform import transform_func
 from datasets.collater import Collater
 from backbones.model_manager import init_model
@@ -141,14 +142,23 @@ def main(cfgs, logger):
                                use_random_erase=False)
     collater = Collater(mean=cfgs["mean"],
                         std=cfgs["std"])
-    dataset = KitchenDataset(root=cfgs[cfgs["mode"]]["root_dir"],
-                             transform=transform["train"])
     # 划分训练集和验证集
-    train_ratio = 0.9
-    dataset_size = len(dataset)
-    train_size = int(train_ratio * dataset_size)
-    val_size = dataset_size - train_size
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    # train_ratio = 0.9
+    # dataset_size = len(dataset)
+    # train_size = int(train_ratio * dataset_size)
+    # val_size = dataset_size - train_size
+    # train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+
+    train_dataset = init_dataset(name=cfgs["dataset_name"],
+                                 root_dir=os.path.join(cfgs[cfgs["mode"]]["root_dir"], "train"),
+                                 set_name=cfgs["train_set_name"],
+                                 class_file=cfgs[cfgs["mode"]]["class_file"],
+                                 transform=transform["train"])
+    val_dataset = init_dataset(name=cfgs["dataset_name"],
+                               root_dir=os.path.join(cfgs[cfgs["mode"]]["root_dir"], "val"),
+                               set_name=cfgs["val_set_name"],
+                               class_file=cfgs[cfgs["mode"]]["class_file"],
+                               transform=transform["val"])
     train_loader = DataLoader(dataset=train_dataset,
                               batch_size=cfgs["batch_size"],
                               shuffle=True,

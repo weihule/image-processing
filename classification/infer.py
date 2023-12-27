@@ -157,9 +157,9 @@ def infer_video():
 if __name__ == "__main__":
     infer_cfg = {
         "seed": 0,
-        "model": "mobilenet_v3_small",
-        "num_classes": 5,
-        "input_image_size": 224,
+        "model": "mobilenetv2_x1_0",
+        "num_classes": 6,
+        "input_image_size": 448,
         "batch_size": 4,
         "train_model_path": r"D:\workspace\data\training_data\mobilenet_v3_small\pths\mobilenet_v3_small-0.7989.pth",
         "class_file": r"D:\workspace\data\dl\flower\flower.json",

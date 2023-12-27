@@ -152,16 +152,6 @@ def inference(cfgs):
 
 
 def run():
-    # impression_score:3.7990
-    # hyperf_type_score:4.0460
-    # hyperf_extrafovea_score:3.6760
-    # hypof_extrafovea_score:4.7400
-    # vascular_abnormality_dr_score:5.3070
-    # pattern_score:5.2070
-    resizes_448 = ["HypoF_ExtraFovea", "Pattern", "Vascular_abnormality_DR"]
-
-    resize_672 = ["impression", "HypoF_Type", "HyperF_Y",
-                  "HyperF_Type", "HyperF_Fovea", "HyperF_ExtraFovea", "HyperF_Area_DA"]
     val_root = "/home/8TDISK/weihule/data/eye_competition/Test/Test_images"
     # val_root = "/home/8TDISK/weihule/data/eye_competition/Train/Train"\
     folders = list(pd.read_csv("./sublit_sample_test.csv")["Folder"])
