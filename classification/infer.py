@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import cv2
+import pandas as pd
 import torch
 import random
 import numpy as np
@@ -12,6 +13,9 @@ import time
 from PIL import Image
 
 from datasets.kitchen import labels_list
+
+final_ret = {"filename": [],
+             "result": []}
 
 
 def inference(cfgs):
@@ -41,7 +45,7 @@ def inference(cfgs):
     for img_name in os.listdir(cfgs["test_image_dir"]):
         image_paths.append(os.path.join(cfgs["test_image_dir"], img_name))
     infer_num = len(image_paths)
-    image_paths = [image_paths[s: s+cfgs["batch_size"]] for
+    image_paths = [image_paths[s: s + cfgs["batch_size"]] for
                    s in range(0, len(image_paths), cfgs["batch_size"])]
 
     # 加载类别索引和类别名称映射
@@ -76,6 +80,11 @@ def inference(cfgs):
             print(f"image_name: {image_path.split(os.sep)[-1]} "
                   f"pred_class: {idx2cls[pred_class.item()]} "
                   f"prob: {round(pred_score.item(), 3)}")
+
+            # TODO: kitchen
+            final_ret["filename"].append(image_path.split(os.sep)[-1])
+            final_ret["result"].append(idx2cls[pred_class.item()])
+
     fps = round(1 / ((time.time() - start_time) / infer_num), 1)
     print(f"model: {cfgs['model']} FPS: {fps}")
     cal_macs_params(model.to(torch.device("cpu")), input_size=(4, 3, 224, 224))
@@ -132,14 +141,18 @@ def infer_video(cfgs):
     std = np.asarray(std, dtype=np.float32).reshape((1, 1, 1, 3))
 
     # capture = cv2.VideoCapture(0)
-    capture=cv2.VideoCapture(cfgs["video_path"])
+    capture = cv2.VideoCapture(cfgs["video_path"])
+
+    # TODO: kitchen
+    final_ret["filename"].append(cfgs["video_path"].split(os.sep)[-1])
+    res = set()
+
     # fps = 0.0
     while True:
         t1 = time.time()
         try:
             # 读取某一帧
             ref, frame = capture.read()
-            print(f"frame.shape = {frame.shape}")
 
             # 进行检测
             top3_preds, top3_indices = detect_single_image(model, frame, mean, std, device)
@@ -151,43 +164,97 @@ def infer_video(cfgs):
             fps = 1. / (time.time() - t1)
             # print("fps= %.2f" % fps)
             frame = cv2.putText(frame, f"fps= {fps:.2f}", (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            frame = cv2.putText(frame, f"cls_name= {top3_names[0]:<15s}", (0, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            frame = cv2.putText(frame, f"cls_name= {top3_names[0]:<15s}", (0, 80), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                                (0, 255, 0), 2)
 
-            cv2.imshow("video", frame)
-            # 按下esc键，退出
-            c = cv2.waitKey(30) & 0xff
-            if c == 27:
-                capture.release()
-                break
+            res.add(top3_names[0])
+            # cv2.imshow("video", frame)
+            # # 按下esc键，退出
+            # c = cv2.waitKey(30) & 0xff
+            # if c == 27:
+            #     capture.release()
+            #     break
         except Exception as e:
             break
 
+    final_ret["result"].append(list(res))
+
+
+def kitchen_run():
+    dict_map = {
+        "normal": 0,
+        "smoke": 1,
+        "shirtless": 2,
+        "rat": 4,
+        "cat": 8,
+        "dog": 16
+    }
+    image_cfg = {
+        "seed": 0,
+        "model": "resnet18",
+        "num_classes": 6,
+        "input_image_size": 448,
+        "batch_size": 4,
+        "train_model_path": r"/home/8TDISK/weihule/data/training_data/kitchen/resnet18/resnet18/pths/resnet18-0.8.pth",
+        "test_image_dir": r"/home/8TDISK/weihule/data/kitchen/picture",
+    }
+    inference(image_cfg)
+    video_root = r"/home/8TDISK/weihule/data/kitchen/video"
+    for i in os.listdir(video_root):
+        video_cfg = {
+            "seed": 0,
+            "model": "resnet18",
+            "num_classes": 6,
+            "input_image_size": 448,
+            "batch_size": 4,
+            "train_model_path": r"/home/8TDISK/weihule/data/training_data/kitchen/resnet18/resnet18/pths/resnet18-0.8.pth",
+            "video_path": os.path.join(video_root, i)
+        }
+        infer_video(video_cfg)
+        # break
+
+    temp_list = []
+    for i in final_ret["result"]:
+        if isinstance(i, str):
+            temp_list.append(dict_map[i])
+        else:
+            temp_number = 0
+            for sub_i in i:
+                temp_number += dict_map[sub_i]
+            temp_list.append(temp_number)
+    final_ret["result"] = temp_list
+
+    pd_ret = pd.DataFrame(final_ret)
+    pd_ret.to_csv("./test.csv", index=False)
+
+    print(len(final_ret["filename"]), len(final_ret["result"]))
+
 
 if __name__ == "__main__":
-    # infer_cfg = {
-    #     "seed": 0,
-    #     "model": "mobilenetv2_x1_0",
-    #     "num_classes": 6,
-    #     "input_image_size": 224,
-    #     "batch_size": 4,
-    #     "train_model_path": r"/home/8TDISK/weihule/data/training_data/kitchen/mobilenetv2_x1_0/mobilenetv2_x1_0/pths/mobilenetv2_x1_0-1.0.pth",
-    #     "class_file": r"D:\workspace\data\dl\flower\flower.json",
-    #     "test_image_dir": r"/home/8TDISK/weihule/data/kitchen/picture",
-    #     "video_path": r"/home/8TDISK/weihule/data/kitchen/video/ele_00cfd9a2b68a27a9360090e104ff8476.ts"
-    # }
-
     infer_cfg = {
         "seed": 0,
         "model": "mobilenetv2_x1_0",
         "num_classes": 6,
         "input_image_size": 224,
         "batch_size": 4,
-        "train_model_path": r"D:\workspace\data\mobilenetv2_x1_0-1.0.pth",
+        "train_model_path": r"/home/8TDISK/weihule/data/training_data/kitchen/mobilenetv2_x1_0/mobilenetv2_x1_0/pths/mobilenetv2_x1_0-1.0.pth",
         "class_file": r"D:\workspace\data\dl\flower\flower.json",
         "test_image_dir": r"/home/8TDISK/weihule/data/kitchen/picture",
-        "video_path": r"D:\workspace\data\kitchen\video\ele_00cfd9a2b68a27a9360090e104ff8476.ts"
+        "video_path": r"/home/8TDISK/weihule/data/kitchen/video/ele_00cfd9a2b68a27a9360090e104ff8476.ts"
     }
+
+    # infer_cfg = {
+    #     "seed": 0,
+    #     "model": "mobilenetv2_x1_0",
+    #     "num_classes": 6,
+    #     "input_image_size": 224,
+    #     "batch_size": 4,
+    #     "train_model_path": r"D:\workspace\data\mobilenetv2_x1_0-1.0.pth",
+    #     "class_file": r"D:\workspace\data\dl\flower\flower.json",
+    #     "test_image_dir": r"/home/8TDISK/weihule/data/kitchen/picture",
+    #     "video_path": r"D:\workspace\data\kitchen\video\ele_00cfd9a2b68a27a9360090e104ff8476.ts"
+    # }
     # inference(infer_cfg)
-    infer_video(infer_cfg)
+    # infer_video(infer_cfg)
 
-
+    kitchen_run()

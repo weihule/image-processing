@@ -32,6 +32,7 @@ def init_dataset(name, root_dir, set_name, class_file, transform, **kwargs):
                              transform=transform)
     elif name == "kitchen":
         dataset = KitchenDataset(root_dir=root_dir,
+                                 set_name=set_name,
                                  transform=transform)
     else:
         dataset = None

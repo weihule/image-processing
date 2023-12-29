@@ -8,8 +8,8 @@ local:
 MY:
     root_dir: '/home/8TDISK/weihule/data/kitchen'
     class_file: ''
-    pre_weight_path: '/home/8TDISK/weihule/data/training_data/mobilenetv2_x1_0/mobilenet_v2.pth'
-    save_root: '/home/8TDISK/weihule/data/training_data/kitchen/mobilenetv2_x1_0'
+    pre_weight_path: '/home/8TDISK/weihule/data/training_data/kitchen/resnet18/resnet18-acc70.712.pth'
+    save_root: '/home/8TDISK/weihule/data/training_data/kitchen/resnet18'
 
 autodl:
     root_dir: '/root/autodl-tmp/imagenet100'
@@ -18,14 +18,14 @@ autodl:
     save_root: '/root/autodl-nas/classification_data/resnet'
 
 # model
-backbone_type: mobilenetv2_x1_0
+backbone_type: resnet18
 num_classes: 6
 
 # dataset
 dataset_name: kitchen
 train_set_name: train
 val_set_name: val
-image_size: 224
+image_size: 448
 mean:
     - 0.485
     - 0.456
