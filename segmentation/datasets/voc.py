@@ -116,11 +116,11 @@ class VOCSeg(Dataset):
                 cur_pt = float(bbox.find(pt).text)
                 target.append(cur_pt)
 
-            # ÌŞ³ı¿òºÜĞ¡µÄ
+            # å‰”é™¤æ¡†å¾ˆå°çš„
             if target[2] - target[0] < 1 or target[3] - target[1] < 1:
                 continue
 
-            # ÌŞ³ı¿ò³¬¹ıÍ¼Ïñ±ß½çµÄ
+            # å‰”é™¤æ¡†è¶…è¿‡å›¾åƒè¾¹ç•Œçš„
             if (target[0] < 0 or
                     target[1] < 0 or
                     target[2] > w or
