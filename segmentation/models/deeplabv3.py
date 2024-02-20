@@ -170,14 +170,14 @@ class DeepLabHead(nn.Sequential):
         )
 
 
-def deeplabv3_resnet50(aux, num_classes=21, pretrain_backbone=False):
+def deeplabv3_resnet50(aux, num_classes=21, pretrain_backbone=None):
     # 'resnet50_imagenet': 'https://download.pytorch.org/models/resnet50-0676ba61.pth'
     # 'deeplabv3_resnet50_coco': 'https://download.pytorch.org/models/deeplabv3_resnet50_coco-cd0a2569.pth'
     backbone = resnet50(replace_stride_with_dilation=[False, True, True])
 
-    if pretrain_backbone:
+    if pretrain_backbone is not None:
         # 载入resnet50 backbone预训练权重
-        backbone.load_state_dict(torch.load("resnet50.pth", map_location='cpu'))
+        backbone.load_state_dict(torch.load(pretrain_backbone, map_location='cpu'))
 
     out_inplanes = 2048
     aux_inplanes = 1024
@@ -199,14 +199,14 @@ def deeplabv3_resnet50(aux, num_classes=21, pretrain_backbone=False):
     return model
 
 
-def deeplabv3_resnet101(aux, num_classes=21, pretrain_backbone=False):
+def deeplabv3_resnet101(aux, num_classes=21, pretrain_backbone=None):
     # 'resnet101_imagenet': 'https://download.pytorch.org/models/resnet101-63fe2227.pth'
     # 'deeplabv3_resnet101_coco': 'https://download.pytorch.org/models/deeplabv3_resnet101_coco-586e9e4e.pth'
     backbone = resnet101(replace_stride_with_dilation=[False, True, True])
 
-    if pretrain_backbone:
+    if pretrain_backbone is not None:
         # 载入resnet101 backbone预训练权重
-        backbone.load_state_dict(torch.load("resnet101.pth", map_location='cpu'))
+        backbone.load_state_dict(torch.load(pretrain_backbone, map_location='cpu'))
 
     out_inplanes = 2048
     aux_inplanes = 1024
@@ -228,14 +228,14 @@ def deeplabv3_resnet101(aux, num_classes=21, pretrain_backbone=False):
     return model
 
 
-def deeplabv3_mobilenetv3_large(aux, num_classes=21, pretrain_backbone=False):
+def deeplabv3_mobilenetv3_large(aux, num_classes=21, pretrain_backbone=None):
     # 'mobilenetv3_large_imagenet': 'https://download.pytorch.org/models/mobilenet_v3_large-8738ca79.pth'
     # 'depv3_mobilenetv3_large_coco': "https://download.pytorch.org/models/deeplabv3_mobilenet_v3_large-fc3c493d.pth"
     backbone = mobilenet_v3_large(dilated=True)
 
-    if pretrain_backbone:
+    if pretrain_backbone is not None:
         # 载入mobilenetv3 large backbone预训练权重
-        backbone.load_state_dict(torch.load("mobilenet_v3_large.pth", map_location='cpu'))
+        backbone.load_state_dict(torch.load(pretrain_backbone, map_location='cpu'))
 
     backbone = backbone.features
 
@@ -265,7 +265,10 @@ def deeplabv3_mobilenetv3_large(aux, num_classes=21, pretrain_backbone=False):
 
 
 if __name__ == "__main__":
-    arr = torch.randn((4, 3, 640, 640))
-    shape = arr.shape[-2:]
-    print(shape)
+    model = deeplabv3_resnet50(aux=None,
+                               num_classes=21,
+                               pretrain_backbone=r"D:\workspace\train_data\seg\pre\resnet50-0676.pth")
 
+    arr = torch.randn(size=(4, 3, 480, 480))
+    outs = model(arr)["out"]
+    print(outs.shape)

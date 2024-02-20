@@ -34,7 +34,7 @@ dir_checkpoint = '/home/8TDISK/weihule/training_data/seg/unet_1.0/'
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')
-    parser.add_argument('--epochs', '-e', metavar='E', type=int, default=5, help='Number of epochs')
+    parser.add_argument('--epochs', '-e', type=int, default=5, help='Number of epochs')
     parser.add_argument('--batch-size', '-b', type=int, default=1, help='Batch size')
     parser.add_argument('--learning-rate', '-l', type=float, default=1e-5, help='Learning rate')
     parser.add_argument('--load', '-f', type=str, default=False, help='Load model from a .pth file')
