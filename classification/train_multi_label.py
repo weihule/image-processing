@@ -73,8 +73,9 @@ def train(cfgs, logger, model, train_loader, criterion, optimizer, scheduler, ep
         # [B, num_classes]
         preds = model(images)
         # one hot
-        labels = F.one_hot(labels, num_classes=cfgs["num_classes"])
+        # labels = F.one_hot(labels, num_classes=cfgs["num_classes"])
 
+        # print(f"----------- {preds.shape} {labels.shape}")
         loss = criterion(preds, labels.float())
         mean_loss += loss.item()
 
@@ -104,7 +105,7 @@ def evaluate_acc(model, val_dataset_len, val_loader, device):
     for ds in tqdm(val_loader):
         images, labels = ds["image"], ds["label"]
         images, labels = images.to(device), labels.to(device)
-        labels = F.one_hot(labels, num_classes=6)
+        # labels = F.one_hot(labels, num_classes=4)
         preds = model(images)
         preds = F.sigmoid(preds)
         # 将概率值转换为二进制预测
@@ -142,22 +143,14 @@ def main(cfgs, logger):
                                use_random_erase=False)
     collater = Collater(mean=cfgs["mean"],
                         std=cfgs["std"])
-    # 划分训练集和验证集
-    # train_ratio = 0.9
-    # dataset_size = len(dataset)
-    # train_size = int(train_ratio * dataset_size)
-    # val_size = dataset_size - train_size
-    # train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
     train_dataset = init_dataset(name=cfgs["dataset_name"],
-                                 root_dir=os.path.join(cfgs[cfgs["mode"]]["root_dir"], "train"),
+                                 root_dir=cfgs[cfgs["mode"]]["root_dir"],
                                  set_name=cfgs["train_set_name"],
-                                 class_file=cfgs[cfgs["mode"]]["class_file"],
                                  transform=transform["train"])
     val_dataset = init_dataset(name=cfgs["dataset_name"],
-                               root_dir=os.path.join(cfgs[cfgs["mode"]]["root_dir"], "val"),
+                               root_dir=cfgs[cfgs["mode"]]["root_dir"],
                                set_name=cfgs["val_set_name"],
-                               class_file=cfgs[cfgs["mode"]]["class_file"],
                                transform=transform["val"])
     train_loader = DataLoader(dataset=train_dataset,
                               batch_size=cfgs["batch_size"],

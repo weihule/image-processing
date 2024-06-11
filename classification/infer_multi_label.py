@@ -14,46 +14,8 @@ import time
 from PIL import Image
 from collections import Counter
 
-from datasets.eye_multi_label import (impression, HyperF_Type, HyperF_Area_DA,
-                                      HyperF_Fovea, HyperF_ExtraFovea, HyperF_Y,
-                                      HypoF_Type, HypoF_Area_DA,
-                                      HypoF_Fovea, HypoF_ExtraFovea, HypoF_Y,
-                                      CNV, Vascular_abnormality_DR, Pattern)
 
-feature_dict = {
-    "impression": "Impression",
-    "HyperF_Type": "HyperF_Type",
-    "HyperF_Area_DA": "HyperF_Area(DA)",
-    "HyperF_Fovea": "HyperF_Fovea",
-    "HyperF_ExtraFovea": "HyperF_ExtraFovea",
-    "HyperF_Y": "HyperF_Y",
-    "HypoF_Type": "HypoF_Type",
-    "HypoF_Area_DA": "HypoF_Area(DA)",
-    "HypoF_Fovea": "HypoF_Fovea",
-    "HypoF_ExtraFovea": "HypoF_ExtraFovea",
-    "HypoF_Y": "HypoF_Y",
-    "CNV": "CNV",
-    "Vascular_abnormality_DR": "Vascular abnormality (DR)",
-    "Pattern": "Pattern"
-}
-
-feature_num_classes = {
-    "impression": 23,
-    "HyperF_Type": 5,
-    "HyperF_Area_DA": 3,
-    "HyperF_Fovea": 2,
-    "HyperF_ExtraFovea": 18,
-    "HyperF_Y": 4,
-    "HypoF_Type": 3,
-    "HypoF_Area_DA": 3,
-    "HypoF_Fovea": 2,
-    "HypoF_ExtraFovea": 16,
-    "HypoF_Y": 4,
-    "CNV": 2,
-    "Vascular_abnormality_DR": 15,
-    "Pattern": 14
-}
-feature_idx = list(feature_dict.keys())
+labels = ['below', 'NoChamfer', 'rough', 'normal']
 
 
 def inference(cfgs):
@@ -68,9 +30,7 @@ def inference(cfgs):
         torch.manual_seed(seed)  # 为cpu设置随机数种子
 
     device = torch.device("cuda:0")
-
-    symptoms = Path(cfgs["train_model_path"]).parts[-4].split("multi_")[-1]
-    num_classes = feature_num_classes[symptoms]
+    num_classes = cfgs["num_classes"]
 
     model = init_model(backbone_type=cfgs["model"],
                        num_classes=num_classes)
@@ -89,9 +49,6 @@ def inference(cfgs):
     image_paths = [image_paths[s: s + cfgs["batch_size"]] for
                    s in range(0, len(image_paths), cfgs["batch_size"])]
 
-    # 加载类别索引和类别名称映射
-    cls2idx = dict(zip(impression, range(len(impression))))
-
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
     mean = np.asarray(mean, dtype=np.float32).reshape((1, 1, 1, 3))
@@ -100,9 +57,12 @@ def inference(cfgs):
     start_time = time.time()
 
     res = []
+    names = []
+    scores = []
     for batch_datas in image_paths:
         batch_images = []
         for img_path in batch_datas:
+            names.append(Path(img_path).name)
             image = cv2.imread(img_path)
             image = cv2.resize(image, (cfgs["input_image_size"], cfgs["input_image_size"]))
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -115,98 +75,43 @@ def inference(cfgs):
 
         pred = model(batch_images)
         pred = F.sigmoid(pred)
+        scores.append(pred)
         output = (pred > 0.5).int()
 
         res.append(output)
 
     res = torch.concatenate(res, dim=0)
-    # 将每一行转换为字符串，以便进行比较
-    str_rows = ["".join(map(str, row.cpu().numpy().tolist())) for row in res]
+    scores = torch.concatenate(scores, dim=0)
+    for name, ret, score in zip(names, res.tolist(), scores.tolist()):
+        pred_class = multi2name(ret, labels)
+        print(f"image_name: {name:<20s} "
+              f"pred_class: {pred_class:<35s} "
+              f"prob: {score}")
 
-    # 找到出现次数最多的一行
-    most_frequent_row = max(str_rows, key=str_rows.count)
 
-    # 将字符串还原为 Tensor
-    result_tensor = torch.tensor([int(digit) for digit in most_frequent_row])
-
-    indices = torch.nonzero(result_tensor).reshape((-1)).numpy().tolist()
-
-    if not indices:
-        try:
-            # 找出每行中值为 1 的索引位置
-            indices_ = [row.nonzero().squeeze().tolist() for row in res]
-            indices_ = [row for row in indices_ if row]
-            # 使用 Counter 统计元素出现次数
-            counter = Counter(indices_)
-
-            # 找到重复次数最多的元素
-            most_common_element = counter.most_common(1)[0][0]
-        except:
-            most_common_element = 0
-
-        indices = [most_common_element]
-
-    names = [eval(symptoms)[i] for i in indices]
-
-    return {symptoms: names}
+def multi2name(ret, labels):
+    name = []
+    for idx, i in enumerate(ret):
+        if i == 1:
+            name.append(labels[idx])
+    name = '-'.join(name)
+    return name
 
 
 def run():
-    val_root = "/home/8TDISK/weihule/data/eye_competition/Test/Test_images"
-    # val_root = "/home/8TDISK/weihule/data/eye_competition/Train/Train"\
-    folders = list(pd.read_csv("./sublit_sample_test.csv")["Folder"])
-    writer_info = {"Impression": [],
-                   "HyperF_Type": [],
-                   "HyperF_Area(DA)": [],
-                   "HyperF_Fovea": [],
-                   "HyperF_ExtraFovea": [],
-                   "HyperF_Y": [],
-                   "HypoF_Type": [],
-                   "HypoF_Area(DA)": [],
-                   "HypoF_Fovea": [],
-                   "HypoF_ExtraFovea": [],
-                   "HypoF_Y": [],
-                   "CNV": [],
-                   "Vascular abnormality (DR)": [],
-                   "Pattern": [],
-                   "ID": [],
-                   "Folder": []}
-    for folder in tqdm(folders):
-        val_dir = Path(val_root) / folder
-        ID = folder.split("_")[0]
-        writer_info["ID"].append(ID)
-        writer_info["Folder"].append(folder)
-        # 调用14个分类模型
-        for k in feature_dict.keys():
-            img_resize = 672
-            # if k in resizes_448:
-            #     img_resize = 448
-            # elif k in resize_672:
-            #     img_resize = 672
-            # else:
-            #     img_resize = 224
-            model_dir = f"resnet50_multi_{k}"
-            train_model_path = Path("/home/8TDISK/weihule/data/training_data") / model_dir / "resnet50/pths"
-            train_model_path = list(train_model_path.glob("*.pth"))[0]
-
-            infer_cfg = {
-                "seed": 0,
-                "model": "resnet50",
-                "input_image_size": img_resize,
-                "batch_size": 8,
-                "train_model_path": train_model_path,
-                "class_file": r"D:\workspace\data\dl\flower\flower.json",
-                "test_image_dir": str(val_dir)
-            }
-            infer_res = inference(infer_cfg)
-            temp_k = list(infer_res.keys())[0]
-            temp_v = infer_res[temp_k]
-            temp_v = ",".join(temp_v)
-
-            writer_info[feature_dict[temp_k]].append(temp_v)
-
-    writer_info = pd.DataFrame(writer_info)
-    writer_info.to_csv("./submit6.csv", index=False)
+    val_root = "/home/8TDISK/weihule/data/mojiao/test/rough-NoChamfer-below"
+    img_resize = 448
+    model_path = f"/home/8TDISK/weihule/data/training_data/mojiao_multi/resnet18/resnet18/pths/resnet18-0.8401.pth"
+    infer_cfg = {
+        "seed": 0,
+        "model": "resnet18",
+        "input_image_size": img_resize,
+        "batch_size": 8,
+        "train_model_path": model_path,
+        "test_image_dir": val_root,
+        "num_classes": 4
+    }
+    inference(infer_cfg)
 
 
 if __name__ == "__main__":

@@ -10,12 +10,20 @@ import torch.nn.functional as F
 from utils.util import cal_macs_params
 from backbones.model_manager import init_model
 import time
+from pathlib import Path
 from PIL import Image
 
 from datasets.kitchen import labels_list
 
 final_ret = {"filename": [],
              "result": []}
+
+en2zh = {
+    "unfinished_chamfers": "未做倒角",
+    "uneven": "不平整",
+    "normal": "正常",
+    "below": "低于防水胶条"
+}
 
 
 def inference(cfgs):
@@ -60,10 +68,13 @@ def inference(cfgs):
     std = np.asarray(std, dtype=np.float32).reshape((1, 1, 1, 3))
 
     start_time = time.time()
+    num = 1
     for batch_datas in image_paths:
         batch_images = []
+        raw_images = []
         for img_path in batch_datas:
             image = cv2.imread(img_path)
+            raw_images.append(image)
             image = cv2.resize(image, (cfgs["input_image_size"], cfgs["input_image_size"]))
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             batch_images.append(image)
@@ -76,17 +87,23 @@ def inference(cfgs):
         output = model(batch_images)
         output = F.softmax(output, dim=1)
         pred_scores, pred_classes = torch.max(output, dim=-1)
-        for image_path, pred_class, pred_score in zip(batch_datas, pred_classes, pred_scores):
-            print(f"image_name: {image_path.split(os.sep)[-1]} "
-                  f"pred_class: {idx2cls[pred_class.item()]} "
-                  f"prob: {round(pred_score.item(), 3)}")
+        for raw_image, image_path, pred_class, pred_score in zip(raw_images, batch_datas, pred_classes, pred_scores):
+            # print(f"image_name: {image_path.split(os.sep)[-1]} "
+            #       f"pred_class: {idx2cls[pred_class.item()]} "
+            #       f"prob: {round(pred_score.item(), 3)}")
+            print(f"image_name: {image_path.split(os.sep)[-1]:<20s} "
+                  f"pred_class: {idx2cls[pred_class.item()]:<20s} "
+                  f"prob: {round(pred_score.item(), 3):<20.3f}")
+            file_path = Path("/home/8TDISK/weihule/data/mojiao_dataset/show/below") / (en2zh[idx2cls[pred_class.item()]]+'-'+str(num).rjust(3, "0")+'-'+str(round(pred_score.item(), 3))+'.jpg')
+            cv2.imwrite(str(file_path), raw_image)
 
-            # TODO: kitchen
             final_ret["filename"].append(image_path.split(os.sep)[-1])
             final_ret["result"].append(idx2cls[pred_class.item()])
+            num += 1
 
     fps = round(1 / ((time.time() - start_time) / infer_num), 1)
     print(f"model: {cfgs['model']} FPS: {fps}")
+    # print(final_ret["result"].count("normal"), len(final_ret["result"]))
     cal_macs_params(model.to(torch.device("cpu")), input_size=(4, 3, 224, 224))
 
 
@@ -180,7 +197,7 @@ def infer_video(cfgs):
     final_ret["result"].append(list(res))
 
 
-def kitchen_run():
+def run():
     dict_map = {
         "normal": 0,
         "smoke": 1,
@@ -192,69 +209,43 @@ def kitchen_run():
     image_cfg = {
         "seed": 0,
         "model": "resnet18",
-        "num_classes": 6,
+        "num_classes": 4,
         "input_image_size": 448,
         "batch_size": 4,
-        "train_model_path": r"/home/8TDISK/weihule/data/training_data/kitchen/resnet18/resnet18/pths/resnet18-0.8.pth",
-        "test_image_dir": r"/home/8TDISK/weihule/data/kitchen/picture",
+        "train_model_path": r"/home/8TDISK/weihule/data/training_data/mojiao/resnet18/resnet18/pths/resnet18-0.7411.pth",
+        "test_image_dir": r"/home/8TDISK/weihule/data/mojiao_dataset/val/below",
     }
     inference(image_cfg)
-    video_root = r"/home/8TDISK/weihule/data/kitchen/video"
-    for i in os.listdir(video_root):
-        video_cfg = {
-            "seed": 0,
-            "model": "resnet18",
-            "num_classes": 6,
-            "input_image_size": 448,
-            "batch_size": 4,
-            "train_model_path": r"/home/8TDISK/weihule/data/training_data/kitchen/resnet18/resnet18/pths/resnet18-0.8.pth",
-            "video_path": os.path.join(video_root, i)
-        }
-        infer_video(video_cfg)
-        # break
-
-    temp_list = []
-    for i in final_ret["result"]:
-        if isinstance(i, str):
-            temp_list.append(dict_map[i])
-        else:
-            temp_number = 0
-            for sub_i in i:
-                temp_number += dict_map[sub_i]
-            temp_list.append(temp_number)
-    final_ret["result"] = temp_list
-
-    pd_ret = pd.DataFrame(final_ret)
-    pd_ret.to_csv("./test.csv", index=False)
-
-    print(len(final_ret["filename"]), len(final_ret["result"]))
+    # video_root = r"/home/8TDISK/weihule/data/kitchen/video"
+    # for i in os.listdir(video_root):
+    #     video_cfg = {
+    #         "seed": 0,
+    #         "model": "resnet18",
+    #         "num_classes": 6,
+    #         "input_image_size": 448,
+    #         "batch_size": 4,
+    #         "train_model_path": r"/home/8TDISK/weihule/data/training_data/kitchen/resnet18/resnet18/pths/resnet18-0.8.pth",
+    #         "video_path": os.path.join(video_root, i)
+    #     }
+    #     infer_video(video_cfg)
+    #     # break
+    #
+    # temp_list = []
+    # for i in final_ret["result"]:
+    #     if isinstance(i, str):
+    #         temp_list.append(dict_map[i])
+    #     else:
+    #         temp_number = 0
+    #         for sub_i in i:
+    #             temp_number += dict_map[sub_i]
+    #         temp_list.append(temp_number)
+    # final_ret["result"] = temp_list
+    #
+    # pd_ret = pd.DataFrame(final_ret)
+    # pd_ret.to_csv("./test.csv", index=False)
+    #
+    # print(len(final_ret["filename"]), len(final_ret["result"]))
 
 
 if __name__ == "__main__":
-    infer_cfg = {
-        "seed": 0,
-        "model": "mobilenetv2_x1_0",
-        "num_classes": 6,
-        "input_image_size": 224,
-        "batch_size": 4,
-        "train_model_path": r"/home/8TDISK/weihule/data/training_data/kitchen/mobilenetv2_x1_0/mobilenetv2_x1_0/pths/mobilenetv2_x1_0-1.0.pth",
-        "class_file": r"D:\workspace\data\dl\flower\flower.json",
-        "test_image_dir": r"/home/8TDISK/weihule/data/kitchen/picture",
-        "video_path": r"/home/8TDISK/weihule/data/kitchen/video/ele_00cfd9a2b68a27a9360090e104ff8476.ts"
-    }
-
-    # infer_cfg = {
-    #     "seed": 0,
-    #     "model": "mobilenetv2_x1_0",
-    #     "num_classes": 6,
-    #     "input_image_size": 224,
-    #     "batch_size": 4,
-    #     "train_model_path": r"D:\workspace\data\mobilenetv2_x1_0-1.0.pth",
-    #     "class_file": r"D:\workspace\data\dl\flower\flower.json",
-    #     "test_image_dir": r"/home/8TDISK/weihule/data/kitchen/picture",
-    #     "video_path": r"D:\workspace\data\kitchen\video\ele_00cfd9a2b68a27a9360090e104ff8476.ts"
-    # }
-    # inference(infer_cfg)
-    # infer_video(infer_cfg)
-
-    kitchen_run()
+    run()

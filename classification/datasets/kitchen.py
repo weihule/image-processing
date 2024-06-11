@@ -9,8 +9,8 @@ __all__ = [
     "KitchenDataset"
 ]
 
-
-labels_list = ['normal', 'smoke', 'shirtless', 'rat', 'cat', 'dog']
+# labels_list = ['normal', 'smoke', 'shirtless', 'rat', 'cat', 'dog']
+labels_list = ['normal', 'uneven', 'unfinished_chamfers', 'below']
 
 
 class KitchenDataset(Dataset):
@@ -53,8 +53,11 @@ class KitchenDataset(Dataset):
     def pre_process(self):
         images = []
         labels = []
-        for per_dir in Path(self.image_dir).iterdir():
+        # img_paths = [x for x in Path(self.image_dir).glob("*.jpg")] + [x for x in Path(self.image_dir).glob("*.png")]
+        for per_dir in self.image_dir.iterdir():
             label = labels_list.index(per_dir.parts[-1])
+            img_paths = [x for x in per_dir.glob("*.jpg")] + [x for x in
+                                                              per_dir.glob("*.png")]
             for per_img in per_dir.iterdir():
                 images.append(str(per_img))
                 labels.append(label)
@@ -75,6 +78,7 @@ class KitchenDataset(Dataset):
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
+
     kit = KitchenDataset(root_dir=r"D:\workspace\data\kitchen",
                          set_name="train")
     s = kit[0]
@@ -82,5 +86,3 @@ if __name__ == "__main__":
     print(lab, labels_list[int(lab)])
     plt.imshow(img.astype(np.uint8))
     plt.show()
-
-
