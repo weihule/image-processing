@@ -18,6 +18,20 @@ from collections import Counter
 labels = ['below', 'NoChamfer', 'rough', 'normal']
 
 
+def get_video_info(video_info):
+    cap = cv2.VideoCapture(video_info)
+    if not cap.isOpened():
+        return None
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    duration = frame_count / fps
+
+    cap.release()
+
+    return {"fps": fps, "frame_count": frame_count, "duration": duration}
+
+
 def inference(cfgs):
     """
     以文件夹的形式推理
@@ -87,6 +101,58 @@ def inference(cfgs):
         print(f"image_name: {name:<20s} "
               f"pred_class: {pred_class:<35s} "
               f"prob: {score}")
+
+
+def inference_video(cfgs):
+    """
+    推理视频
+    """
+    if cfgs["seed"]:
+        seed = cfgs["seed"]
+        os.environ['PYTHONHASHSEED'] = str(seed)
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)  # 为cpu设置随机数种子
+
+    device = torch.device("cuda:0")
+    num_classes = cfgs["num_classes"]
+
+    model = init_model(backbone_type=cfgs["model"],
+                       num_classes=num_classes)
+    model = model.to(device)
+
+    if cfgs["train_model_path"]:
+        weight_dict = torch.load(cfgs["train_model_path"], map_location=torch.device("cpu"))
+        model.load_state_dict(weight_dict, strict=True)
+
+    model.eval()
+
+    image_paths = list()
+    for img_name in os.listdir(cfgs["test_image_dir"]):
+        image_paths.append(os.path.join(cfgs["test_image_dir"], img_name))
+    infer_num = len(image_paths)
+    image_paths = [image_paths[s: s + cfgs["batch_size"]] for
+                   s in range(0, len(image_paths), cfgs["batch_size"])]
+
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    mean = np.asarray(mean, dtype=np.float32).reshape((1, 1, 1, 3))
+    std = np.asarray(std, dtype=np.float32).reshape((1, 1, 1, 3))
+
+    start_time = time.time()
+    # -------- 视频 --------
+    cap = cv2.VideoCapture(cfgs["video_path"])
+
+    video_info = get_video_info(cfgs["video_path"])
+
+    while True:
+        t1 = time.time()
+        try:
+            # 读取某一帧
+            ref, frame = cap.read()
+        except Exception as e:
+            print(e)
+            break
 
 
 def multi2name(ret, labels):

@@ -160,7 +160,6 @@ def infer_video(cfgs):
     # capture = cv2.VideoCapture(0)
     capture = cv2.VideoCapture(cfgs["video_path"])
 
-    # TODO: kitchen
     final_ret["filename"].append(cfgs["video_path"].split(os.sep)[-1])
     res = set()
 
