@@ -5,7 +5,8 @@ import cv2
 from torch.utils.data import Dataset
 
 
-labels = ['below', 'NoChamfer', 'rough', 'normal']
+# labels = ['below', 'NoChamfer', 'rough', 'normal']
+labels = ['normal', 'rough', 'below', 'NoChamfer', 'invalid']
 
 
 class MultiDataset(Dataset):
@@ -18,6 +19,7 @@ class MultiDataset(Dataset):
     def __getitem__(self, item):
         image_path = self.image_labels[item][0]
         image_label = self.image_labels[item][1]
+        # print(f"---- {image_path}")
         image = self.get_image(image_path)
         label = image_label
 
@@ -67,8 +69,8 @@ class MultiDataset(Dataset):
 
 
 def main():
-    md = MultiDataset(root=r"D:\workspace\data\mojiao")
-    content = md[10]
+    md = MultiDataset(root=r"D:\Desktop\MYTemp\mojiao\dataset0812")
+    content = md[500]
     image = content["image"]
     label = content["label"]
     print(image.shape, label)

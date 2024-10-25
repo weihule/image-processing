@@ -12,9 +12,12 @@ from backbones.model_manager import init_model
 
 def convert_torch2onnx_model(model, inputs, save_file_path, opset_version=14, use_onnxsim=True):
     print(f'starting export with onnx version {onnx.__version__}...')
+    # dynamic_axes = {
+    #     'input': {0: 'batch_size', 2: "height", 3: "width"},  # 第0、2、3维可以变化
+    #     'output': {0: 'batch_size'},
+    # }
     dynamic_axes = {
-        'input': {0: 'batch_size', 2: "height", 3: "width"},  # 第0、2、3维可以变化
-        'output': {0: 'batch_size'},
+        'input': {2: "height", 3: "width"},  # 第2、3维可以变化
     }
     torch.onnx.export(model,
                       inputs,

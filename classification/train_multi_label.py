@@ -63,7 +63,7 @@ def train(cfgs, logger, model, train_loader, criterion, optimizer, scheduler, ep
     model.train()
 
     mean_loss = 0.
-    iter_idx = 1
+    iter_idx = 0
     for ds in tqdm(train_loader):
         images, labels = ds["image"], ds["label"]
         images, labels = images.to(device), labels.to(device)
@@ -75,8 +75,8 @@ def train(cfgs, logger, model, train_loader, criterion, optimizer, scheduler, ep
         # one hot
         # labels = F.one_hot(labels, num_classes=cfgs["num_classes"])
 
-        # print(f"----------- {preds.shape} {labels.shape}")
         loss = criterion(preds, labels.float())
+        # print(f"----------- {preds.shape} {labels.shape} {loss} {type(loss)} {loss.device}")
         mean_loss += loss.item()
 
         # 损失回传
@@ -107,7 +107,7 @@ def evaluate_acc(model, val_dataset_len, val_loader, device):
         images, labels = images.to(device), labels.to(device)
         # labels = F.one_hot(labels, num_classes=4)
         preds = model(images)
-        preds = F.sigmoid(preds)
+        preds = torch.sigmoid(preds)
         # 将概率值转换为二进制预测
         preds = (preds > 0.5).float()
 
@@ -219,7 +219,6 @@ def main(cfgs, logger):
                           scheduler=scheduler,
                           epoch=epoch,
                           device=device)
-        logger.info(f"train: epoch: {epoch}, loss: {mean_loss:.3f}")
         if epoch % cfgs["save_interval"] == 0 or epoch == cfgs["epochs"]:
             val_acc = evaluate_acc(model=model,
                                    val_dataset_len=len(val_dataset),

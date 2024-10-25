@@ -15,7 +15,7 @@ from PIL import Image
 from collections import Counter
 
 
-labels = ['below', 'NoChamfer', 'rough', 'normal']
+labels = ['below', 'NoChamfer', 'rough', 'normal', 'invalid']
 
 
 def get_video_info(video_info):

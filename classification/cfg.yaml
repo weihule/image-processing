@@ -1,14 +1,13 @@
 # company autodl
 mode: MY
 local:
-    root_dir: 'D:\workspace\data\dl\eye_com'
-    class_file: 'D:\workspace\data\dl\flower\flower.json'
-    pre_weight_path: 'D:\workspace\data\training_data\resnet50\resnet50-acc76.264.pth'
+    root_dir: 'D:\Desktop\MYTemp\mojiao\dataset0812'
+    pre_weight_path: 'D:\workspace\weight_data\pre_weight\cls\resnet\resnet18-acc70.712.pth'
     save_root: 'D:\workspace\data\training_data'
 MY:
-    root_dir: '/home/8TDISK/weihule/data/mojiao'
-    pre_weight_path: '/home/8TDISK/weihule/data/training_data/kitchen/resnet18/resnet18-acc70.712.pth'
-    save_root: '/home/8TDISK/weihule/data/training_data/mojiao_multi/resnet18'
+    root_dir: '/home/8TDISK/weihule/data/dataset0812'
+    pre_weight_path: '/home/8TDISK/weihule/weight_data/pre_weight/cls/resnet/resnet18-acc70.712.pth'
+    save_root: '/home/8TDISK/weihule/weight_data/train_weight/resnet18_mojiao'
 
 autodl:
     root_dir: '/root/autodl-tmp/imagenet100'
@@ -16,8 +15,8 @@ autodl:
     save_root: '/root/autodl-nas/classification_data/resnet'
 
 # model
-backbone_type: resnet50
-num_classes: 4
+backbone_type: resnet18
+num_classes: 5
 
 # dataset
 dataset_name: multilabel
@@ -35,19 +34,19 @@ std:
 
 # data
 seed: 0
-epochs: 20
+epochs: 100
 batch_size: 32
 lr: 0.001
 weight_decay: 0.00004
 momentum: 0.9
-lrf: 0.001
+lrf: 0.0005
 num_workers: 4
 freeze_layer: False
 apex: False
 # 日志记录频率, 如为10, 即一个epoch内, 遍历循环10次train_loader就记录日志
 print_interval: 350
 # 保存频率, 如为1, 即一个epoch保存一次checkpoints
-save_interval: 1
+save_interval: 2
 
 # optimizer scheduler
 step_size: 10
