@@ -101,6 +101,23 @@ class RandomHorizontalFlip:
             'mask': mask
         }
 
+
+# 做归一化
+class Normalize:
+    def __init__(self, mean=None, std=None):
+        self.func = transforms.ToTensor()    # 归一化到 [0,1]
+        if mean is not None:
+            self.func2 = transforms.Normalize(mean, std)
+
+    def __call__(self, sample):
+        image = sample['image']
+        image = self.func(image)
+        if self.func2 is not None:
+            image = self.func2(image)
+
+        return {'image': image, 'mask': sample['mask']}
+
+
 def transform():
     return {
         'train': transforms.Compose([ResizeImage(target_size=(640, 640), jitter=False),

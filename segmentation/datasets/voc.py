@@ -93,7 +93,7 @@ CLASSES = [
 ]
 
 class ImageDataSet(Dataset):
-    def __init__(self, image_paths, mask_paths, transform=None):
+    def __init__(self, image_paths, mask_paths, transform):
         """
         image_paths: 图片路径
         mask_paths: 标签文件
@@ -101,6 +101,7 @@ class ImageDataSet(Dataset):
         super(ImageDataSet, self).__init__()
         self.image_paths = image_paths
         self.mask_paths = mask_paths
+        self.transform = transform
 
     def __len__(self):
         return len(self.image_paths)
@@ -109,12 +110,27 @@ class ImageDataSet(Dataset):
         image = Image.open(self.image_paths[index])
         mask = Image.open(self.mask_paths[index])
 
+        sample = self.transform({'image': image, 'mask': mask})
+        image, mask = sample['image'], sample['mask']
+
+        x = np.array(image, np.float32)
+        print(f"x.shape = {x.shape}")
+
+        image = np.transpose((np.array(image, np.float32)), [2,0,1])
+        mask = np.array(sample['mask'])
+
         return {'image': image, 'mask': mask}
 
 
+def test():
+    # voc = VOCSegmentation(voc_root=r"D:\workspace\data\VOCdataset")
+    # sample_ = voc[10]
+    # image_, target_ = sample_["image"], sample_["target"]
+    # print(image_.size)
+    pass
+
+
+
 if __name__ == "__main__":
-    voc = VOCSegmentation(voc_root=r"D:\workspace\data\VOCdataset")
-    sample_ = voc[10]
-    image_, target_ = sample_["image"], sample_["target"]
-    print(image_.size)
+    test()
 
