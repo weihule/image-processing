@@ -14,7 +14,6 @@ def init_dataset(name, root_dir, set_name, transform, **kwargs):
         set_name: 设置训练集或验证集
         transform: 图像变换
     Returns:
-
     """
     class_file = kwargs.get('class_file', None)
     if name == "imagenet100":

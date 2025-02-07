@@ -6,130 +6,111 @@ from torchvision import transforms
 import torchvision.transforms.functional as F
 import matplotlib.pyplot as plt
 
+__all__ = [
+    'transform'
+]
 
-def pad_if_smaller(img, size, fill=0):
-    # 如果图像最小边长小于给定size，则用数值fill进行padding
-    min_size = min(img.size)
-    if min_size < size:
-        ow, oh = img.size
-        padh = size - oh if oh < size else 0
-        padw = size - ow if ow < size else 0
-        # # 创建一个新的空白图像，用0值填充
-        # new_img = Image.new('RGB', (ow+padw, oh+padh),
-        #                     color=(fill, fill, fill))
-        # new_img.paste(img, (0, 0))
-        new_img = F.pad(img, (0, 0, padw, padh), fill=fill)
-    else:
-        new_img = img
-    return new_img
+# 随机缩放类，jitter为True时进行随机缩放
+class ResizeImage:
+    def __init__(self, target_size, jitter=False):
+        self.target_size = target_size
+        self.jitter = jitter
+
+    def __call__(self, sample):
+        image, mask = sample['image'], sample['mask']
+        iw, ih = image.size
+        h, w = self.target_size
+
+        if self.jitter:
+            # 计算目标尺寸相对于原图的最大缩放因子
+            max_scale_w = w / iw  # 水平缩放因子
+            max_scale_h = h / ih  # 垂直缩放因子
+
+            scale_range = (0.85, 1.5)
+
+            # 取水平和垂直的最小值，确保不会超过target尺寸
+            max_scale = min(max_scale_w, max_scale_h)
+
+            # 随机生成一个缩放因子，确保不超过最大缩放因子
+            scale = random.uniform(scale_range[0], min(scale_range[1], max_scale))
+            print(f"scale = {scale}")
+
+            # 等比例缩放图像
+            new_w = int(iw * scale)
+            new_h = int(ih * scale)
+
+            # 对图像和标签进行等比例缩放
+            image = image.resize((new_w, new_h), Image.BICUBIC)
+            mask = mask.resize((new_w, new_h), Image.NEAREST)
+
+            # 将图像多余的部分用灰条填充
+            dx = (w - new_w) // 2  # 水平居中
+            dy = (h - new_h) // 2  # 垂直居中
+
+            # 创建新图像和标签，并用灰条填充
+            new_image = Image.new('RGB', (w, h), (128, 128, 128))
+            new_mask = Image.new('L', (w, h), 0)
+
+            new_image.paste(image, (dx, dy))
+            new_mask.paste(mask, (dx, dy))
+        else:
+            scale = min(w / iw, h / ih)
+            nw = int(iw * scale)
+            nh = int(ih * scale)
+
+            image = image.resize((nw, nh), Image.BICUBIC)
+            new_image = Image.new('RGB', [w, h], (128, 128, 128))
+            new_image.paste(image, ((w - nw) // 2, (h - nh) // 2))
+
+            mask = mask.resize((nw, nh), Image.NEAREST)
+            new_mask = Image.new('L', [w, h], 0)
+            new_mask.paste(mask, ((w - nw) // 2, (h - nh) // 2))
+
+        return {'image': new_image, 'mask': new_mask}
 
 
+# 随机颜色抖动类
+class RandomColorJitter:
+    def __init__(self, contrast=0.3, saturation=0.3, hue=0.3):
+        self.color_jitter = transforms.ColorJitter(
+            brightness=0, contrast=contrast, saturation=saturation, hue=hue
+        )
+
+    def __call__(self, sample):
+        if random.uniform(0, 1) >= 0.5:
+            image = self.color_jitter(sample['image'])
+            return {'image': image, 'mask': sample['mask']}
+        else:
+            return sample
+
+
+# 随机水平翻转
 class RandomHorizontalFlip:
     def __init__(self, prob=0.5):
+        self.func = transforms.RandomHorizontalFlip(p=prob)
         self.prob = prob
 
     def __call__(self, sample):
-        image, target = sample['image'], sample['target']
-        if isinstance(image, Image.Image) and isinstance(target, Image.Image):
-            raise f"type expected Image.Image, but get {type(image)} and {type(target)}"
-
-        if np.random.uniform(0, 1) < self.prob:
+        image, mask = sample['image'], sample['mask']
+        if random.random() < self.prob:
             image = F.hflip(image)
-            target = F.hflip(target)
+            mask = F.hflip(mask)
 
         return {
             'image': image,
-            'target': target,
+            'mask': mask
         }
 
+def transform():
+    return {
+        'train': transforms.Compose([ResizeImage(target_size=(640, 640), jitter=False),
+                                  RandomColorJitter(),
+                                  RandomHorizontalFlip()
+                                  ]),
+        'val': transforms.Compose([ResizeImage(target_size=(640, 640), jitter=False)])
+    }
 
-class RandomVerticalFlip:
-    def __init__(self, prob=0.5):
-        self.prob = prob
-
-    def __call__(self, sample):
-        image, target = sample['image'], sample['target']
-        if isinstance(image, Image.Image) and isinstance(target, Image.Image):
-            raise f"type expected Image.Image, but get {type(image)} and {type(target)}"
-
-        if np.random.uniform(0, 1) < self.prob:
-            image = F.vflip(image)
-            target = F.vflip(target)
-
-        return {
-            'image': image,
-            'target': target,
-        }
-
-
-class RandomResize:
-    def __init__(self, min_size, max_size=None):
-        self.min_size = min_size
-        if max_size is None:
-            self.max_size = min_size
-        else:
-            self.max_size = max_size
-
-    def __call__(self, sample):
-        image, target = sample['image'], sample['target']
-        size = random.randint(self.min_size, self.max_size)
-        # 这里size传入的是int类型，所以是将图像的最小边长缩放到size大小
-        image = F.resize(image, size)
-        # 这里的interpolation注意下，在torchvision(0.9.0)以后才有InterpolationMode.NEAREST
-        # 如果是之前的版本需要使用PIL.Image.NEAREST
-        target = F.resize(target, size,
-                          interpolation=transforms.InterpolationMode.NEAREST)
-
-        return {
-            'image': image,
-            'target': target,
-        }
-
-class RandomCrop(object):
-    def __init__(self, size):
-        self.size = size
-
-    def __call__(self, sample):
-        image, target = sample['image'], sample['target']
-        image = pad_if_smaller(image, self.size, fill=0)
-        target = pad_if_smaller(target, self.size, fill=255)
-
-        crop_params = transforms.RandomCrop.get_params(image, (self.size, self.size))
-        image = F.crop(image, *crop_params)
-        target = F.crop(target, *crop_params)
-
-        return {
-            'image': image,
-            'target': target,
-        }
-
-
-class ToTensor(object):
-    def __call__(self, sample):
-        image, target = sample['image'], sample['target']
-        image = F.to_tensor(image)
-        target = torch.as_tensor(np.array(target), dtype=torch.int64)
-        return {
-            'image': image,
-            'target': target,
-        }
-
-
-class Normalize(object):
-    def __init__(self, mean, std):
-        self.mean = mean
-        self.std = std
-
-    def __call__(self, sample):
-        image, target = sample['image'], sample['target']
-        image = F.normalize(image, mean=self.mean, std=self.std)
-        return {
-            'image': image,
-            'target': target,
-        }
-
-
-if __name__ == "__main__":
+def test():
     # 创建一个三维张量
     tensor = np.random.rand(2, 3, 4)
 
@@ -137,11 +118,12 @@ if __name__ == "__main__":
     transposed_tensor = np.transpose(tensor, (1, 2, 0))
 
     # 输出转置后的张量
-    # print(transposed_tensor.shape)
+    print(transposed_tensor.shape)
 
-    img_path = r"D:\workspace\data\VOCdataset\VOC2012\JPEGImages\2007_000032.jpg"
-    target_path = r"D:\workspace\data\VOCdataset\VOC2012\SegmentationClass\2007_000032.png"
-    # img_ = pad_if_smaller(Image.open(img_path), size=640, fill=0)
+    img_path = r"D:\workspace\data\images\VOCdevkit\VOC2012\JPEGImages\2007_000032.jpg"
+    target_path = r"D:\workspace\data\images\VOCdevkit\VOC2012\SegmentationClass\2007_000032.png"
+    raw_sample = {'image': Image.open(img_path),
+              'mask': Image.open(target_path)}
 
     img_ = Image.open(img_path)
     target_ = Image.open(target_path)
@@ -149,10 +131,18 @@ if __name__ == "__main__":
 
     # rc = RandomCrop(size=640)
     # d = rc({"image": img_, "target": target_})
-    rr = RandomResize(min_size=280)
-    d = rr({"image": img_, "target": target_})
-    img_new, target_new = d["image"], d["target"]
-    print(img_new, type(img_new), type(target_new))
+    ri = ResizeImage(target_size=(640, 640), jitter=True)
+    sample = ri(raw_sample)
+    x, y = sample['image'], sample['mask']
+    print(f"type(x) = {type(x)} type(y) = {type(y)}")
+
+    compose = transforms.Compose([ResizeImage(target_size=(640, 640), jitter=False),
+                                  RandomColorJitter(),
+                                  RandomHorizontalFlip()
+                                  ])
+    sample2 = compose(raw_sample)
+    x2, y2 = sample2['image'], sample2['mask']
+    print(f"type(x2) = {type(x2)} type(y2) = {type(y2)} x2 = {x2} y2 = {y2}")
 
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
     axes[0].imshow(img_)
@@ -161,11 +151,20 @@ if __name__ == "__main__":
     axes[1].axis('off')
     plt.show()
 
-    fig2, axes2 = plt.subplots(1, 2, figsize=(10, 5))
-    axes2[0].imshow(img_new)
+    fig2, axes2 = plt.subplots(1, 4, figsize=(15, 10))
+    axes2[0].imshow(x)
     axes2[0].axis('off')  # 隐藏坐标轴信息
-    axes2[1].imshow(target_new)
+    axes2[1].imshow(y)
     axes2[1].axis('off')
+    axes2[2].imshow(x2)
+    axes2[2].axis('off')
+    axes2[3].imshow(y2)
+    axes2[3].axis('off')
     plt.show()
+
+
+if __name__ == "__main__":
+    test()
+
 
 

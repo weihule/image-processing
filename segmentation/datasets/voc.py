@@ -79,6 +79,39 @@ def cat_lust(images, fill_value=0):
     max_size = 0
 
 
+CLASSES = [
+    '_background_',
+    'person',
+    'car',
+    'motorbike',
+    'dustbin',
+    'chair',
+    'fire_hydrant',
+    'tricycle',
+    'bicycle',
+    'stone',
+]
+
+class ImageDataSet(Dataset):
+    def __init__(self, image_paths, mask_paths, transform=None):
+        """
+        image_paths: 图片路径
+        mask_paths: 标签文件
+        """
+        super(ImageDataSet, self).__init__()
+        self.image_paths = image_paths
+        self.mask_paths = mask_paths
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, index):
+        image = Image.open(self.image_paths[index])
+        mask = Image.open(self.mask_paths[index])
+
+        return {'image': image, 'mask': mask}
+
+
 if __name__ == "__main__":
     voc = VOCSegmentation(voc_root=r"D:\workspace\data\VOCdataset")
     sample_ = voc[10]
