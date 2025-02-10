@@ -1,9 +1,10 @@
 import argparse
 from pathlib import Path
-import logging
+import loguru
 import os
 import random
 import sys
+import cv2
 from tqdm import tqdm
 from loguru import logger
 
@@ -50,5 +51,15 @@ def main():
     sample = train_ida[1]
 
 
+def test():
+    # voc = VOCSegmentation(voc_root=r"D:\workspace\data\VOCdataset")
+    # sample_ = voc[10]
+    # image_, target_ = sample_["image"], sample_["target"]
+    # print(image_.size)
+    img = cv2.imread(r'D:\workspace\data\images\VOCdevkit\VOC2012\SegmentationClass\2007_000032.png')
+    print(img.shape)
+    print(type(img))
+
 if __name__ == "__main__":
-    main()
+    # main()
+    test()

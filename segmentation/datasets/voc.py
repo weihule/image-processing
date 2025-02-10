@@ -127,7 +127,7 @@ def test():
     # sample_ = voc[10]
     # image_, target_ = sample_["image"], sample_["target"]
     # print(image_.size)
-    pass
+    img = cv2.imread(r'D:\workspace\data\images\VOCdevkit\VOC2012\SegmentationClass\2007_000032.png')
 
 
 
