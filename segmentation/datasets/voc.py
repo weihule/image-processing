@@ -93,14 +93,16 @@ CLASSES = [
 ]
 
 class ImageDataSet(Dataset):
-    def __init__(self, image_paths, mask_paths, transform):
+    def __init__(self, image_paths, mask_paths, num_classes, transform):
         """
         image_paths: 图片路径
         mask_paths: 标签文件
+        num_classes: 类别数(包含背景这一类)
         """
         super(ImageDataSet, self).__init__()
         self.image_paths = image_paths
         self.mask_paths = mask_paths
+        self.num_classes = num_classes
         self.transform = transform
 
     def __len__(self):
@@ -117,7 +119,10 @@ class ImageDataSet(Dataset):
         print(f"x.shape = {x.shape}")
 
         image = np.transpose((np.array(image, np.float32)), [2,0,1])
-        mask = np.array(sample['mask'])
+        mask = np.array(mask)
+        # VOC数据集中,目标边缘的像素值是255(白色),还有大于类别数的无效像素值,都变成背景0
+        mask[mask >= self.num_classes] = 0
+        print(image.shape, mask.shape)
 
         return {'image': image, 'mask': mask}
 
@@ -128,7 +133,7 @@ def test():
     # image_, target_ = sample_["image"], sample_["target"]
     # print(image_.size)
     img = cv2.imread(r'D:\workspace\data\images\VOCdevkit\VOC2012\SegmentationClass\2007_000032.png')
-
+    print(img)
 
 
 if __name__ == "__main__":
