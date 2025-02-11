@@ -5,6 +5,7 @@ import numpy as np
 from PIL import Image
 import xml.etree.ElementTree as ET
 from torch.utils.data import Dataset
+import torch
 
 
 VOC_CLASSES = [
@@ -93,7 +94,7 @@ CLASSES = [
 ]
 
 class ImageDataSet(Dataset):
-    def __init__(self, image_paths, mask_paths, num_classes, transform):
+    def __init__(self, image_paths, mask_paths, input_size, num_classes, transform):
         """
         image_paths: 图片路径
         mask_paths: 标签文件
@@ -102,6 +103,7 @@ class ImageDataSet(Dataset):
         super(ImageDataSet, self).__init__()
         self.image_paths = image_paths
         self.mask_paths = mask_paths
+        self.input_size = input_size
         self.num_classes = num_classes
         self.transform = transform
 
@@ -115,17 +117,37 @@ class ImageDataSet(Dataset):
         sample = self.transform({'image': image, 'mask': mask})
         image, mask = sample['image'], sample['mask']
 
-        x = np.array(image, np.float32)
-        print(f"x.shape = {x.shape}")
-
         image = np.transpose((np.array(image, np.float32)), [2,0,1])
+        # 做归一化
+        image = image / 255.
+
         mask = np.array(mask)
-        # VOC数据集中,目标边缘的像素值是255(白色),还有大于类别数的无效像素值,都变成背景0
+        # VOC数据集中,目标边缘的像素值是255(白色),还有大于类别数的无效像素值,都变成背景0,不做另外一个类别的处理
         mask[mask >= self.num_classes] = 0
-        print(image.shape, mask.shape)
 
-        return {'image': image, 'mask': mask}
+        # [mask.reshape([-1]): [h, w] -> [h*w, ]
+        # seg_labels.shape: [h*w, self.num_classes]
+        seg_labels = np.eye(self.num_classes)[mask.reshape([-1])]
+        seg_labels = seg_labels.reshape((int(self.input_size[0]), int(self.input_size[1]), self.num_classes))
+        # print(image.shape, mask.shape, mask.reshape([-1]).shape, seg_labels.shape)
 
+        return {'image': image, 'mask': mask, 'seg_label': seg_labels}
+
+
+def dataset_collate(batch):
+    images, masks, seg_labels = [], [], []
+    for x in batch:
+        images.append(x["image"])
+        masks.append(x["mask"])
+        seg_labels.append(x["seg_label"])
+    images = np.stack(images, axis=0)
+    masks = np.stack(masks, axis=0)
+    seg_labels = np.stack(seg_labels, axis=0)
+    images = torch.from_numpy(images).type(torch.FloatTensor)
+    masks = torch.from_numpy(masks).long()
+    seg_labels  = torch.from_numpy(seg_labels).type(torch.FloatTensor)
+
+    return {'image': images, 'mask': masks, 'seg_label': seg_labels}
 
 def test():
     # voc = VOCSegmentation(voc_root=r"D:\workspace\data\VOCdataset")

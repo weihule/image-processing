@@ -16,7 +16,7 @@ from torch import optim
 from torch.utils.data import DataLoader, random_split
 
 from datasets.transform import transform
-from datasets.voc import ImageDataSet
+from datasets.voc import ImageDataSet, dataset_collate
 from models import UNet
 from losses import dice_loss, dice_coeff, multiclass_dice_coeff
 
@@ -44,11 +44,35 @@ class GenPaths(object):
 def main():
     gp = GenPaths()
     train_image_paths, train_mask_paths, val_image_paths, val_mask_paths = gp()
-    transform_func = transform()
-    train_ida = ImageDataSet(train_image_paths, train_mask_paths, transform=transform_func['train'])
-    val_ida = ImageDataSet(val_image_paths, val_mask_paths, transform=transform_func['val'])
+    input_size = [640, 640]
+    batch_size = 4
+    num_workers = 4
+    num_classes = 10
+    transform_func = transform(input_size=input_size)
+    train_ida = ImageDataSet(train_image_paths, train_mask_paths,
+                             input_size=input_size,
+                             num_classes=num_classes,
+                             transform=transform_func['train'])
+    val_ida = ImageDataSet(val_image_paths, val_mask_paths,
+                           input_size=input_size,
+                           num_classes=num_classes,
+                           transform=transform_func['val'])
 
-    sample = train_ida[1]
+    train_dataloader = DataLoader(train_ida, batch_size=batch_size, shuffle=True,
+                                  num_workers=num_workers,
+                                  pin_memory=True,
+                                  drop_last=True,
+                                  collate_fn=dataset_collate)
+    val_dataloader = DataLoader(val_ida, batch_size=batch_size, shuffle=True,
+                                  num_workers=num_workers,
+                                  pin_memory=True,
+                                  drop_last=True,
+                                  collate_fn=dataset_collate)
+    for sample in train_dataloader:
+        images, masks, seg_labels = sample['image'], sample['mask'], sample['seg_label']
+        print(images)
+        print(images.shape, masks.shape, seg_labels.shape)
+        break
 
 
 def test():

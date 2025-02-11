@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -63,7 +64,6 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
                  norm_layer=None):
@@ -139,21 +139,33 @@ class ResNet(nn.Module):
 
     def _forward_impl(self, x):
         # See note [TorchScript super()]
+        # x = self.conv1(x)
+        # x = self.bn1(x)
+        # x = self.relu(x)
+        # x = self.maxpool(x)
+        #
+        # x = self.layer1(x)
+        # x = self.layer2(x)
+        # x = self.layer3(x)
+        # x = self.layer4(x)
+        #
+        # x = self.avgpool(x)
+        # x = torch.flatten(x, 1)
+        # x = self.fc(x)
         x = self.conv1(x)
         x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
+        feat1 = self.relu(x)
+        x = self.maxpool(feat1)
+        feat2 = self.layer1(x)
+        feat3 = self.layer2(feat2)
+        feat4 = self.layer3(feat3)
+        feat5 = self.layer4(feat4)
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
+        # x = self.avgpool(x)
+        # x = torch.flatten(x, 1)
+        # x = self.fc(x)
 
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.fc(x)
-
-        return x
+        return [feat1, feat2, feat3, feat4, feat5]
 
     def forward(self, x):
         return self._forward_impl(x)
@@ -184,3 +196,32 @@ def resnet101(**kwargs):
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _resnet(Bottleneck, [3, 4, 23, 3], **kwargs)
+
+from thop import profile, clever_format
+def test():
+    model = resnet50()
+    checkpoint = torch.load(r"D:\workspace\weight_data\pre_weight\seg\pre\resnet50-0676.pth")
+    state_dict = checkpoint
+    model.load_state_dict(state_dict, strict=False)
+    # 检查加载了多少层
+    loaded_layers = 0
+    for name, param in model.named_parameters():
+        if name in state_dict:
+            loaded_layers += 1
+    print(f"Successfully loaded {loaded_layers} layers out of {len(list(model.parameters()))} layers.")
+
+    inputs = torch.randn(4, 3, 640, 640)
+    macs, params = profile(model,
+                           inputs=(inputs, ),
+                           verbose=False)
+    macs, params = clever_format([macs, params], '%.3f')
+    out = model(inputs)
+    for x in out:
+        print(x.shape)
+    print(f'macs: {macs}, params: {params}')
+
+
+if __name__ == '__main__':
+    test()
+
+

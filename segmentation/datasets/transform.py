@@ -87,7 +87,6 @@ class RandomColorJitter:
 # 随机水平翻转
 class RandomHorizontalFlip:
     def __init__(self, prob=0.5):
-        self.func = transforms.RandomHorizontalFlip(p=prob)
         self.prob = prob
 
     def __call__(self, sample):
@@ -118,13 +117,13 @@ class Normalize:
         return {'image': image, 'mask': sample['mask']}
 
 
-def transform():
+def transform(input_size):
     return {
-        'train': transforms.Compose([ResizeImage(target_size=(640, 640), jitter=False),
+        'train': transforms.Compose([ResizeImage(target_size=(input_size[0], input_size[1]), jitter=False),
                                   RandomColorJitter(),
                                   RandomHorizontalFlip()
                                   ]),
-        'val': transforms.Compose([ResizeImage(target_size=(640, 640), jitter=False)])
+        'val': transforms.Compose([ResizeImage(target_size=(input_size[0], input_size[1]), jitter=False)])
     }
 
 def test():
