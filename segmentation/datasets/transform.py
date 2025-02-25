@@ -1,4 +1,6 @@
 import numpy as np
+import cv2
+import math
 from PIL import Image
 import random
 import torch
@@ -117,6 +119,44 @@ class Normalize:
         return {'image': image, 'mask': sample['mask']}
 
 
+class Random2DErasing:
+    def __init__(self, p=0.5, sl=0.01, sh=0.2, r1=0.3):
+        self.p = p
+        self.sl = sl
+        self.sh = sh
+        self.r1 = r1
+
+    def __call__(self, sample):
+        if random.random() < self.p:
+            print(f"in here")
+            return sample
+
+        # 这个类放在了PIL2OpenCV下，所以这里的image已经是np.float32的RGB形式
+        image, mask = sample['image'], sample['mask']
+        image = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
+        image_h, image_w, _ = image.shape
+        area = image_h * image_w
+
+        target_area = random.uniform(self.sl, self.sh)*area     # 确定随机擦除区域的面积
+        aspect_ratio = random.uniform(self.r1, 1 / self.r1)     # 确定随机擦除区域的ratio (h / w)
+
+        erase_h = int(round(math.sqrt(target_area * aspect_ratio)))
+        erase_w = int(round(math.sqrt(target_area / aspect_ratio)))
+
+        if erase_w < image_w and erase_h < image_h:
+            # 确定随机擦除区域的(x, y)坐标
+            loc1 = random.randint(0, image_h - erase_h - 1)
+            loc2 = random.randint(0, image_w - erase_w - 1)
+            erase_area = (np.random.rand(erase_h, erase_w, 3) * 255.)
+            image[loc1: loc1+erase_h, loc2: loc2+erase_w, :] = erase_area
+
+        image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+
+        return {
+            'image': image,
+            'mask': mask
+        }
+
 def transform(input_size):
     return {
         'train': transforms.Compose([ResizeImage(target_size=(input_size[0], input_size[1]), jitter=False),
@@ -152,30 +192,30 @@ def test():
     x, y = sample['image'], sample['mask']
     print(f"type(x) = {type(x)} type(y) = {type(y)}")
 
-    compose = transforms.Compose([ResizeImage(target_size=(640, 640), jitter=False),
-                                  RandomColorJitter(),
-                                  RandomHorizontalFlip()
+    compose = transforms.Compose([
+                                  Random2DErasing(),
+                                  # RandomHorizontalFlip()
                                   ])
     sample2 = compose(raw_sample)
     x2, y2 = sample2['image'], sample2['mask']
     print(f"type(x2) = {type(x2)} type(y2) = {type(y2)} x2 = {x2} y2 = {y2}")
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    axes[0].imshow(img_)
-    axes[0].axis('off')  # 隐藏坐标轴信息
-    axes[1].imshow(target_)
-    axes[1].axis('off')
-    plt.show()
+    # fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    # axes[0].imshow(img_)
+    # axes[0].axis('off')  # 隐藏坐标轴信息
+    # axes[1].imshow(target_)
+    # axes[1].axis('off')
+    # plt.show()
 
-    fig2, axes2 = plt.subplots(1, 4, figsize=(15, 10))
-    axes2[0].imshow(x)
+    fig2, axes2 = plt.subplots(1, 2, figsize=(15, 10))
+    axes2[0].imshow(img_)
     axes2[0].axis('off')  # 隐藏坐标轴信息
-    axes2[1].imshow(y)
+    # axes2[1].imshow(y)
+    # axes2[1].axis('off')
+    axes2[1].imshow(x2)
     axes2[1].axis('off')
-    axes2[2].imshow(x2)
-    axes2[2].axis('off')
-    axes2[3].imshow(y2)
-    axes2[3].axis('off')
+    # axes2[3].imshow(y2)
+    # axes2[3].axis('off')
     plt.show()
 
 
