@@ -1,0 +1,16 @@
+data:
+  dir_img: "D:\\workspace\\data\\carvana-image-masking-challenge\\train"
+  dir_mask: "D:\\workspace\\data\\carvana-image-masking-challenge\\train_masks"
+  dir_checkpoint: "D:\\workspace\\weight_data\\train_weight\\carvana"
+
+train:
+    epochs: 100
+    batch_size: 4
+    learning_rate: 1e-5
+    val_percent: 0.1
+    save_checkpoint: True
+    img_scale: 0.5
+    amp: False
+    weight_decay: 1e-8
+    momentum: 0.999
+    gradient_clipping: 1.0

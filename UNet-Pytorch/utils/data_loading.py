@@ -59,7 +59,7 @@ class BasicDataset(Dataset):
                 total=len(self.ids)
             ))
 
-        self.mask_values = list(sorted(np.unique(np.concatenate(unique), axis=0).tolist))
+        self.mask_values = list(sorted(np.unique(np.concatenate(unique), axis=0).tolist()))
         logger.info(f'Unique mask values: {self.mask_values}')
     
     def __len__(self):
@@ -120,3 +120,18 @@ class BasicDataset(Dataset):
 class CarvanDataset(BasicDataset):
     def __init__(self, images_dir, mask_dir, scale=1):
         super().__init__(images_dir, mask_dir, scale, mask_suffix='_mask')
+
+
+def test():
+    images_dir = r"D:\workspace\data\carvana-image-masking-challenge\train"
+    mask_dir = r"D:\workspace\data\carvana-image-masking-challenge\train_masks"
+    carvan = CarvanDataset(images_dir, mask_dir)
+    datas = carvan[11]
+    img, mask = datas['image'], datas['mask']
+    print(img.shape, mask.shape)
+
+
+
+if __name__ == "__main__":
+    test()
+    
