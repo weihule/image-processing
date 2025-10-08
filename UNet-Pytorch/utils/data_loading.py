@@ -122,6 +122,14 @@ class CarvanDataset(BasicDataset):
         super().__init__(images_dir, mask_dir, scale, mask_suffix='_mask')
 
 
+# class MultiScaleDataset(Dataset):
+#     def __init__(self, images_dir, masks_dir, is_train=True):
+#         self.is_train = is_train
+#         # 训练时随机选择尺度
+#         self.scale = 
+
+
+
 def test():
     images_dir = r"D:\workspace\data\carvana-image-masking-challenge\train"
     mask_dir = r"D:\workspace\data\carvana-image-masking-challenge\train_masks"
@@ -131,7 +139,14 @@ def test():
     print(img.shape, mask.shape)
 
 
+def test2():
+    root = r'D:\workspace\data\carvana-image-masking-challenge\train_masks'
+    sizes = []
+    for i in Path(root).glob("*.gif"):
+        img = Image.open(i)
+        print(img.size)
+
 
 if __name__ == "__main__":
-    test()
+    test2()
     

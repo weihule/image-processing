@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader, random_split
 
 from unet import UNet
 from utils.data_loading import BasicDataset, CarvanDataset
+from utils.dice_score import dice_loss
 
 
 def train_model(
