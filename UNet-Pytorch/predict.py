@@ -83,7 +83,7 @@ def plot_img_and_mask2(img, mask, alpha=0.5, contour_color=(0, 0, 255)):
     contours, _ = cv2.findContours(mask_uint8, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     
     # 在融合图上绘制轮廓
-    # cv2.drawContours(blended, contour_, -1, )
+    cv2.drawContours(blended, contours, -1, contour_color, 2)
     
     plt.figure(figsize=(12, 8))
     plt.imshow(cv2.cvtColor(blended, cv2.COLOR_BGR2RGB))
