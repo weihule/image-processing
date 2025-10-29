@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import matplotlib.pylab as plt
 
 from unet.unet_parts import DoubleDonv, Up
 
@@ -91,7 +92,95 @@ def test5():
     out = up(x1, x2)
     print(out.shape)
 
-def 
+import cv2
+import numpy as np
+from PIL import Image
+
+def mask_to_image(mask: np.ndarray, mask_values=None):
+    """
+    将mask转换为RGB图像（带颜色）
+    mask: [H, W] 的整数数组，每个像素值代表类别
+    """
+    if mask.ndim == 3:
+        mask = np.argmax(mask, axis=0)
+    
+    h, w = mask.shape
+    colored_mask = np.zeros((h, w, 3), dtype=np.uint8)
+    
+    # 定义颜色列表（可自定义）
+    colors = [
+        [0, 0, 0],           # 类别0: 黑色
+        [255, 0, 0],         # 类别1: 红色
+        [0, 255, 0],         # 类别2: 绿色
+        [0, 0, 255],         # 类别3: 蓝色
+        [255, 255, 0],       # 类别4: 黄色
+        [255, 0, 255],       # 类别5: 紫色
+        [0, 255, 255],       # 类别6: 青色
+    ]
+    
+    # 根据mask值给对应区域着色
+    for i in range(len(colors)):
+        colored_mask[mask == i] = colors[i % len(colors)]
+    
+    return Image.fromarray(colored_mask)
+
+
+def plot_img_and_mask_with_overlay(img, mask, alpha=0.5, contour_color=(0, 0, 255)):
+    """
+    显示原图 + 半透明mask + 轮廓线的分割效果
+    
+    Args:
+        img: PIL Image 或 numpy array 格式的原图
+        mask: [H, W] 的整数数组，每个像素值代表类别
+        alpha: mask的透明度 (0-1)
+        contour_color: 轮廓线颜色 (B, G, R) 格式
+    """
+    # 转换图像格式
+    if isinstance(img, Image.Image):
+        img_array = np.array(img)
+    else:
+        img_array = img.copy()
+    
+    if mask.ndim == 3:
+        mask = np.argmax(mask, axis=0)
+    
+    h, w = mask.shape
+    
+    # 定义颜色列表（BGR格式）
+    colors = [
+        [0, 0, 0],           # 类别0
+        [255, 0, 0],         # 类别1: 蓝色
+        [0, 255, 0],         # 类别2: 绿色
+        [0, 0, 255],         # 类别3: 红色
+        [255, 255, 0],       # 类别4: 青色
+        [255, 0, 255],       # 类别5: 紫色
+        [0, 255, 255],       # 类别6: 黄色
+    ]
+    
+    # 生成彩色mask
+    colored_mask = np.zeros((h, w, 3), dtype=np.uint8)
+    for i in range(len(colors)):
+        colored_mask[mask == i] = colors[i % len(colors)]
+    
+    # 原图与彩色mask融合
+    blended = cv2.addWeighted(img_array, 1 - alpha, colored_mask, alpha, 0)
+    
+    # 提取轮廓
+    mask_uint8 = mask.astype(np.uint8)
+    contours, _ = cv2.findContours(mask_uint8, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # 在融合图上绘制轮廓
+    cv2.drawContours(blended, contours, -1, contour_color, 2)
+    
+    # 显示结果
+    plt.figure(figsize=(12, 8))
+    plt.imshow(cv2.cvtColor(blended, cv2.COLOR_BGR2RGB))
+    plt.axis('off')
+    plt.tight_layout()
+    plt.show()
+    
+    return blended
+
 
 if __name__ == "__main__":
     test5()
