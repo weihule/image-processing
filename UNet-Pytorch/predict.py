@@ -90,7 +90,6 @@ def plot_img_and_mask2(img, mask, alpha=0.5, contour_color=(0, 0, 255)):
     plt.axis('off')
     plt.tight_layout()
     plt.show()
-    
 
 def predict_img(net,
                 full_img,
