@@ -12,3 +12,5 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import ConcatDataset
+
+from ultralytics.utils import LOCAL_RANK, LOGGER, NUM_THREADS, colorstr
