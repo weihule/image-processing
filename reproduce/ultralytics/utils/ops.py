@@ -98,7 +98,88 @@ def clip_boxes(boxes, shape):
         boxes[..., 3] = boxes[..., 3].clip(0, h)
     return boxes
 
-def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None, padding: bool = True, xywh: bool = False):
-    if ratio_pad is None:
-        pass
+def clip_coords(coords, shape):
+    """
+    Args:
+        coords (torch.tensor | np.ndarray): Line coordinates to clip.
+        shape (tuple): Image shape as HWC or HW (supports both).
+    """
+    h, w = shape[:2]
+    if isinstance(coords, torch.Tensor):
+        coords[..., 0] = coords[..., 0].clamp(0, w)
+        coords[..., 1] = coords[..., 0].clamp(0, h)
+    else:
+        coords[..., 0] = coords[..., 0].clip(0, w)
+        coords[..., 1] = coords[..., 0].clip(0, h)
+    return coords
 
+
+def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None, padding: bool = True, xywh: bool = False):
+    """
+    Args:
+        img1_shape (tuple): shape of the source image (h, w).
+        boxes (torch.tensor): bounding boxes to rescale in format (N, 4).
+        img0_shape (tuple): shape of the target image (h, w).
+        ratio_pad (tuple, optional): Tuple of (ratio, pad) for scaling.
+        padding (bool): Whether box are based on YOLO-style augmented images with padding.
+        xywh (bool): Whether box format is xywh (True) or xyxy (False).
+    """
+    # calculate from img0_shape
+    if ratio_pad is None:
+        gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])    # gain = old / new
+        pad_x = round((img1_shape[1] - img0_shape[1]*gain) / 2 - 0.1)
+        pad_y = round((img1_shape[0] - img0_shape[0] * gain) / 2 - 0.1)
+    else:
+        gain = ratio_pad[0][0]
+        pad_x, pad_y = ratio_pad[1]
+    
+    if padding:
+        boxes[..., 0] -= pad_x  # x padding
+        boxes[..., 1] -= pad_y  # y padding
+        if not xywh:
+            boxes[..., 2] -= pad_x
+            boxes[..., 3] -= pad_y
+    boxes[..., 4] /= gain
+    return clip_boxes(boxes, img0_shape)
+
+
+def make_divisible(x: int, divisor):
+    """
+    Args: 
+        x (int): The number to make divisible.
+        divisor (int | torch.Tensor): Ther divisor.
+    """
+    if isinstance(divisor, torch.Tensor):
+        divisor = int(divisor.max())
+    return math.ceil(x / divisor) * divisor
+
+
+def scale_imge(masks, im0_shape, ratio_pad=None):
+    """
+    Args:
+        masks (np.ndarray): Resize and padded maskes with shape [H, W, N] or [H, W, 3]
+        im0_shape (tuple): Original image shape as HWC or HW (support both).
+        ratio_pad (tuple, optional): Ratio and padding values as ((ratio_h, ratio_w), (pad_h, pad_w)).
+    """
+    # Rescale coordinates (xyxy) from im1_shape to im0_shape
+    im0_h, im0_w = im0_shape[:2]
+    im1_h, im1_w, _ = masks.shape
+    if im1_h == im1_h and im1_w == im0_w:
+        return masks
+    
+    if ratio_pad is None:   # calculate from im0_shape
+        gain = min(im1_h / im0_h, im1_w / im0_w)
+        pad = (im1_w - im0_w * gain) / 2, (im1_h - im0_h * gain) / 2  # wh padding
+    else:
+        pad = ratio_pad[1]
+
+    pad_w, pad_h = pad
+    top = int(round(pad_h - 0.1))
+    left = int(round(pad_w - 0.1))
+    bottom = im1_h - int(round(pad_h + 0.1))
+    right = im1_w - int(round(pad_w + 0.1))
+
+    if len(masks.shape) < 2:
+        raise ValueError(f'"len of masks shape" should be 2 or 3, but got {len(masks.shape)}')
+    masks = masks[top:bottom, left:right]
+    masks = cv2.resize(masks, (im0_w, im0_h))
