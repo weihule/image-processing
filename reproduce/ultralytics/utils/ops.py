@@ -72,6 +72,12 @@ def segment2box(segment, width: int = 640, height: int = 640):
         else np.zeros(4, dtype=dtype)
     )
 
+def segments2boxes(segments):
+    boxes = []
+    for s in segments:
+        x, y = s.T
+        boxes.append([x.min(), y.min(), x.max(), y.max()])
+    return xyxy2xywh(np.array(boxes))  # cls, xywh
 
 def clip_boxes(boxes, shape):
     """
@@ -154,7 +160,7 @@ def make_divisible(x: int, divisor):
     return math.ceil(x / divisor) * divisor
 
 
-def scale_imge(masks, im0_shape, ratio_pad=None):
+def scale_imgage(masks, im0_shape, ratio_pad=None):
     """
     Args:
         masks (np.ndarray): Resize and padded maskes with shape [H, W, N] or [H, W, 3]
@@ -183,3 +189,194 @@ def scale_imge(masks, im0_shape, ratio_pad=None):
         raise ValueError(f'"len of masks shape" should be 2 or 3, but got {len(masks.shape)}')
     masks = masks[top:bottom, left:right]
     masks = cv2.resize(masks, (im0_w, im0_h))
+
+
+def xyxy2xywh(x):
+    """
+    xyxy  = x1, y1, x2, y2                                  (左上和右下)
+    xywh  = x_center, y_center, width, height               (中心点坐标和宽高)
+    """
+    assert x.shape[-1] == 4, f"input shape last dimension expected 4 but input shape is {x.shape}"
+    y = empty_like(x)
+    x1, y1, x2, y2 = x[..., 0], x[..., 1], x[..., 2], x[..., 3]
+    y[..., 0] = (x1 + x2) / 2
+    y[..., 1] = (y1 + y2) / 2
+    y[..., 2] = x2 - x1
+    y[..., 3] = y2 - y1
+    return y
+
+
+def xywh2xyxy(x):
+    """
+    Args:
+        x (np.ndarray | torch.Tensor): Input bounding box coordinates in (x, y, width, height) format.
+
+    Returns:
+        (np.ndarray | torch.Tensor): Bounding box coordinates in (x1, y1, x2, y2) format.
+    """
+    assert x.shape[-1] == 4, f"input shape last dimension expected 4 but input shape is {x.shape}"
+    y = empty_like(x)  # faster than clone/copy
+    xy = x[..., :2]  # centers
+    wh = x[..., 2:] / 2  # half width-height
+    y[..., :2] = xy - wh  # top left xy
+    y[..., 2:] = xy + wh  # bottom right xy
+    return y
+
+
+def xywhn2xyxy(x, w: int = 640, h: int = 640, padw: int = 0, padh: int = 0):
+    """
+    Args:
+        x (np.ndarray | torch.Tensor): Normalized bounding box coordinates in (x, y, w, h) format.
+        w (int): Image width in pixels.
+        h (int): Image height in pixels.
+        padw (int): Padding width in pixels.
+        padh (int): Padding height in pixels.
+
+    Returns:
+        y (np.ndarray | torch.Tensor): The coordinates of the bounding box in the format [x1, y1, x2, y2] where
+            x1,y1 is the top-left corner, x2,y2 is the bottom-right corner of the bounding box.
+    """
+    assert x.shape[-1] == 4, f"input shape last dimension expected 4 but input shape is {x.shape}"
+    y = empty_like(x) 
+    xc, yc, xw, xh = x[..., 0], x[..., 1], x[..., 2], x[..., 3]
+    half_w, half_h = xw / 2, xh / 2
+    # 归一化坐标是基于缩放后未填充的图像计算的，
+    # 而我们最终要得到的是填充后完整图像上的像素坐标，所以需要把填充的偏移量加回去。
+    y[..., 0] = w * (xc - half_w) + padw
+    y[..., 1] = h * (yc - half_h) + padh
+    y[..., 2] = w * (xc + half_w) + padw
+    y[..., 3] = h * (yc + half_h) + padh
+    return y
+
+
+def xyxy2xywhn(x, w: int = 640, h: int = 640, clip: bool = False, eps: float = 0.0):
+    """
+    Convert bounding box coordinates from (x1, y1, x2, y2) format to (x, y, width, height, normalized) format. x, y,
+    width and height are normalized to image dimensions.
+
+    Args:
+        x (np.ndarray | torch.Tensor): Input bounding box coordinates in (x1, y1, x2, y2) format.
+        w (int): Image width in pixels.
+        h (int): Image height in pixels.
+        clip (bool): Whether to clip boxes to image boundaries.
+        eps (float): Minimum value for box width and height.
+
+    Returns:
+        (np.ndarray | torch.Tensor): Normalized bounding box coordinates in (x, y, width, height) format.
+    """
+    if clip:
+        x = clip_boxes(x, (h-eps, w-eps))
+    assert x.shape[-1] == 4, f"input shape last dimension expected 4 but input shape is {x.shape}"
+    y = empty_like(x) 
+    x1, y1, x2, y2 = x[..., 0], x[..., 1], x[..., 2], x[..., 3]
+    y[..., 0] = ((x1 + x2) / 2) /  w
+    y[..., 1] = ((y1 + y2) / 2) /  h
+    y[..., 2] = (x2 - x1) /  w
+    y[..., 3] = (y2 - y1) /  h
+    return y
+
+
+def xywh2ltwh(x):
+    """
+    xywh  = x_center, y_center, width, height      (中心坐标)
+            
+    ltwh  = left, top, width, height               (左上角坐标)
+            └─────┬─────┘
+            左上角坐标
+    Args:
+        x (np.ndarray | torch.Tensor): Input bounding box coordinates in xywh format.
+
+    Returns:
+        (np.ndarray | torch.Tensor): Bounding box coordinates in xyltwh format.
+    """
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[..., 0] = x[..., 0] - x[..., 2] / 2
+    y[..., 1] = x[..., 1] - x[..., 3] / 2
+    return y
+
+
+def xyxy2ltwh(x):
+    """
+    xyxy  = x1, y1, x2, y2      (左上和右下坐标)
+            
+    ltwh  = left, top, width, height               (左上角坐标)
+            └─────┬─────┘
+            左上角坐标
+    """
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[..., 2] = x[..., 2] - x[..., 0]
+    y[..., 3] = x[..., 3] - x[..., 1]
+    return y
+
+
+def ltwh2xywh(x):
+    """     
+    ltwh  = left, top, width, height               (左上角坐标)
+            └─────┬─────┘
+            左上角坐标
+    xywh  = x_center, y_center, w, h      (中心点坐标和宽高)
+    """
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[..., 0] = x[..., 0] + x[..., 2] / 2
+    y[..., 1] = x[..., 1] + x[..., 3] / 2 
+    return y
+
+
+def ltwh2xyxy(x):
+    """     
+    ltwh  = left, top, width, height               (左上角坐标)
+            └─────┬─────┘
+            左上角坐标
+    xyxy  = x1, y1, x2, y2      (左上和右下坐标)
+    """
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[..., 2] = x[..., 2] + x[..., 0]  # width
+    y[..., 3] = x[..., 3] + x[..., 1]  # height
+    return y
+
+
+def xyxyxyxy2xywhr(x):
+    """
+    Convert batched Oriented Bounding Boxes (OBB) from [xy1, xy2, xy3, xy4] to [xywh, rotation] format.
+
+    Args:
+        x (np.ndarray | torch.Tensor): Input box corners with shape (N, 8) in [xy1, xy2, xy3, xy4] format.
+
+    Returns:
+        (np.ndarray | torch.Tensor): Converted data in [cx, cy, w, h, rotation] format with shape (N, 5).
+            Rotation values are in radians from 0 to pi/2.
+    """
+    is_torch = isinstance(x, torch.Tensor)
+    points = x.cpu().numpy() if is_torch else x
+    points = points.reshape(len(x), -1, 2)
+    rboxes = []
+    for pts in points:
+        (cx, cy), (w, h), angle = cv2.minAreaRect(pts)
+        rboxes.append([cx, cy, w, h, angle / 180 * np.pi])
+    return torch.tensor(rboxes, device=x.device, dtype=x.dtype) if is_torch else np.asarray(rboxes)
+
+
+def xywhr2xyxyxyxy(x):
+    cos, sin, cat, stack = (
+        (torch.cos, torch.sin, torch.cat, torch.stack)
+        if isinstance(x, torch.Tensor)
+        else (np.cos, np.sin, np.concatenate, np.stack)
+    )
+    ctr = x[..., :2]    # [N, 2]
+    w, h, angle = (x[..., i : i + 1] for i in range(2, 5))
+    cos_value, sin_value = cos(angle), sin(angle)
+    vec1 = [w / 2 * cos_value, w / 2 * sin_value]
+    vec2 = [-h / 2 * sin_value, h / 2 * cos_value]
+    vec1 = cat(vec1, -1)    # [N, 2]
+    vec2 = cat(vec2, -1)    # [N, 2]
+    pt1 = ctr + vec1 + vec2
+    pt2 = ctr + vec1 - vec2
+    pt3 = ctr - vec1 - vec2
+    pt4 = ctr - vec1 + vec2
+    return stack([pt1, pt2, pt3, pt4], -2)
+
+
+
+def empty_like(x):
+    ret = torch.empty_like(x, dtype=torch.float32) if isinstance(x, torch.Tensor) else np.empty_like(x, dtype=np.float32)
+    return ret
