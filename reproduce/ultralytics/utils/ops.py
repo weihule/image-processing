@@ -73,6 +73,11 @@ def segment2box(segment, width: int = 640, height: int = 640):
     )
 
 def segments2boxes(segments):
+    """
+    输入示例: [[N, 2], [M, 2]]
+    即多个轮廓的xy点集列表，每个子元素都是numpy类型
+    """
+
     boxes = []
     for s in segments:
         x, y = s.T
@@ -110,13 +115,12 @@ def clip_coords(coords, shape):
         coords (torch.tensor | np.ndarray): Line coordinates to clip.
         shape (tuple): Image shape as HWC or HW (supports both).
     """
-    h, w = shape[:2]
     if isinstance(coords, torch.Tensor):
-        coords[..., 0] = coords[..., 0].clamp(0, w)
-        coords[..., 1] = coords[..., 0].clamp(0, h)
+        coords[..., 0] = coords[..., 0].clamp(0, shape[1])
+        coords[..., 1] = coords[..., 1].clamp(0, shape[0])
     else:
-        coords[..., 0] = coords[..., 0].clip(0, w)
-        coords[..., 1] = coords[..., 0].clip(0, h)
+        coords[..., 0] = coords[..., 0].clip(0, shape[1])
+        coords[..., 1] = coords[..., 1].clip(0, shape[0])
     return coords
 
 
@@ -338,13 +342,8 @@ def ltwh2xyxy(x):
 def xyxyxyxy2xywhr(x):
     """
     Convert batched Oriented Bounding Boxes (OBB) from [xy1, xy2, xy3, xy4] to [xywh, rotation] format.
-
-    Args:
-        x (np.ndarray | torch.Tensor): Input box corners with shape (N, 8) in [xy1, xy2, xy3, xy4] format.
-
-    Returns:
-        (np.ndarray | torch.Tensor): Converted data in [cx, cy, w, h, rotation] format with shape (N, 5).
-            Rotation values are in radians from 0 to pi/2.
+    xyxyxyxy  = x1y2, x2y2, x3y3, x4y4               (四点坐标)
+    xywhr = cx, cy, w, h, r      (中心点坐标, 宽高， 弧度)
     """
     is_torch = isinstance(x, torch.Tensor)
     points = x.cpu().numpy() if is_torch else x
@@ -376,7 +375,144 @@ def xywhr2xyxyxyxy(x):
     return stack([pt1, pt2, pt3, pt4], -2)
 
 
+def resample_segments(segments, n=1000):
+    """
+    输入一个列表，列表里的每个元素是[n, 2]的numpy数组
+    """
+    for i, s in enumerate(segments):
+        if len(s) == n:
+            continue
+        s = np.concatenate((s, s[0:1, :]), axis=0) # 把起点追加到末尾
+        x = np.linspace(0, len(s)-1, n-len(s) if len(s) < n else n)
+        xp = np.arange(len(s))
+        x = np.insert(x, np.searchsorted(x, xp), xp) if len(s) < n else x
+        segments[i] = (
+            np.concatenate([np.interp(x, xp, s[:, i]) for i in range(2)], dtype=np.float32).reshape(2, -1).T
+        )  # segment xy
+    return segments
+
+
+def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None, normalize=False, padding=True):
+    """
+    把分割坐标(x,y)从img1缩放到img0（从处理后的图像空间转回到原始图像空间）
+    img1_shape[0] = img0_shape[0] * gain + 2*pad[1]  # 高度
+    img1_shape[1] = img0_shape[1] * gain + 2*pad[0]  # 宽度
+    """
+    if ratio_pad is None: 
+        gain = min(img1_shape[0]/img0_shape[0],img1_shape[1]/img0_shape[1])     # gain = old / new
+        pad = (img1_shape[1]-img0_shape[1]*gain) / 2, (img1_shape[0]-img0_shape[0] * gain) / 2  # wh padding
+    else:
+        gain = ratio_pad[0][0]
+        pad = ratio_pad[1]
+    
+    if padding:
+        coords[..., 0] -= pad[0]    # x padding
+        coords[..., 1] -= pad[1]    # y padding
+    coords[..., 0] /= gain
+    coords[..., 1] /= gain
+    coords = clip_coords(coords, img0_shape)
+    if normalize:
+        coords[..., 0] /= img0_shape[1]     # width
+        coords[..., 1] /= img0_shape[0]     # height
+    return coords
+
+
+def regularize_rboxes(rboxes):
+    """
+    规范化旋转框，确保旋转角度在[0, pi/2]
+    Args:
+        rboxes (torch.Tensor): Input boxes of shape(N, 5) in xywhr format.
+    Returns:
+        (torch.Tensor): The regularized boxes.
+    """
+    x, y, w, h, t = rboxes.unbind(dim=-1)
+
+    w_ = torch.where(w > h, w, h)
+    # 如果 w > h，保持 w；否则用 h 代替
+    # 结果：w_ = max(w, h)
+
+    h_ = torch.where(w > h, h, w)
+    # 如果 w > h，保持 h；否则用 w 代替
+    # 结果：h_ = min(w, h)
+
+    t = torch.where(w > h, t, t + math.pi / 2) % math.pi
+    # 如果原本 w > h：保持角度 t
+    # 如果原本 w <= h：加上 π/2（因为交换了宽高）
+    # 然后对 π 取模，确保在 [0, π) 范围内
+    
+    # 重新堆叠
+    return torch.stack([x, y, w_, h_, t], dim=-1)
+
+
+def convert_torch2numpy_batch(batch: torch.Tensor) -> np.ndarray:
+    """
+    把一个 FP32 的batch tensor (0.0-1.0) 转成 np.uint8 (0-255)
+    BCHW -> BHWC
+    """
+    batch = (batch.permute(0, 2, 3, 1).contiguous()*255).clamp(0, 255)
+    batch = batch.to(torch.uint8).cpu().numpy()
+    return batch
+
+
+def masks2segments(masks, strategy="all"):
+    """
+    将批量的二值掩码（mask）张量，转换为对应的轮廓线段（segment）列表
+    mask (torch.Tensor): 
+    """
+    from ultralytics.data.converter import merge_multi_segment
+    segments = []
+    for x in masks.int.cpu().numpy().astype(np.uint8):
+        
+        """
+        cv2.findContours(...) 会提取出 2 个外轮廓，因此 c 是长度为 2 的列表；
+        c[0]：第一个正方形的轮廓坐标，形状为 (4, 1, 2)（4 个顶点，每个顶点是 (x,y)）；
+        c[1]：第二个正方形的轮廓坐标，形状也为 (4, 1, 2)；
+        代码中 strategy="all" 时，会把 c[0] 和 c[1] 合并为一个 (8, 2) 的数组；
+        代码中 strategy="largest" 时，会选 c[0]/c[1] 中点数更多的那个（若点数相同，选第一个）。
+        OpenCV 返回的 (N, 1, 2) 有冗余维度，因此代码中用 reshape(-1, 2) 把它简化为 (N, 2)：
+        """
+        c = cv2.findContours(x, x, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
+        if c:
+            # 合并所有分割目标
+            if strategy == "all": 
+                if len(c) > 1: 
+                    c = np.concatenate(
+                        merge_multi_segment([x.reshape(-1, 2) for x in c])
+                        )
+                else:  
+                    c = c[0].reshape(-1, 2)
+            # 选择点数更多的目标
+            elif strategy == "largest":
+                c = np.array(
+                        c[np.array([len(x) for x in c]).argmax()]
+                    ).reshape(-1, 2)
+        else:
+            c = np.zeros(shape=(0, 2))  # 无分割目标
+        segments.append(c.astype(np.float32))
+    return segments
+
+def clear_str(s):
+    """
+    例如：输入"hello@world!123+abc€def", 输出"hello_world_123_abc_def"
+    """
+    return re.sub(pattern="[|@#!¡·$€%&()=?¿^*;:,¨´><+]",
+                  repl="_",
+                  string=s)
+
+    
 
 def empty_like(x):
     ret = torch.empty_like(x, dtype=torch.float32) if isinstance(x, torch.Tensor) else np.empty_like(x, dtype=np.float32)
     return ret
+
+
+def test():
+    arr = np.array([[0, 0], [0, 10], [20, 10], [20, 0]], dtype=np.float32)
+    print(arr.shape)
+    arr2 = resample_segments([arr], n=8)
+    print(arr2[0], arr2[0].shape)
+
+
+if __name__ == "__main__":
+    test()
+
