@@ -14,6 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 from threading import Lock
 from types import SimpleNamespace
+from typing import Union
 from urllib.parse import unquote
 
 import cv2
@@ -56,8 +57,6 @@ os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"  # for deterministic training 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # suppress verbose TF compiler warnings in Colab
 os.environ["TORCH_CPP_LOG_LEVEL"] = "ERROR"  # suppress "NNPACK.cpp could not initialize NNPACK" warnings
 os.environ["KINETO_LOG_LEVEL"] = "5"  # suppress verbose PyTorch profiler output when computing FLOPs
-
-
 
 def colorstr(*input):
     *args, string = input if len(input) > 1 else ("blue", "bold", input[0])
@@ -163,14 +162,99 @@ def plt_settings(rcparams=None, backend="Agg"):
 
 
 def set_logging(name="LOGGING_NAME", verbose=True):
+    level = logging.INFO if verbose and RANK in {-1, 0} else logging.ERROR
+
+    # 用utf8配置stdout输出
+    formatter = logging.Formatter("%(message)s")
+    if WINDOWS and hasattr(sys.stdout, "encoding") and sys.stdout.encoding != "utf-8":
+        class CustomFormatter(logging.Formatter):
+            def format(self, record):
+                """Sets up logging with UTF-8 encoding and configurable verbosity."""
+                return emojis(super().format(record))
+        try:
+            if hasattr(sys.stdout, "reconfigure"):
+                sys.stdout.reconfigure(encoding="utf-8")
+            elif hasattr(sys.stdout, "buffer"):
+                import io
+                sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+            else:
+                formatter = CustomFormatter("%(message)s")
+        except Exception as e:
+            print(f"Creating custom formatter for non UTF-8 environments due to {e}")
+            formatter = CustomFormatter("%(message)s")
+    # Create and configure the StreamHandler with the appropriate formatter and level
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)
+    stream_handler.setLevel(level)
+
+    # Set up the logger
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(stream_handler)
+    logger.propagate = False
+    return logger
+
+
+# Set Logger
+LOGGER = set_logging(LOGGING_NAME, verbose=VERBOSE)
+
+def emojis(string=""):
+    return string.encode().decode("ascii", "ignore") if WINDOWS else string
+
+
+def yaml_save(file="data.yaml", data=None, header=""):
+    if data is None:
+        data = {}
+    file = Path(file)
+    if not file.parent.exists():
+        file.parent.mkdir(parents=True, exist_ok=True)
+    
+    valid_types = int, float, str, bool, list, tuple, dict, type(None)
+    for k, v in data.items():
+        if not isinstance(v, valid_types):
+            data[k] = str(v)
+    
+    # 输出data到yaml文件（errors="ignore": 编码错误时忽略，防止崩溃）
+    with open(file, "w", errors="ignore", encoding="utf-8") as fw:
+        if header:
+            fw.write(header)
+        # allow_unicode=True: 中文等Unicode字符正常显示
+        yaml.safe_dump(data, fw, sort_keys=False, allow_unicode=True)
+
+
+def yaml_load(file="data.yaml", append_filename=False):
+    assert Path(file).suffix in {".yaml", ".yml"}, f"Attempting to load non-YAML file {file} with yaml_load()"
+    with open(file, "r", errors="ignore", encoding="utf-8") as fr:
+        s = fr.read()  # string
+
+        if not s.isprintable():
+            s = re.sub(r"[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD\U00010000-\U0010ffff]+", "", s)
+
+        # Add YAML filename to dict and return
+        data = yaml.safe_load(s) or {}  # always return a dict (yaml.safe_load() may return None for empty files)
+        if append_filename:
+            data["yaml_file"] = str(file)
+        return data
     
 
-from ultralytics.utils.patches import torch_load, torch_save, imread, imwrite, imshow
-torch.load = torch_load
-torch.save = torch_save
-if WINDOWS:
-    # Apply cv2 patches for non-ASCII and non-UTF characters in image paths
-    cv2.imread, cv2.imwrite, cv2.imshow = imread, imwrite, imshow
+def yaml_print(yaml_file: Union[str, Path, dict]) -> None:
+    yaml_dict = yaml_load(yaml_file) if isinstance(yaml_file, (str, Path)) else yaml_file
+    dump = yaml.dump(yaml_dict, sort_keys=False, allow_unicode=True, width=float("inf"))
+    LOGGER.info(f"Printing '{colorstr('bold', 'green', yaml_file)}'\n\n{dump}")
+    
+
+# 默认配置
+DEFAULT_CFG_DICT = yaml_load(DEFAULT_CFG_PATH)
+DEFAULT_SOL_DICT = yaml_load(DEFAULT_SOL_CFG_PATH) 
+for k, v in DEFAULT_CFG_DICT.items():
+    print(f"k = {k} v = {v}")
+
+# from ultralytics.utils.patches import torch_load, torch_save, imread, imwrite, imshow
+# torch.load = torch_load
+# torch.save = torch_save
+# if WINDOWS:
+#     # Apply cv2 patches for non-ASCII and non-UTF characters in image paths
+#     cv2.imread, cv2.imwrite, cv2.imshow = imread, imwrite, imshow
 
 def test():
     plat = platform.machine()
@@ -185,8 +269,16 @@ def test():
     # for i in TQDM(range(100)):
     #     print(i)
 
+    set_logging(name="ultralytics", verbose=True)
+    logger = logging.getLogger("ultralytics")
+    logger.info("This is an info message")
+
+    content = yaml_print(yaml_file=r'D:\workspace\code\image-processing\reproduce\ultralytics\cfg\datasets\coco.yaml')
+    print(content)
+
 
 if __name__ == "__main__":
-    test()
+    # test()
+    pass
 
 
