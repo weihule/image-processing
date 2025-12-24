@@ -1,5 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import threading
+import multiprocessing
+import time
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
 def test():
     # 先把原函数复制过来（补全依赖）
@@ -110,7 +114,211 @@ def test2():
     print(ret_2d)
 
 
+def log_decorator(func):
+    def wrapper(*args, **kwargs):
+        print(f"[The Log Function] {func.__name__} starts executing!")
+        # Call the original function and obtain the return value
+        result = func(*args, **kwargs)
+        print(f"[The Log Function] {func.__name__} execution completed!")
+        return result
+    return wrapper
+
+
+def log_decorator_with_prefix(prefix="默认前缀"):
+    def outer(func):
+        def wrapper(*args, **kwargs):
+            print(f"[{prefix}] 函数 {func.__name__} 开始执行!")
+            result = func(*args, **kwargs)
+            print(f"[{prefix}] 函数 {func.__name__} 执行完成!")
+            return result
+        return wrapper
+    return outer
+
+# use decorator
+@log_decorator_with_prefix()
+def add(a, b):
+    print(f"---")
+    return a+b
+
+@log_decorator_with_prefix(prefix="测试")
+def add2(a, b):
+    print(f"---")
+    return a+b
+
+
+def task(name, delay):
+    print(f"线程 {name} 启动， 延迟  {delay} 秒")
+    time.sleep(delay)
+    print(f"线程 {name} 结束")
+
+
+class MyThread(threading.Thread):
+    def __init__(self, name, delay):
+        super().__init__()
+        self.name = name
+        self.delay = delay
+        
+    def run(self):
+        print(f"线程{self.name}启动，延迟{self.delay}秒")
+        time.sleep(self.delay)
+        print(f"线程{self.name}结束")
+
+def test3():
+    # # 创建线程
+    # t1 = threading.Thread(target=task, args=("A", 2))
+    # t2 = threading.Thread(target=task, args=("B", 5))
+
+    # # 启动线程
+    # t1.start()
+    # t2.start()
+
+    # # 等待线程结束
+    # t1.join()
+    # t2.join()
+
+    # print("所有线程完成")
+
+    t1 = MyThread("A", 2)
+    t2 = MyThread("B", 5)
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+    print("所有线程执行完成")
+
+def producer(queue):
+    for i in range(3):
+        queue.put(i)
+        print(f"生产数据：{i}")
+        
+def consumer(queue):
+    while not queue.empty():
+        data = queue.get()
+        print(f"消费数据：{data}")
+        
+def test4():
+    queue = multiprocessing.Queue()    # 创建进程队列
+    p1 = multiprocessing.Process(target=producer, args=(queue,))
+    p2 = multiprocessing.Process(target=consumer, args=(queue,))
+    p1.start()
+    p1.join()    # 确保生产者生产完成
+    p2.start()
+    p2.join()
+
+
+# 共享资源
+count = 0
+lock = threading.Lock()
+
+def increment():
+    global count
+    for _ in range(10000000):
+        with lock:
+            count += 1
+        
+def test5():
+    # 创建两个线程
+    t1 = threading.Thread(target=increment)
+    t2 = threading.Thread(target=increment)
+
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+    print(f"最终count值: {count}") 
+
+
+def increment2(count, lock):
+    for _ in range(1000000):
+        with lock:
+            count.value += 1
+
+
+def test6():
+    # 进程间共享的数值（需用multiprocessing的Value）
+    count = multiprocessing.Value('i', 0)
+    lock = multiprocessing.Lock()  # 创建进程锁
+    p1 = multiprocessing.Process(target=increment2, args=(count, lock))
+    p2 = multiprocessing.Process(target=increment2, args=(count, lock))
+
+    p1.start()
+    p2.start()
+    p1.join()
+    p2.join()
+    
+    print(f"最终count值: {count.value}")
+
+
+import threading
+import time
+
+def threaded(func):
+    def wrapper(*args, **kwargs):
+        if kwargs.pop("threaded", True):
+            thread = threading.Thread(target=func, args=args, kwargs=kwargs, daemon=True)
+            thread.start()
+            # thread.join()  # 如果打开这行，就是同步执行
+            return thread
+        else:
+            return func(*args, **kwargs)
+    return wrapper
+
+@threaded
+def weihltest():
+    time.sleep(4)
+    print("子线程执行完成")
+
+
+def square(x):
+    return x*x
+
+
+def test8():
+    nums = [1, 2, 3, 4, 5, 6]
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        results = executor.map(square, nums)
+        for num, res in zip(nums, results):
+            print(f"num={num} res={res}")
+
+
+def test9():
+    nums = [1, 2, 3, 4, 5, 6]
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        future_nums = {executor.submit(square, num): num for num in nums}
+        for future in as_completed(future_nums):
+            num = future_nums[future]
+            res = future.result()
+            print(f"num={num} res={res}")
+
+
+def test7():
+    # 调用1：异步（不加join）
+    print("开始调用test")
+    weihltest()
+    print("主线程继续执行")  
+    time.sleep(3)
+
+    # 调用2：同步（加join）
+    # print("开始调用test")
+    # test()
+    # print("主线程继续执行")  # 会等待2秒，先打印“子线程执行完成”，再打印这行
+
+
 if __name__ == "__main__":
-    test2()
+    # test2()
+    # print(add(2, 3))
+    # print(add2(4, 5))
+    # test4()
+    # test5()
+    # test6()
+    # test7()
+    test8()
+    test9()
+    
+
+
+
+
+
 
 
