@@ -251,8 +251,10 @@ def test6():
 
 import threading
 import time
+from functools import wraps
 
 def threaded(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
         if kwargs.pop("threaded", True):
             thread = threading.Thread(target=func, args=args, kwargs=kwargs, daemon=True)
@@ -298,11 +300,35 @@ def test7():
     print("主线程继续执行")  
     time.sleep(3)
 
+    print(weihltest.__name__)
+
     # 调用2：同步（加join）
     # print("开始调用test")
     # test()
     # print("主线程继续执行")  # 会等待2秒，先打印“子线程执行完成”，再打印这行
 
+
+class RepetDecorator:
+    def __init__(self, times):
+        self.times = times
+        
+    def __call__(self, func):
+        @wraps(func)    # 不使用wraps，被装饰后的函数会丢失原函数的元信息
+        def wrapper(*args, **kwargs):
+            for i in range(self.times):
+                print(f"第 {i+1} 次")
+                func(*args, **kwargs)
+        return wrapper
+
+rd = RepetDecorator(times=3)
+    
+# 不加@wraps
+@rd
+def test10():
+    print(f"World")
+
+# 查看装饰后函数的元信息
+print(test10.__name__)
 
 if __name__ == "__main__":
     # test2()
@@ -312,9 +338,11 @@ if __name__ == "__main__":
     # test5()
     # test6()
     # test7()
-    test8()
-    test9()
-    
+    # test8()
+    # test9()
+    test10()
+
+
 
 
 

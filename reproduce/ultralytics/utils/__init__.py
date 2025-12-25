@@ -169,7 +169,6 @@ def set_logging(name="LOGGING_NAME", verbose=True):
     logger.propagate = False
     return logger
 
-
 # Set Logger
 LOGGER = set_logging(LOGGING_NAME, verbose=VERBOSE)
 
@@ -488,6 +487,13 @@ class TryExcept(contextlib.ContextDecorator):
 
 
 class Retry(contextlib.ContextDecorator):
+    """
+    Examples:
+        >>> @Retry(times=3, delay=2)
+        >>> def test_func():
+        >>> # Replace with function logic that may raise exceptions
+        >>>     return True
+    """
     def __init__(self, times=3, delay=2):
         self.times = times
         self.delay = delay
@@ -521,6 +527,29 @@ def threaded(func):
         else:
             return func(*args, **kwargs)
     return wrapper
+
+
+class ThreadingLocked:
+    """
+    Examples:
+        from ultralytics.utils import ThreadingLocked
+
+        @ThreadingLocked()
+        def my_function():
+            # Your code here
+    """
+    def __init__(self):
+        self.lock = threading.Lock()
+
+    def __call__(self, f):
+        from functools import wraps
+
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            with self.lock:
+                return f(*args, **kwargs)
+        return decorated
+
 
 
 class JSONDict(dict):
@@ -569,6 +598,58 @@ class JSONDict(dict):
             return str(obj)
         raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
+    def __setitem__(self, key, value):
+        with self.lock:
+            # 等价于 d["name"] = "Alice"
+            super().__setitem__(key, value)
+            self._save()
+
+    def __str__(self):
+        contents = json.dumps(dict(self), indent=2, ensure_ascii=False, default=self._json_default)
+        return f'JSONDict("{self.file_path}"):\n{contents}'
+
+    def update(self, *args, **kwargs):
+        """Update the dictionary and persist changes."""
+        with self.lock:
+            super().update(*args, **kwargs)
+            self._save()
+
+    def clear(self):
+        """Clear all entries and update the persistent storage."""
+        with self.lock:
+            super().clear()
+            self._save()
+
+
+class SettingManager(JSONDict):
+    def __init__(self, file=SETTINGS_FILE, version="0.0.6"):
+        import hashlib
+
+
+def deprecation_warn(arg, new_arg=None):
+    msg = f"WARNING ⚠️ '{arg}' is deprecated and will be removed in in the future."
+    if new_arg is not None:
+        msg += f" Use '{new_arg}' instead."
+    LOGGER.warning(msg)
+
+
+def clean_url(url):
+    """Strip auth from URL, i.e. https://url.com/file.txt?auth -> https://url.com/file.txt."""
+    url = Path(url).as_posix().replace(":/", "://")
+    return unquote(url).split("?")[0]
+
+def url2file(url):
+    """Convert URL to filename, i.e. https://url.com/file.txt?auth -> file.txt."""
+    return Path(clean_url(url)).name
+
+
+def vscode_msg(ext="ultralytics.ultralytics-snippets") -> str:
+    """Display a message to install Ultralytics-Snippets for VS Code if not already installed."""
+    path = (USER_CONFIG_DIR.parents[2] if WINDOWS else USER_CONFIG_DIR.parents[1]) / ".vscode/extensions"
+    obs_file = path / ".obsolete"  # file tracks uninstalled extensions, while source directory remains
+    installed = any(path.glob(f"{ext}*")) and ext not in (obs_file.read_text("utf-8") if obs_file.exists() else "")
+    url = "https://docs.ultralytics.com/integrations/vscode"
+    return "" if installed else f"{colorstr('VS Code:')} view Ultralytics VS Code Extension ⚡ at {url}"
 
 
 # from ultralytics.utils.patches import torch_load, torch_save, imread, imwrite, imshow
