@@ -219,9 +219,9 @@ def yaml_print(yaml_file: Union[str, Path, dict]) -> None:
 
 # 默认配置
 DEFAULT_CFG_DICT = yaml_load(DEFAULT_CFG_PATH)
-DEFAULT_SOL_DICT = yaml_load(DEFAULT_SOL_CFG_PATH) 
+DEFAULT_SOL_DICT = yaml_load(DEFAULT_SOL_CFG_PATH)
 for k, v in DEFAULT_CFG_DICT.items():
-    if isinstance(k, str) and v.lower() == 'none':
+    if isinstance(v, str) and v.lower() == "none":
         DEFAULT_CFG_DICT[k] = None
 DEFAULT_CFG_KEYS = DEFAULT_CFG_DICT.keys()
 DEFAULT_CFG = IterableSimpleNameSpace(**DEFAULT_CFG_DICT)

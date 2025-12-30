@@ -330,6 +330,13 @@ def test10():
 # 查看装饰后函数的元信息
 print(test10.__name__)
 
+from ultralytics.utils.checks import parse_version
+
+def test11():
+    arr = "2.0.0+ooo"
+    arr_out = parse_version(arr)
+    print(arr_out)
+
 if __name__ == "__main__":
     # test2()
     # print(add(2, 3))
@@ -340,7 +347,7 @@ if __name__ == "__main__":
     # test7()
     # test8()
     # test9()
-    test10()
+    test11()
 
 
 

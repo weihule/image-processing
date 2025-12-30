@@ -26,4 +26,4 @@ from ultralytics.utils import (
     __version__,
     colorstr
 )
-from ultralytics.utils.checks import 
+from ultralytics.utils.checks import check_version
