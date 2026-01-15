@@ -652,12 +652,30 @@ def vscode_msg(ext="ultralytics.ultralytics-snippets") -> str:
     return "" if installed else f"{colorstr('VS Code:')} view Ultralytics VS Code Extension ⚡ at {url}"
 
 
-# from ultralytics.utils.patches import torch_load, torch_save, imread, imwrite, imshow
-# torch.load = torch_load
-# torch.save = torch_save
-# if WINDOWS:
-#     # Apply cv2 patches for non-ASCII and non-UTF characters in image paths
-#     cv2.imread, cv2.imwrite, cv2.imshow = imread, imwrite, imshow
+# Run below code on utils init 
+
+# Check first-install steps
+PREFIX = colorstr("ltralytics: ")
+SETTINGS = SettingManager()
+PERSISTENT_CACHE = JSONDict(USER_CONFIG_DIR / "persistent_cache.json")
+DATASETS_DIR = Path(SETTINGS["datasets_dir"]) 
+WEIGHTS_DIR = Path(SETTINGS["weights_dir"])
+RUNS_DIR = Path(SETTINGS["runs_dir"])
+ENVIRONMENT = (
+    "Colab"
+    if IS_COLAB
+    else "Docker"
+    if IS_DOCKER
+    else platform.system()
+)
+TESTS_RUNNING = is_pytest_running() or is_github_action_running()
+
+from ultralytics.utils.patches import torch_load, torch_save, imread, imwrite, imshow
+torch.load = torch_load
+torch.save = torch_save
+if WINDOWS:
+    # Apply cv2 patches for non-ASCII and non-UTF characters in image paths
+    cv2.imread, cv2.imwrite, cv2.imshow = imread, imwrite, imshow
 
 def test():
     plat = platform.machine()
