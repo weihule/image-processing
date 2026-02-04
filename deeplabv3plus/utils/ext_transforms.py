@@ -4,11 +4,33 @@ import matplotlib.pyplot as plt
 import math
 import torch
 import torchvision.transforms.functional as F
+from torchvision import transforms
 from torchvision.transforms import InterpolationMode
 import random
 import numbers
 import numpy as np
 from PIL import Image
+
+class SegmentationTransform(object):
+    def __init__(self, img_transform=None, lbl_transform=None):
+        self.img_transform = img_transform
+        self.lbl_transform = lbl_transform
+
+    def __call__(self, img, lbl):
+        if self.img_transform is not None:
+            img = self.img_transform(img)
+        if self.lbl_transform is not None:
+            lbl = self.lbl_transform(lbl)
+        return img, lbl
+
+class ExtCompose(object):
+    def __init__(self, transforms):
+        self.transforms = transforms
+
+    def __call__(self, img, lbl):
+        for t in self.transforms:
+            img, lbl = t(img, lbl)
+        return img, lbl
 
 
 class ExtRandomHorizontalFlip(object):

@@ -8,9 +8,7 @@ import shutil
 import numpy as np
 
 from PIL import Image
-from torchvision.datasets.utils import download_url, check_integrity
-
-from raw_projects.cv.yolov11.ultralytics.utils.metrics import mask_iou
+from torchvision.datasets.utils import download_url
 
 DATASET_YEAR_DICT = {
     '2012': {
@@ -88,6 +86,7 @@ class VOCSegmentation(Dataset):
             year = '2012'
 
         self.root = Path(root)
+
         self.year = year
         self.url = DATASET_YEAR_DICT[year]['url']
         self.filename = DATASET_YEAR_DICT[year]['filename']
@@ -97,7 +96,7 @@ class VOCSegmentation(Dataset):
         self.image_set = image_set
         base_dir = DATASET_YEAR_DICT[year]['base_dir']
         voc_root = self.root / base_dir
-        image_dir = self.root /  'JPEGImages'
+        image_dir = voc_root /  'JPEGImages'
 
         if download:
             download_extract(self.url, self.root, self.filename, self.md5)

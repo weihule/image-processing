@@ -1,10 +1,5 @@
-import os
 from pathlib import Path
-
-from psutil import SUNOS
 from torch.utils.tensorboard import SummaryWriter
-
-from raw_projects.nlp.glove.glovecode import glove
 
 
 class Visualizer(object):
@@ -15,7 +10,7 @@ class Visualizer(object):
         else:
             logdir = Path(logdir) / env
 
-        self.writer = SummaryWriter(logdir)
+        self.writer = SummaryWriter(str(logdir))
         self.id = id
         self.env = env
         print(f"✅ TensorBoard已启动，日志保存在: {logdir}")

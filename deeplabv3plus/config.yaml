@@ -1,0 +1,65 @@
+# 模型配置
+model:
+  name: "deeplabv3plus_mobilenet"  # 可选模型见代码中的available_models
+  separable_conv: false            # 是否应用separable conv到decoder和aspp
+  output_stride: 16                # 输出步长，可选8或16
+  num_classes: 21               # 类别数量，根据数据集自动设置
+  pretrained_backbone: "D:\\workspace\\weight_data\\pre_weight\\seg\\VainF-Deeplabv3Plus-Pytorch-Models\\mobilenet_v2-b0353104.pth"
+
+# 数据集配置
+dataset:
+  name: "voc"                      # 数据集名称，可选'voc'或'cityscapes'
+  data_root: "D:\\workspace\\data\\images\\"     # 数据集根目录
+  crop_val: True                  # 是否裁剪验证集
+  crop_size: 513                   # 训练时裁剪大小
+  download: false                  # 是否下载数据集
+
+  # PASCAL VOC特定配置
+  voc:
+    year: "2012"                   # VOC年份，可选'2012_aug', '2012', '2011', '2009', '2008', '2007'
+
+# 训练配置
+training:
+  total_itrs: 300                  # 总迭代次数
+  epoches: 100
+  batch_size: 16                   # 训练批大小
+  val_batch_size: 4                # 验证批大小
+  test_only: true                 # 仅测试模式
+  save_val_results: false          # 保存验证结果到"./results"
+  save_val_path: ''                # 保存验证结果路径
+  continue_training: false         # 是否继续训练
+  ckpt: null                       # 检查点文件路径，用于恢复训练或测试
+
+  # 优化器配置
+  optimizer:
+    lr: 0.01                       # 初始学习率
+    lr_backbone_ratio: 0.1         # backbone的学习率比例
+    weight_decay: 1e-4             # 权重衰减
+    momentum: 0.9                  # 动量
+
+  # 学习率调度
+  lr_scheduler:
+    policy: "poly"                 # 调度策略，可选'poly'或'step'
+    step_size: 15                  # step策略的步长, 每多少个epoch衰减一次学习率
+    power: 0.9                     # poly策略的幂
+
+  # 损失函数
+  loss:
+    type: "focal_loss"             # 损失类型，可选'cross_entropy'或'focal_loss'
+
+  # 验证与日志
+  print_interval: 10               # 损失打印间隔
+  val_interval: 100                # 验证间隔
+
+# 其他配置
+system:
+  gpu_id: "0,1"                      # GPU ID
+  random_seed: 1                   # 随机种子
+  num_workers: 2                   # 数据加载的工作进程数
+
+# 可视化配置
+visualization:
+  enable_vis: false                # 启用visdom可视化
+  vis_port: "13570"                # visdom端口
+  vis_env: "main"                  # visdom环境
+  vis_num_samples: 8               # 可视化样本数量
