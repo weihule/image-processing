@@ -20,11 +20,10 @@ dataset:
 
 # 训练配置
 training:
-  total_itrs: 300                  # 总迭代次数
   epoches: 100
-  batch_size: 16                   # 训练批大小
+  batch_size: 4                   # 训练批大小
   val_batch_size: 4                # 验证批大小
-  test_only: true                 # 仅测试模式
+  test_only: false                 # 仅测试模式
   save_val_results: false          # 保存验证结果到"./results"
   save_val_path: ''                # 保存验证结果路径
   continue_training: false         # 是否继续训练
@@ -39,7 +38,7 @@ training:
 
   # 学习率调度
   lr_scheduler:
-    policy: "poly"                 # 调度策略，可选'poly'或'step'
+    policy: "step"                 # 调度策略，可选'poly'或'step'
     step_size: 15                  # step策略的步长, 每多少个epoch衰减一次学习率
     power: 0.9                     # poly策略的幂
 
@@ -57,9 +56,8 @@ system:
   random_seed: 1                   # 随机种子
   num_workers: 2                   # 数据加载的工作进程数
 
-# 可视化配置
-visualization:
-  enable_vis: false                # 启用visdom可视化
-  vis_port: "13570"                # visdom端口
-  vis_env: "main"                  # visdom环境
-  vis_num_samples: 8               # 可视化样本数量
+# 日志配置
+log_set:
+  logdir: "./runs"
+  env: "deeplab_exp"
+  exp_id: "v1"

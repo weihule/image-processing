@@ -11,7 +11,7 @@ __pycache__/
 */*/*/*/*/__pycache__/
 .idea/
 */.idea/
-*/*/runs/
+**/runs/
 detection/*/show_images/*
 segmentation/wandb/
 reid/deep-person-reid/reid-data/*/*/

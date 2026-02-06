@@ -209,7 +209,7 @@ class ExtNormalize(object):
         img: [C, H, W]
         lbl:
         """
-        return F.normalize(img, mean=self.mean, std=self.std)
+        return F.normalize(img, mean=self.mean, std=self.std), lbl
 
     def __repr__(self):
         return f"{self.__class__.__name__} mean={self.mean} std={self.std}"

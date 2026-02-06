@@ -12,6 +12,7 @@ class FocalLoss(nn.Module):
         self.size_average = size_average
 
     def forward(self, inputs, targets):
+        # print(f"---- inputs:{inputs.shape}{inputs.device} targets: {targets.shape}{targets.device}")
         ce_loss = F.cross_entropy(
             inputs, targets, reduction='none', ignore_index=self.ignore_index)
         pt = torch.exp(-ce_loss)

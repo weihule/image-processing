@@ -132,8 +132,8 @@ class VOCSegmentation(Dataset):
         target = Image.open(self.masks[index])
 
         # 检查target是否为单通道，如果不是，则转换为单通道
-        if target.mode != "L":
-            target = target.convert("L")
+        # if target.mode != "L":
+        #     target = target.convert("L")
 
         if self.transform is not None:
             img, target = self.transform(img, target)
